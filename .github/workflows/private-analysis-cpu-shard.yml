@@ -225,7 +225,9 @@ jobs:
           urls={
             "espn_season_players":"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/statistics/players?season=2027&seasontype=2&limit=500",
             "espn_oct30_scoreboard":"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=20261030",
-            "espn_curry_season":"https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/3975/stats?season=2027&seasontype=2"}
+            "espn_curry_season":"https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/3975/stats?season=2027&seasontype=2",
+            "espn_celtics_roster":"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/bos/roster?season=2027",
+            "espn_all_player_stats":"https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/statistics/byathlete?season=2027&seasontype=2&limit=500"}
           probe={}
           for name,url in urls.items():
               try:
