@@ -1,0 +1,139 @@
+# Public workflow only. Original NBA payloads remain in private 104.
+name: IGP81 Oct30 immutable companion source final join
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-igp81-oct30-companion-final-join.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp81-oct30-private-companion-final-join
+  cancel-in-progress: false
+jobs:
+  verify-private-and-join:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      TARGET_BRANCH: release/igp32-p2b-nba81-unified-default-20261101
+      SOURCE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Enforce public boundary then clone private original sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$TARGET_BRANCH" "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/target"
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$SOURCE_BRANCH" "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/source"
+          git -C "$RUNNER_TEMP/target" sparse-checkout set gamepulse/fusion/evidence gamepulse/fusion/official_pbp_timing/games gamepulse/fusion/qa/igp_v32
+          git -C "$RUNNER_TEMP/source" sparse-checkout set gamepulse/fusion/evidence
+      - name: Preserve ten real companion bodies and original 81 PBP/SDK release invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/target"
+          python3 - <<'PY'
+          import hashlib,json,os,shutil
+          from collections import Counter
+          from pathlib import Path
+          target=Path(os.environ["RUNNER_TEMP"])/"target"
+          source=Path(os.environ["RUNNER_TEMP"])/"source"
+          G="gamepulse/fusion"
+          gameids=[f"00226000{i:02d}" for i in range(15,25)]
+          regpath=target/G/"qa/igp_v32/igp81_unified_native_possession_tracking_registry_run_41231284682.json"
+          gatepath=target/G/"qa/igp_v32/igp81_default_source_grade_release_receipt_v1.json"
+          reg=json.loads(regpath.read_bytes())
+          gate=json.loads(gatepath.read_bytes())
+          assert reg["counts"]["games"]==81 and reg["counts"]["guarded_complete_ten_plus_ball"]==1171507
+          assert reg["counts"]["NBA_official_team_POSS"]==16508
+          assert gate["engine_id"]=="IGP32_P2B_GUARDED_NBA81_FULL_SOURCE_QA_10HZ_20261101"
+          assert gate["original_81_source_index_sha_status"]=="ALL81_SHA_VERIFIED"
+          rows=[]; newly=0
+          for gid in gameids:
+              assert gid in reg["games"]
+              pbpfile=target/G/"official_pbp_timing/games"/(gid+".json")
+              pbpbytes=pbpfile.read_bytes()
+              assert hashlib.sha256(pbpbytes).hexdigest()==reg["games"][gid]["nba_official_PBP_SHA256"],"OFFICIAL_PBP_SOURCE_DRIFT:"+gid
+              official=json.loads(pbpbytes)
+              fga=sum(x.get("action_type") in ("2pt","3pt") for x in official["actions"])
+              rel=Path(G)/"evidence"/("companion_sdk_original_"+gid)
+              dest=target/rel
+              if not (dest/"sdk_observed_original.json").is_file():
+                  src=source/rel
+                  assert (src/"sdk_observed_original.json").is_file(),"ORIGINAL_COMPANION_BODY_NOT_RECOVERED:"+gid
+                  assert (src/"sdk_original_receipt.json").is_file(),"ORIGINAL_COMPANION_RECEIPT_MISSING:"+gid
+                  if dest.exists():
+                      assert not any(dest.iterdir()),"PARTIAL_SOURCE_REQUIRES_MANUAL_RECONCILIATION:"+gid
+                  shutil.copytree(src,dest,dirs_exist_ok=False)
+                  newly+=1
+              body=(dest/"sdk_observed_original.json").read_bytes()
+              receipt=json.loads((dest/"sdk_original_receipt.json").read_bytes())
+              assert receipt["game_id"]==gid and receipt["status"]=="FULL_EVENT_RESPONSE_OBSERVED"
+              assert receipt["full_original_events_endpoint_observed"] is True
+              assert receipt["raw_29joint_pose_60hz_observed"] is False
+              assert hashlib.sha256(body).hexdigest()==receipt["original_body_sha256"],"COMPANION_ORIGINAL_SHA_DRIFT:"+gid
+              events=json.loads(body)
+              assert isinstance(events,list) and len(events)==receipt["original_body_event_count"]
+              nshot=sum(e.get("event")=="ShotDetails#show" for e in events)
+              assert nshot==receipt["original_body_shot_details_count"] and nshot>0
+              rows.append({"game_id":gid,"original_full_event_response":True,
+                  "original_companion_sha256":receipt["original_body_sha256"],
+                  "original_event_count":len(events),"original_shot_details":nshot,
+                  "official_FGAs":fga,"official_PBP_sha256":hashlib.sha256(pbpbytes).hexdigest(),
+                  "same_game_original_sdk_tracking_qa":"FROZEN81_ACCEPTED",
+                  "physical_3D_accuracy_independently_certified":False})
+          out=target/G/"qa/igp_v32/igp81_oct30_original_companion_full_source_join_20261101.json"
+          assert not out.exists(),"PRIVATE_RECEIPT_ALREADY_EXISTS_REFUSE_OVERWRITE"
+          d={"schema":"igp81.oct30-companion-original-10game-source-join.v1",
+              "engine_id":gate["engine_id"],"unique_games":81,
+              "additional_games_to_add":0,"duplicate_games_added":0,
+              "all_oct30_ten_already_in_81_registry":True,
+              "new_original_companion_directories_copied":newly,
+              "original_NBA_companion_event_games":10,
+              "original_companion_ShotDetails":sum(x["original_shot_details"] for x in rows),
+              "official_FGAs":sum(x["official_FGAs"] for x in rows),
+              "shot_details_are_not_inferred_official_FGAs":True,
+              "published_NBA_team_POSS_81_unchanged":16508,
+              "source_graded_10Hz_complete_81_unchanged":1171507,
+              "source_graded_10Hz_eligible_81_unchanged":1340811,
+              "original_81_registry_sha256":hashlib.sha256(regpath.read_bytes()).hexdigest(),
+              "original_81_release_receipt_sha256":hashlib.sha256(gatepath.read_bytes()).hexdigest(),
+              "raw_original_29joint_60Hz_not_available":True,
+              "physical_custody_boundaries_certified":0,
+              "video_accuracy_independently_certified":False,
+              "rows":rows}
+          out.write_text(json.dumps(d,indent=2,sort_keys=True)+"\n")
+          print("IGP81_OCT30_PRIVATE_ORIGINAL_COMPANION_FULL_RESPONSE_GAMES",len(rows))
+          print("IGP81_OCT30_NEW_PRIVATE_COMPANION_DIRS",newly)
+          print("IGP81_OCT30_ORIGINAL_SHOT_DETAILS",d["original_companion_ShotDetails"])
+          print("IGP81_PROTECTED_FROZEN_GAME_COUNT",81)
+          PY
+      - name: Commit only additive private companion sources and SHA QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/target"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          for n in $(seq 15 24); do
+            gid="00226000$n"
+            git add -f "gamepulse/fusion/evidence/companion_sdk_original_$gid"
+          done
+          git add -f gamepulse/fusion/qa/igp_v32/igp81_oct30_original_companion_full_source_join_20261101.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo IGP81_PRIVATE_NO_DELTA; exit 0; fi
+          git commit -q -m 'data(igp81): SHA-join all ten Oct30 original companion event sources without duplicate games'
+          pushed=0
+          for n in $(seq 1 10); do
+            git fetch -q origin "$TARGET_BRANCH"
+            git rebase -q "origin/$TARGET_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$TARGET_BRANCH"; then pushed=1; break; fi
+            sleep "$n"
+          done
+          test "$pushed" -eq 1
+          echo IGP81_OCT30_FULL_COMPANION_SHA_PRIVATE_COMMITTED
