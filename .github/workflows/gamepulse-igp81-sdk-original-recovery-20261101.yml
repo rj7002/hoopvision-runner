@@ -1,3 +1,4 @@
+# 2026-11-01: rerun after public content guard allowlist registration.
 # Approved scope: private original NBA source recovery; public job logs aggregate status only.
 name: IGP81 private native SDK source recovery and hybrid gate
 on:
