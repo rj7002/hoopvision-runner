@@ -141,7 +141,19 @@ jobs:
             exit 0
           fi
           if ! python3 gamepulse/fusion/igp81_sdk_original_5game_recovery_v1.py --root . --games "${{ matrix.game }}" --output "$OUT" > "$RUNNER_TEMP/private-recovery.log" 2>&1; then
-            echo IGP81_PRIVATE_NATIVE_SOURCE_RECOVERY_FAILED
+            diag="gamepulse/fusion/qa/igp_v32/igp81_native_sdk_failure_${{ matrix.game }}.txt"
+            cp "$RUNNER_TEMP/private-recovery.log" "$diag"
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add -f "$diag"
+            git commit -q -m "qa(igp81): record private SDK extraction failure diagnostic"
+            for attempt in 1 2 3 4 5 6; do
+              git fetch -q origin "$PRIVATE_BRANCH"
+              git rebase -q "origin/$PRIVATE_BRANCH"
+              if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then break; fi
+              sleep "$attempt"
+            done
+            echo IGP81_PRIVATE_NATIVE_SOURCE_RECOVERY_FAILED_RECEIPT_PRIVATE
             exit 3
           fi
           python3 - "$OUT" <<'PY'
@@ -169,3 +181,65 @@ jobs:
           done
           test "$published" -eq 1
           echo IGP81_PRIVATE_NATIVE_SOURCE_COMMITTED
+
+  evaluate-new-native:
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        game: ['0022600022','0022600023','0022600024']
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: release/igp32-p2b-nba81-unified-default-20261101
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Private-only checkout and approved public safety gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: Run 10Hz original-SDK official-ten guarded P2B shadow admission QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          out="gamepulse/fusion/qa/igp_v32/igp81_new10_guarded_shadow_${{ matrix.game }}.json"
+          if test -s "$out"; then
+            echo IGP81_NATIVE_SHADOW_ALREADY_MATERIALIZED
+            exit 0
+          fi
+          if ! python3 gamepulse/fusion/igp81_new10_guarded_p2b_shadow_audit_v1.py --root . --games "${{ matrix.game }}" --out "$out" > "$RUNNER_TEMP/igp81-newsource-qa.log" 2>&1; then
+            cp "$RUNNER_TEMP/igp81-newsource-qa.log" "$out.failure.txt"
+            out="$out.failure.txt"
+            status=5
+          else
+            status=0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$out"
+          git commit -q -m "qa(igp81): private original NBA ten 10Hz P2B shadow or diagnostic"
+          published=0
+          for attempt in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              published=1
+              break
+            fi
+            sleep "$attempt"
+          done
+          test "$published" -eq 1
+          if test "$status" -ne 0; then
+            echo IGP81_PRIVATE_P2B_SHADOW_QA_DIAGNOSTIC_COMMITTED
+            exit 5
+          fi
+          echo IGP81_PRIVATE_P2B_SHADOW_QA_COMMITTED
