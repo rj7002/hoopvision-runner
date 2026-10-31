@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp81-promote-source-grade-detail.yml",  # private-only 81-game SHA-graded shot detail acceptance, aggregate public release status
     ".github/workflows/igp81-three-gap-companion-recovery.yml",  # licensed SDK authorized three-game source retry, raw privately preserved only
     ".github/workflows/igp81-retry-missing-three-companion.yml",  # authorized SDK retries of three unavailable original event programs; private-only source
     ".github/workflows/igp81-detailed-layers.yml",  # private SHA-verified 81-game Blueprint/biomechanics release; aggregates only public
