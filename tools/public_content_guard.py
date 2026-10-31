@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp81-oct30-companion-final-join.yml",  # private immutable NBA original companion SHA readback, public aggregate status only
     ".github/workflows/gamepulse-igp81-sdk-original-recovery-20261101.yml",  # private NBA SDK source recovery, private-only source and sanitized public status
     ".github/workflows/gamepulse-igp-p2b-team-offrtg-81-same-grain-20261101.yml",  # pinned private PBP score/possession audit; aggregate-only public QA
     ".github/workflows/gamepulse-igp-p2b-nba-style-oreb71-v1.yml",  # private 71 NBA PBP OREB continuation phase analysis; aggregate-only public QA
