@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp81-position-source-native-delta.yml",  # original SDK private XYZ timestamp/actor SHA delta; public aggregate only
     ".github/workflows/igp81-detailed-source-release-lock.yml",  # source SHA all81 verified private-only query and QA; safe public aggregates
     ".github/workflows/igp81-companion-positions-variant-probe.yml",  # first-party authorized SDK variant, original JSON saved private only
     ".github/workflows/igp81-promote-source-grade-detail.yml",  # private-only 81-game SHA-graded shot detail acceptance, aggregate public release status
