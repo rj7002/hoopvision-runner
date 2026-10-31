@@ -7,7 +7,7 @@ No raw 29-joint pose, physical release timestamp, exact position or custody
 is inferred from aggregate provider features.
 """
 from __future__ import annotations
-import argparse, collections, gzip, hashlib, json
+import argparse, collections, csv, gzip, hashlib, io, json
 from pathlib import Path
 
 BASE=Path("gamepulse/fusion")
@@ -200,6 +200,17 @@ def main(root):
         bpfile=root/BP/gid/"blueprint_report_raw.json"
         check(bpfile.is_file(),"MISSING_ORIGINAL_BLUEPRINT:"+gid)
         bpsha=filehash(bpfile);bp=load(bpfile)
+        csvfile=root/BP/gid/"shot_tracking_32_fields.csv"
+        check(csvfile.is_file(),"MISSING_BLUEPRINT_32_FIELD_CSV:"+gid)
+        csv_sha=filehash(csvfile)
+        with csvfile.open(newline="",encoding="utf-8") as handle:
+            reader=csv.DictReader(handle)
+            check(len(reader.fieldnames or [])==32 and "nba_event_id" in reader.fieldnames,
+                  "BLUEPRINT_CSV_32_SCHEMA_DRIFT:"+gid)
+            csv_rows=list(reader)
+        check(all(row.get("nba_game_id")==gid for row in csv_rows),
+              "BLUEPRINT_CSV_GAME_ID_DRIFT:"+gid)
+        total["blueprint_32field_csv_rows"]+=len(csv_rows)
         check(str(bp["game_header"]["gameId"])==gid,"BLUEPRINT_WRONG_GAME")
         check(bp["game_header"].get("gameStatus")==3,"BLUEPRINT_NOT_FINAL")
         check(isinstance(bp["shot_difficulty"]["shotDifficulty"],list),
@@ -212,10 +223,28 @@ def main(root):
             q=old["games"][gid];b=oldbp["games"][gid]
             check(q["official_fga"]==fga==b["official_field_goal_actions"],
                   "FROZEN_FGA_DRIFT:"+gid)
-            check(bpsha==b["blueprint_original_report_sha256"],"FROZEN_BLUEPRINT_SHA_DRIFT")
+            original_bp_sha=b["blueprint_original_report_sha256"]
+            report_grade=("CURRENT_SHA_MATCHES_FROZEN56_SOURCE" if bpsha==original_bp_sha
+                          else "CURRENT_REPORT_VERSION_DIFFERS_FROM_FROZEN56_SOURCE")
+            total["frozen56_current_blueprint_revision_drift"]+=int(bpsha!=original_bp_sha)
             ledger=root/q["path"]
             check(ledger.is_file() and filehash(ledger)==q["source_sha256"],
                   "FROZEN56_SHOT_LEDGER_CHANGED:"+gid)
+            legacy=[json.loads(line) for line in gzip.decompress(ledger.read_bytes()).splitlines() if line]
+            check(len(legacy)==fga,"FROZEN56_LEDGER_FGA_ROW_COUNT_DRIFT:"+gid)
+            archived_bp=0
+            source_shot_rows=bp["shot_difficulty"]["shotDifficulty"]
+            for row in legacy:
+                p=row.get("published_blueprint")
+                if not p: continue
+                check(p.get("source_original_report_sha256")==original_bp_sha,
+                      "FROZEN56_LEDGER_RECORDED_SOURCE_SHA_DRIFT:"+gid)
+                ix=p.get("source_raw_record_number")
+                if type(ix)==int and 0<=ix<len(source_shot_rows):
+                    archived_bp+=int(p.get("published")==source_shot_rows[ix])
+            archived_count=sum(row.get("published_blueprint") is not None for row in legacy)
+            total["frozen56_blueprint_shot_records_matching_current_version"]+=archived_bp
+            total["frozen56_blueprint_shot_records_not_matching_current_version"]+=(archived_count-archived_bp)
             counts={"official_fga":fga,
                "blueprint_matched":q["counts"].get("official_shots_with_identity_matched_Blueprint",0),
                "advanced_matched":q["counts"].get("official_shots_with_advanced_features",0),
@@ -223,6 +252,9 @@ def main(root):
             path=q["path"];sh=q["source_sha256"];origin="UNCHANGED_ACCEPTED_56"
             prior_fga+=fga
         else:
+            original_bp_sha=bpsha
+            report_grade="ORIGINAL_CURRENT_SOURCE_SHA_VERIFIED_NEW25"
+
             rows,counts=make_new(gid,pbp,bp,events,entry["nba_official_PBP_SHA256"],bpsha,cp["sha256"])
             dest=root/OUT/(gid+".jsonl.gz")
             raw=gziprows(rows);write_once(dest,raw)
@@ -241,6 +273,11 @@ def main(root):
             "official_PBP_SHA256":entry["nba_official_PBP_SHA256"],
             "blueprint_original_source_path":str(BP/gid/"blueprint_report_raw.json"),
             "blueprint_original_SHA256":bpsha,
+            "shot_ledger_blueprint_original_SHA256":original_bp_sha,
+            "blueprint_report_revision_grade":report_grade,
+            "blueprint_32field_csv_original_path":str(BP/gid/"shot_tracking_32_fields.csv"),
+            "blueprint_32field_csv_original_SHA256":csv_sha,
+            "blueprint_32field_csv_row_count":len(csv_rows),
             "blueprint_report_modules_present":mods,
             "blueprint_reported_missing_modules":bp.get("missingModules"),
             "blueprint_published_shot_rows":len(bp["shot_difficulty"]["shotDifficulty"]),
@@ -275,7 +312,12 @@ def main(root):
        "blueprint_shots_exact":total["blueprint_matched"],
        "provider_30feature_shots_exact":total["advanced_matched"],
        "shots_published_xfg":total["any_published_xfg"],
-       "uncertified_29joint_pose_games":81}
+       "uncertified_29joint_pose_games":81,
+       "frozen56_blueprint_reports_with_newer_source_SHA":
+           total["frozen56_current_blueprint_revision_drift"],
+       "frozen56_blueprint_shot_rows_changed_in_current_source":
+           total["frozen56_blueprint_shot_records_not_matching_current_version"],
+       "blueprint_32field_csv_rows":total["blueprint_32field_csv_rows"]}
     print("IGP81_DETAIL_SOURCE_GRADE",json.dumps(summary,sort_keys=True),flush=True)
     return summary
 if __name__=="__main__":
