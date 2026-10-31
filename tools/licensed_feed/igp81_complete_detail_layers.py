@@ -272,9 +272,9 @@ def main(root):
             path=str(dest.relative_to(root));sh=digest(raw);origin="ADDITIVE_NEW25_SHA_GRADED"
         total["official_fga"]+=fga
         total["source_blueprint_shot_rows"]+=len(bp["shot_difficulty"]["shotDifficulty"])
-        total["blueprint_matched"]+=counts["blueprint_matched"]
-        total["advanced_matched"]+=counts["advanced_matched"]
-        total["any_published_xfg"]+=counts["any_published_xfg"]
+        total["blueprint_matched"]+=counts.get("blueprint_matched",0)
+        total["advanced_matched"]+=counts.get("advanced_matched",0)
+        total["any_published_xfg"]+=counts.get("any_published_xfg",0)
         total["companion_events"]+=cp["events"]
         total["companion_shotdetails"]+=cp["shotdetails"]
         total["games_with_full_blueprint"]+=1
