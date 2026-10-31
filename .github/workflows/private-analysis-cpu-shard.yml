@@ -62,7 +62,8 @@ jobs:
           output=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-summary.json"
           p=subprocess.run([sys.executable,str(task),"--root",str(root),
                             "--shard",str(shard),"--shards",str(item["shards"]),
-                            "--out",str(output)],cwd=root,capture_output=True,text=True)
+                            "--out",str(output)],cwd=root,capture_output=True,text=True,
+                            env={**os.environ,"PYTHONPATH":str(root/"gamepulse/fusion")})
           if p.returncode:
               print("PRIVATE_ANALYSIS_SOURCE_EXECUTION_FAILED")
               sys.exit(1)
