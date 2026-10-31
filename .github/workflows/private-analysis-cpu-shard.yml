@@ -102,3 +102,64 @@ jobs:
               sys.exit(1)
           print("PRIVATE_ANALYSIS_SHARD_COMMITTED")
           PY
+
+  private-ranking:
+    needs: [private-shard]
+    if: success()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Source-free boundary validation
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Pool private shard summaries and write validated private-only leaderboard
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,json,os,pathlib,subprocess,sys
+          repo="timeedmonds-maker/104"
+          def fetch(path,ref):
+              raw=subprocess.check_output(
+                  ["gh","api",f"repos/{repo}/contents/{path}?ref={ref}",
+                   "--jq",".content"])
+              return base64.b64decode(raw)
+          task=json.loads(fetch("analysis_execution/current_igp_task.json","main"))
+          assert task["shards"]==9
+          ref=task["ref"]
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"source-shard-summary"
+          root.mkdir(parents=True)
+          for i in range(9):
+              name=f"shard_{i}.json"
+              (root/name).write_bytes(fetch(f'{task["out_dir"]}/{name}',ref))
+          script=root/"rank.py"
+          script.write_bytes(fetch(
+              "gamepulse/fusion/analysis/igp81_halfcourt_nearest_defender_rank_v1.py",ref))
+          out=root/"top20.json"
+          proc=subprocess.run([sys.executable,str(script),"--dir",str(root),
+                               "--out",str(out)],capture_output=True,text=True)
+          if proc.returncode:
+              print("PRIVATE_RANKING_VALIDATION_FAILED")
+              sys.exit(1)
+          result=json.loads(out.read_bytes())
+          assert result["games_processed"]==81 and result["original_source_modified"] is False
+          target=f'repos/{repo}/contents/{task["out_dir"]}/top20.json'
+          payload={"branch":ref,"message":"qa(private): publish source-graded 81-game halfcourt proximity leaderboard",
+                   "content":base64.b64encode(out.read_bytes()).decode()}
+          old=subprocess.run(["gh","api",target],capture_output=True,text=True)
+          if old.returncode==0:payload["sha"]=json.loads(old.stdout)["sha"]
+          r=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
+                           input=json.dumps(payload),capture_output=True,text=True)
+          if r.returncode:
+              print("PRIVATE_RANKING_RECEIPT_WRITE_FAILED")
+              sys.exit(1)
+          print("PRIVATE_AGGREGATE_RANKING_READY")
+          PY
