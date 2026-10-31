@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp81-detailed-layers.yml",  # private SHA-verified 81-game Blueprint/biomechanics release; aggregates only public
+    "tools/licensed_feed/igp81_complete_detail_layers.py",  # source-only Python transform; licensed data never committed to public
     ".github/workflows/gamepulse-igp81-oct30-companion-final-join.yml",  # private immutable NBA original companion SHA readback, public aggregate status only
     ".github/workflows/gamepulse-igp81-sdk-original-recovery-20261101.yml",  # private NBA SDK source recovery, private-only source and sanitized public status
     ".github/workflows/gamepulse-igp-p2b-team-offrtg-81-same-grain-20261101.yml",  # pinned private PBP score/possession audit; aggregate-only public QA
