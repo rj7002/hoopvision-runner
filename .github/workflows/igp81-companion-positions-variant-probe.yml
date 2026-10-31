@@ -70,7 +70,7 @@ jobs:
               data=(root/"companion_original_sdk_response.json").read_bytes()
               assert hashlib.sha256(data).hexdigest()==r["original_body_sha256"]
               assert len(json.loads(data))==r["original_body_event_count"]
-          print("IGP81_POSITIONS_SDK_AUTHORIZED_STATUS",r["game_id"],r["status"],r["original_body_event_count"],r["original_body_shot_details_count"])
+          print("IGP81_POSITIONS_SDK_AUTHORIZED_STATUS",r["game_id"],r["status"],r.get("original_body_event_count",0),r.get("original_body_shot_details_count",0))
           PY
       - name: Certify response provenance and preserve raw response only privately
         shell: bash
