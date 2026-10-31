@@ -104,7 +104,7 @@ try{
    await new Promise(resolve=>setTimeout(resolve,3200));
  }
  await Promise.allSettled([...pending]);
- const winners=candidateBodies.filter(x=>x.shots>0).sort((a,b)=>
+ const winners=candidateBodies.filter(x=>x.shots>0 || (sourceVariant==='positions' && x.full && x.events>0)).sort((a,b)=>
       (b.full?1:0)-(a.full?1:0)||b.shots-a.shots||b.buffer.length-a.buffer.length);
  if(winners.length){
    const best=winners[0];
