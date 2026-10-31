@@ -1,5 +1,5 @@
-# Public logs contain aggregate counts only; source rows and QA stay in private repo. Guard allowlist verified.
-name: IGP P2B team OffRtg same-grain 81-game audit
+# Aggregate-only public orchestration. Raw NBA source and full QA stay private.
+name: IGP P2B 81 NBA official PBP union and OffRtg QA
 on:
   push:
     branches: [main]
@@ -16,11 +16,11 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-v32-p2b-all-action-crosswalk-20261031
-      PIN: bc0e1305f952274fd37da91ad135c0463d49e8b1
+      PIN: 822351f9542bf2d91e6e352e46c8c878a2f5c0a7
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: Check public content and pinned private source
+      - name: Verify public guard and exact private source commit
         shell: bash
         run: |
           set -euo pipefail
@@ -32,84 +32,49 @@ jobs:
           git -C "$RUNNER_TEMP/private" checkout -q --detach "$PIN"
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
           test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PIN"
-      - name: Freeze NBA Advanced mirror 81 regular-season games through 30 October
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 -m pip -q install duckdb
-          python3 - <<'PY'
-          import duckdb, hashlib, json, os, urllib.request
-          from pathlib import Path
-          url="https://basketball-data.billmill.org/nba/stats/team_game_logs/season=2027/data.parquet"
-          req=urllib.request.Request(url,headers={"User-Agent":"IGP-same-grain-source-audit/1.0"})
-          with urllib.request.urlopen(req,timeout=45) as stream:
-              data=stream.read(16000000)
-              if stream.read(1): raise ValueError("NBA_PUBLIC_SOURCE_TOO_LARGE")
-          if not data.startswith(b"PAR1") or not data.endswith(b"PAR1"):
-              raise ValueError("NBA_MIRROR_NOT_VALID_PARQUET")
-          tmp=Path(os.environ["RUNNER_TEMP"])
-          path=tmp/"nba_advanced_team_2027.parquet"
-          path.write_bytes(data)
-          con=duckdb.connect()
-          records=con.execute("""
-              SELECT CAST(game_id AS VARCHAR), CAST(team_id AS VARCHAR),
-                     CAST(pts AS INTEGER), CAST(poss AS INTEGER),
-                     CAST(off_rating AS DOUBLE)
-              FROM read_parquet(?)
-              WHERE game_id LIKE '00226%' AND game_date < DATE '2026-10-31'
-              ORDER BY game_id, team_id
-          """,[str(path)]).fetchall()
-          if len(records)!=162 or len({x[0] for x in records})!=81:
-              raise ValueError("FROZEN81_GAME_SET_NOT_PRESENT")
-          rows=[dict(game_id=g,team_id=t,pts=p,poss=n,off_rating=o)
-                for g,t,p,n,o in records]
-          (tmp/"nba81_team_advanced.json").write_text(json.dumps({
-              "source_grade":"NBA_OFFICIAL_DERIVED_PUBLIC_MIRROR",
-              "parquet_upstream_sha256":hashlib.sha256(data).hexdigest(),
-              "team_games":rows},sort_keys=True))
-          print("FROZEN_NBA81_MIRROR",len(records),len({x[0] for x in records}))
-          PY
-      - name: Run source-free tests and original 71 plus 10 stats-only audit
+      - name: Replay all 81 PBP games, immutable ten-game raw source, and ratings
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
           python3 -m unittest -q gamepulse/fusion/tests/test_igp_p2b_team_offrtg_same_grain_v1.py
-          python3 gamepulse/fusion/igp_p2b_team_offrtg_same_grain_v1.py \
-            --root . --nba81-team-rows-json "$RUNNER_TEMP/nba81_team_advanced.json" \
-            --out "$RUNNER_TEMP/igp_p2b_nba81_same_grain_team_rate_v1.json" \
-            > "$RUNNER_TEMP/igp_private_team_rate_audit.log" 2>&1 || {
-              echo IGP_TEAM_RATE_AUDIT_FAILED_CHECK_PRIVATE_LOG
+          python3 -m py_compile gamepulse/fusion/igp_p2b_nba81_pbp_union_v1.py
+          python3 gamepulse/fusion/igp_p2b_nba81_pbp_union_v1.py \
+            --root . --out "$RUNNER_TEMP/igp_p2b_nba81_pbp_union_rate_v1.json" \
+            > "$RUNNER_TEMP/igp_private_nba81_union.log" 2>&1 || {
+              echo IGP_NBA81_UNION_SOURCE_QA_FAILED_CHECK_PRIVATE_LOG
               exit 61
             }
           python3 - <<'PY'
           import json,os
           from pathlib import Path
-          p=Path(os.environ["RUNNER_TEMP"])/"igp_p2b_nba81_same_grain_team_rate_v1.json"
-          o=json.loads(p.read_bytes()); c=o["counts"]
-          assert o["cohort_games"]==81 and len(o["rows"])==162
-          assert c["original_team_rows"]==142 and c["stats_only_team_rows"]==20
-          assert c["igp_chains"]==14612 and c["nba_POSS_on_original71"]==14552
-          assert c["original_PBP_points"]==16245
-          assert o["physical_custody_boundaries_certified"]==0
-          print("IGP81_TEAM_RATE_SOURCE_AUDIT",json.dumps(c,sort_keys=True))
+          a=json.loads((Path(os.environ["RUNNER_TEMP"])/"igp_p2b_nba81_pbp_union_rate_v1.json").read_bytes())
+          c=a["counts"]
+          assert c["games"]==81 and c["team_rows"]==162
+          assert c["original_native_game_contexts"]==71 and c["PBP_only_games"]==10
+          assert c["source_PBP_actions"]==49435
+          assert c["PBP_chain_candidates"]==16581 and c["NBA_team_POSS"]==16508
+          assert c["official_PBP_points"]==18464
+          assert c["unlinked_scoring_points"]==0
+          assert a["physical_custody_boundaries_certified"]==0
+          print("IGP_NBA81_ORIGINAL_PBP_AND_RATE_QA",json.dumps(c,sort_keys=True))
           PY
-      - name: Commit immutable receipt only if research branch is still pinned
+      - name: Commit full source QA receipt to private research branch
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           git fetch -q origin "$BRANCH"
           test "$(git rev-parse FETCH_HEAD)" = "$PIN" || {
-            echo IGP_RESEARCH_BRANCH_ADVANCED_QA_NOT_COMMITTED
+            echo IGP_PRIVATE_BRANCH_ADVANCED_RECEIPT_NOT_COMMITTED
             exit 62
           }
-          dest=gamepulse/fusion/qa/igp_v32/igp_p2b_nba81_same_grain_team_rate_v1.json
+          dest=gamepulse/fusion/qa/igp_v32/igp_p2b_nba81_original_PBP_union_team_rate_v1.json
           test ! -e "$dest"
-          cp "$RUNNER_TEMP/igp_p2b_nba81_same_grain_team_rate_v1.json" "$dest"
+          cp "$RUNNER_TEMP/igp_p2b_nba81_pbp_union_rate_v1.json" "$dest"
           git add "$dest"
           git -c user.name=igp-source-qa -c user.email=igp-source-qa@users.noreply.github.com \
-            commit -qm "qa: freeze NBA81 same-grain rate and original71 source score ledger"
+            commit -qm "qa: freeze original81 PBP count and same-grain team rate"
           git push -q origin HEAD:"$BRANCH"
-          echo IGP81_PRIVATE_QA_RECEIPT_COMMITTED
+          echo IGP_NBA81_PRIVATE_PBP_QA_RECEIPT_COMMITTED
