@@ -106,11 +106,13 @@ jobs:
           }
           echo IGP81_PRIVATE_GAME_SDK_RELEASE_SHA_VALIDATED
   recover-five:
+    needs: backfill-remaining-five
+    if: always()
     strategy:
       fail-fast: false
       max-parallel: 2
       matrix:
-        game: ['0022600015','0022600016','0022600022','0022600023','0022600024']
+        game: ['0022600015','0022600016','0022600017','0022600018','0022600019','0022600020','0022600021','0022600022','0022600023','0022600024']
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -183,11 +185,13 @@ jobs:
           echo IGP81_PRIVATE_NATIVE_SOURCE_COMMITTED
 
   evaluate-new-native:
+    needs: recover-five
+    if: always()
     strategy:
       fail-fast: false
       max-parallel: 3
       matrix:
-        game: ['0022600022','0022600023','0022600024']
+        game: ['0022600015','0022600016','0022600017','0022600018','0022600019','0022600020','0022600021','0022600022','0022600023','0022600024']
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
