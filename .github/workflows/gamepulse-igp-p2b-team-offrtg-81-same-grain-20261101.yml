@@ -15,7 +15,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-missed-and-one-81-credit-20261101
-      PIN: 3978993c7c9c0f20166a845eb3afdc4e6ded68ef
+      PIN: 29f68a41c64dde70ed5a9605c12c6cbadd5118a1
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -53,6 +53,8 @@ jobs:
           assert t['games']==81 and t['team_games']==162 and t['baseline_candidate_credits']==16484
           assert t['baseline_absolute_residual']==156 and t['counterfactual_is_NBA_credit_rule'] is False
           print('IGP81_RESIDUAL_TRIAGE',json.dumps({k:t[k] for k in ('technical_FT_candidates','baseline_absolute_residual','technical_FT_exclusion_counterfactual_absolute_residual','baseline_exact_team_games','technical_FT_exclusion_counterfactual_exact_team_games','baseline_net','technical_FT_exclusion_counterfactual_net')},sort_keys=True))
+          assert t['remaining_shared_onset_groups_after_and_one'] >= 1
+          print('IGP81_REMAINING_SHARED_ONSETS',json.dumps(t['remaining_shared_onset_pattern_counts'],sort_keys=True))
           PY
       - name: Commit immutable full QA only on exact private head
         shell: bash
@@ -61,7 +63,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git fetch -q origin "$BRANCH"
           test "$(git rev-parse FETCH_HEAD)" = "$PIN" || { echo IGP_PRIVATE_HEAD_MOVED; exit 63; }
-          dest=gamepulse/fusion/qa/igp_v32/igp_p2b_81_residual_event_triage_v1.json
+          dest=gamepulse/fusion/qa/igp_v32/igp_p2b_81_shared_onset_event_triage_v1.json
           test ! -e "$dest"
           cp "$RUNNER_TEMP/igp81_triage.json" "$dest"
           git add "$dest"
