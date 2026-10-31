@@ -76,7 +76,7 @@ jobs:
           gh auth setup-git
           git clone -q --depth=1 --filter=blob:none --sparse -b "$TARGET_BRANCH" \
              https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
-          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/evidence gamepulse/fusion/qa/igp_v32 gamepulse/fusion/qa/igp_progress_20261029
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/evidence gamepulse/fusion/qa/igp_v32 gamepulse/fusion/qa/igp_progress_20261029 gamepulse/fusion/qa/igp_progress_20261029
           cd "$RUNNER_TEMP/private"
           python3 - <<'PY'
           import json,hashlib,os,shutil
@@ -104,16 +104,29 @@ jobs:
                   shutil.copyfile(src,body)
                   receipt.write_text(json.dumps(new,sort_keys=True,indent=2)+"\n")
               else:
-                  old=json.loads(receipt.read_bytes())
+                  # Frozen accepted 56game responses may have their original SHA
+                  # receipt only in the QA snapshot; do not manufacture a new one.
+                  prior=Path("gamepulse/fusion/qa/igp_progress_20261029")/("igp_companion_sdk_authorized_source_"+gid+"_20261029.json")
+                  old=json.loads(receipt.read_bytes()) if receipt.exists() else json.loads(prior.read_bytes())
                   assert hashlib.sha256(body.read_bytes()).hexdigest()==old["original_body_sha256"]
                   assert old["original_body_shot_details_count"]>=0
                   if new["original_body_shot_details_count"]>old["original_body_shot_details_count"]:
+                      # Never overwrite immutable original, even when better
+                      # source response is observed; preserve a SHA revision.
                       history=out/"source_revision_history"
                       history.mkdir(exist_ok=True)
-                      shutil.copyfile(body,history/(old["original_body_sha256"]+".json"))
-                      shutil.copyfile(receipt,history/(old["original_body_sha256"]+".receipt.json"))
-                      shutil.copyfile(src,body)
-                      receipt.write_text(json.dumps(new,sort_keys=True,indent=2)+"\n")
+                      revised=history/(new["original_body_sha256"]+".json")
+                      revised_receipt=history/(new["original_body_sha256"]+".receipt.json")
+                      if revised.exists():
+                          assert revised.read_bytes()==data
+                      else:
+                          shutil.copyfile(src,revised)
+                      revised_receipt.write_text(json.dumps(new,sort_keys=True,indent=2)+"\n")
+                      print("IGP81_COMPANION_ADDITIVE_SOURCE_REVISION",gid,old["original_body_shot_details_count"],new["original_body_shot_details_count"])
+                  elif not receipt.exists():
+                      # Keep previously accepted QA receipt authoritative; do
+                      # not duplicate it or alter original immutable records.
+                      print("IGP81_COMPANION_FROZEN56_ACCEPTED_SOURCE_CONSERVED",gid)
           elif not receipt.exists():
               receipt.write_text(json.dumps(new,sort_keys=True,indent=2)+"\n")
           safe={k:new.get(k) for k in ("game_id","status","initialization_result",
