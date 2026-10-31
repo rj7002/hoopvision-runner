@@ -252,8 +252,18 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           dest="gamepulse/fusion/qa/igp_v32/igp81_full_native_source_promotion_gate_v1.json"
           if test -s "$dest"; then
-            echo IGP81_FULL_NATIVE_DECISION_ALREADY_PRESERVED
-            exit 0
+            if python3 - "$dest" <<'PY'
+          import json,sys
+          x=json.load(open(sys.argv[1]))
+          assert x.get('all_81_original_SDK_source_QA_complete') is True
+          PY
+            then
+              echo IGP81_FULL_NATIVE_ACCEPTED_DECISION_ALREADY_PRESERVED
+              exit 0
+            fi
+            previous="${dest%.json}.previous_incomplete_${GITHUB_RUN_ID}.json"
+            git mv "$dest" "$previous"
+            echo IGP81_SUPERSEDED_PRIVATE_INCOMPLETE_RELEASE_GATE
           fi
           python3 gamepulse/fusion/igp81_full_native_source_acceptance_gate_v1.py --root . --out "$dest" > "$RUNNER_TEMP/private-grade.log" 2>&1 || {
             echo IGP81_PRIVATE_FINAL_GATE_SCRIPT_ERROR
