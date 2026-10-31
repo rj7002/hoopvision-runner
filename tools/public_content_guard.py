@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp81-source-adjusted-10hz.yml",  # private original SDK availability source mask; public only aggregate metrics
+    "tools/licensed_feed/igp81_source_availability_800ms_audit.py",  # source-free 81game availability QA transform executed privately
     ".github/workflows/igp81-position-source-native-delta.yml",  # original SDK private XYZ timestamp/actor SHA delta; public aggregate only
     ".github/workflows/igp81-detailed-source-release-lock.yml",  # source SHA all81 verified private-only query and QA; safe public aggregates
     ".github/workflows/igp81-companion-positions-variant-probe.yml",  # first-party authorized SDK variant, original JSON saved private only
