@@ -9,7 +9,7 @@ on:
 permissions: {contents: read}
 concurrency:
   group: igp81-original-sdk-recovery-private
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   source-tests:
     runs-on: ubuntu-24.04
