@@ -1,0 +1,79 @@
+name: IGP81 original SDK availability conditional 10Hz
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp81-source-adjusted-10hz.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp81-source-adjusted-10hz-private
+  cancel-in-progress: false
+jobs:
+  source-mask-census:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 48
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/igp81-all-layers-source-grade-20261101
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify public code cannot leak private original SDK coordinates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          python3 -m py_compile tools/licensed_feed/igp81_source_availability_800ms_audit.py
+          test -n "$GH_TOKEN"
+      - name: Clone only private original native and necessary official NBA sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" \
+             https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set \
+             gamepulse/fusion/igp81_new10_guarded_p2b_shadow_audit_v1.py \
+             gamepulse/fusion/igp_g4_post36_official_ten_evidence_v1.py \
+             gamepulse/fusion/igp_native_scene_season_68_benchmark_v1.py \
+             gamepulse/fusion/igp_68_live_play_tracking_qa_v1.py \
+             gamepulse/fusion/igp_native_scene_model_v2.py \
+             gamepulse/fusion/igp_71_new3_live_play_tracking_qa_v1.py \
+             gamepulse/fusion/igp_v32_p2b_guarded_shadow_v1.py \
+             gamepulse/fusion/igp_v32_p2b_eightgame_source_bounded_bidirectional_pilot_v1.py \
+             gamepulse/fusion/igp_v32_71_single_missing_player_short_edge_challenger_v1.py \
+             gamepulse/fusion/igp_v32_71_ball_speed_domain_challenger_v1.py \
+             gamepulse/fusion/official_pbp_timing/pbp_only_oct21_10 \
+             gamepulse/fusion/qa/igp_v32 \
+             gamepulse/fusion/materialized/igp_all_original_xyz
+      - name: Source-availability QA uses exactly 81 certified strict S1 ticks
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PYTHONPATH="$RUNNER_TEMP/private/gamepulse/fusion"
+          python3 tools/licensed_feed/igp81_source_availability_800ms_audit.py --root "$RUNNER_TEMP/private"
+          echo IGP81_PRIVATE_SOURCE_MASK_QA_COMPLETE
+      - name: Save immutable aggregate source adjustment privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_v32/igp81_10hz_sdk_source_availability_800ms_v1.json
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo IGP81_SOURCE_ADJUSTED_QA_ALREADY_SAVED
+            exit 0
+          fi
+          git commit -q -m 'qa(igp81): source availability adjusted strict 10Hz coverage and bounds'
+          for n in $(seq 1 8); do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo IGP81_SOURCE_ADJUSTED_PRIVATE_QA_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 16
