@@ -1,4 +1,5 @@
 name: IGP81 original SDK availability conditional 10Hz
+# Captures original SDK availability separately from derived trajectory completeness
 on:
   push:
     branches: [main]
