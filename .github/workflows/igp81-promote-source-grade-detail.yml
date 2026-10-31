@@ -1,0 +1,158 @@
+# Opaque public runner for additive private source-graded shot analytics only.
+name: IGP81 source-graded detailed-shot default release promotion
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp81-promote-source-grade-detail.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp81-detail-default-promotion-v1
+  cancel-in-progress: false
+jobs:
+  audit-and-promote:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      TARGET_BRANCH: release/igp32-p2b-nba81-unified-default-20261101
+      SOURCE_BRANCH: research/igp81-all-layers-source-grade-20261101
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Guard public/private boundary and preserve original frozen engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$TARGET_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/target"
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$SOURCE_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/source"
+          for branch in target source; do
+            git -C "$RUNNER_TEMP/$branch" sparse-checkout set \
+              gamepulse/fusion/qa/igp_v32 \
+              gamepulse/fusion/qa/igp_progress_20261029 \
+              gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all56_v2 \
+              gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all81_v1 \
+              gamepulse/fusion/official_pbp_timing \
+              data/extensions/nba_blueprint_2026_27/games
+          done
+      - name: Verify 81/81 shot records, original provenance, exact NBA PBP and no overwrite
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/target"
+          python3 - <<'PY'
+          import os,json,hashlib,shutil
+          from pathlib import Path
+          base=Path("gamepulse/fusion")
+          root=Path(os.environ["RUNNER_TEMP"])
+          src=root/"source"
+          def ld(p):return json.loads(p.read_bytes())
+          def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+          reg=ld(base/"qa/igp_v32/igp81_unified_native_possession_tracking_registry_run_41231284682.json")
+          release=ld(base/"qa/igp_v32/igp81_default_source_grade_release_receipt_v1.json")
+          assert reg["counts"]["games"]==81 and release["original_81_games"]==81
+          assert release["original_81_source_index_sha_status"]=="ALL81_SHA_VERIFIED"
+          assert release["engine_id"]=="IGP32_P2B_GUARDED_NBA81_FULL_SOURCE_QA_10HZ_20261101"
+          assert release["guarded_ten_player_plus_ball_complete"]==1171507
+          assert release["strict_S1_10hz_samples"]==1340811
+          idx=ld(src/base/"materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all81_v1/index.json")
+          reconcile=ld(src/base/"qa/igp_v32/igp81_official_pbp_blueprint_semantic_reconciliation_v1.json")
+          assert idx["official_games"]==81 and len(idx["games"])==81
+          assert reconcile["ten_new_games_official_action_sequences_and_times_identical"]
+          assert reconcile["prior_blueprint_9221_accepted_shot_records_match_current"]
+          assert idx["original_frozen_56_shot_ledgers_unchanged"]
+          assert idx["additive_new25_official_shot_ledgers"]==25
+          assert idx["totals"]["official_fga"]==14375
+          assert idx["totals"]["games_with_full_blueprint"]==81
+          assert idx["totals"]["games_with_full_companion"]==78
+          assert idx["totals"]["advanced_matched"]==12634
+          assert idx["totals"]["blueprint_matched"]==13225
+          assert idx["totals"]["any_published_xfg"]==13283
+          frozen=0;added=0
+          for gid,d in sorted(idx["games"].items()):
+              assert gid in reg["games"]
+              bp=Path(d["blueprint_original_source_path"])
+              assert sha(bp)==d["blueprint_original_SHA256"],"DEFAULT_BLUEPRINT_SHA_CHANGED:"+gid
+              origin_path=Path(d["shot_ledger_path"])
+              source_file=src/origin_path
+              if d["source_grade"]=="UNCHANGED_ACCEPTED_56":
+                  frozen+=1
+                  assert origin_path.is_file(),"ORIGINAL_FROZEN_LEDGER_NOT_IN_DEFAULT:"+gid
+                  assert sha(origin_path)==sha(source_file)==d["shot_ledger_sha256"],"IMMUTABLE_56_LEDGER_DRIFT:"+gid
+              else:
+                  added+=1
+                  assert d["source_grade"]=="ADDITIVE_NEW25_SHA_GRADED"
+                  assert source_file.is_file() and sha(source_file)==d["shot_ledger_sha256"]
+                  origin_path.parent.mkdir(parents=True,exist_ok=True)
+                  if origin_path.exists():
+                      assert sha(origin_path)==d["shot_ledger_sha256"],"REFUSE_OVERWRITE_ACCEPTED_NEW25:"+gid
+                  else:shutil.copyfile(source_file,origin_path)
+              assert d["tracking_original_manifest_sha256"]==reg["games"][gid]["native_original_manifest_sha256"]
+          assert frozen==56 and added==25
+          baseout=base/"materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all81_v1/index.json"
+          source_index=src/baseout
+          if baseout.exists():
+              assert sha(baseout)==sha(source_index),"REFUSE_OVERWRITE_ACCEPTED_81_DETAIL_INDEX"
+          else:shutil.copyfile(source_index,baseout)
+          recout=base/"qa/igp_v32/igp81_official_pbp_blueprint_semantic_reconciliation_v1.json"
+          if recout.exists():
+              assert sha(recout)==sha(src/recout),"REFUSE_OVERWRITE_ACCEPTED_PBP_AUDIT"
+          else:shutil.copyfile(src/recout,recout)
+          manifest={"schema":"igp81.source-graded-default-detailed-analytics.v1",
+            "engine_id":release["engine_id"],
+            "official_games":81,"original_56_shot_ledgers_unchanged":56,
+            "new_verified_shot_ledgers":25,
+            "all_81_blueprint_original_reports":True,
+            "official_fga_total":14375,
+            "blueprint_official_shooter_matched":13225,
+            "original_companion_shot_biomechanics_matched":12634,
+            "published_xfg_official_shot_matches":13283,
+            "all_companion_original_response_games":78,
+            "three_original_companion_unavailable":['0022600006','0022600086','0022600142'],
+            "source_raw_29_joint_pose_60Hz_certified_games":0,
+            "missing_physical_shot_release_never_imputed":True,
+            "official_pbp_ten_source_versions_semantically_reconciled":True,
+            "historical_blueprint_13_file_revisions_zero_shot_record_drift":True,
+            "physical_custody_accuracy_not_certified":True,
+            "source_biomechanics_is_not_full_joint_pose":True,
+            "detail_index_path":str(baseout),
+            "detail_index_SHA256":sha(baseout),
+            "PBP_and_Blueprint_reconciliation_SHA256":sha(recout),
+            "native_default_engine_unchanged":True}
+          m=base/"qa/igp_v32/igp81_source_graded_detailed_default_release_v1.json"
+          raw=(json.dumps(manifest,sort_keys=True,indent=2)+"\n").encode()
+          if m.exists():assert m.read_bytes()==raw,"REFUSE_OVERWRITE_DEFAULT_DETAIL_RECEIPT"
+          else:m.write_bytes(raw)
+          print("IGP81_PRIVATE_DETAIL_RELEASE_SOURCE_GRADE",json.dumps({
+            "games":81,"blueprint":81,"companion":78,"shots":14375,
+            "blueprint_matched":13225,"advanced_matched":12634,
+            "published_xfg":13283,"original_56_unchanged":True},sort_keys=True))
+          PY
+      - name: Add only safe source-verified detail ledgers to private default release
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/target"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all81_v1 \
+            gamepulse/fusion/qa/igp_v32/igp81_source_graded_detailed_default_release_v1.json \
+            gamepulse/fusion/qa/igp_v32/igp81_official_pbp_blueprint_semantic_reconciliation_v1.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo IGP81_DETAILED_DEFAULT_ALREADY_SHA_ACCEPTED; exit 0; fi
+          git commit -q -m 'data(igp81): promote full 81-game source-graded Blueprint and advanced shots to default index'
+          for n in $(seq 1 12); do
+            git fetch -q origin "$TARGET_BRANCH"
+            git rebase -q "origin/$TARGET_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$TARGET_BRANCH"; then
+              echo IGP81_FULL_DETAIL_SOURCE_GRADE_DEFAULT_PRIVATE_PROMOTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 30
