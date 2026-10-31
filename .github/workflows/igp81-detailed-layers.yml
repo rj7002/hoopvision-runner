@@ -1,0 +1,88 @@
+name: IGP81 source-graded full Blueprint and shot biomechanics integration
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/igp81-detailed-layers.yml
+      - tools/licensed_feed/igp81_complete_detail_layers.py
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp81-detail-additive-source-only-v1
+  cancel-in-progress: false
+jobs:
+  integrate-private:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/igp81-all-layers-source-grade-20261101
+      RESEARCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Public code and private access safety gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          python3 tools/public_content_guard.py
+          python3 -m py_compile tools/licensed_feed/igp81_complete_detail_layers.py
+      - name: Load immutable 81-game original layer source and receipts privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set \
+            data/extensions/nba_blueprint_2026_27/games \
+            gamepulse/fusion/evidence \
+            gamepulse/fusion/official_pbp_timing/games \
+            gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all56_v2 \
+            gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all81_v1 \
+            gamepulse/fusion/qa/igp_progress_20261029 \
+            gamepulse/fusion/qa/igp_v32
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$RESEARCH"
+          for gid in 0022600018 0022600019 0022600020 0022600021; do
+            rel="gamepulse/fusion/evidence/companion_sdk_original_$gid"
+            if test ! -f "$RUNNER_TEMP/private/$rel/sdk_observed_original.json"; then
+              git -C "$RUNNER_TEMP/private" checkout FETCH_HEAD -- "$rel"
+              test -f "$RUNNER_TEMP/private/$rel/sdk_original_receipt.json"
+              test -f "$RUNNER_TEMP/private/$rel/sdk_observed_original.json"
+              echo "IGP81_PRIVATE_LATE_SOURCE_IMPORTED_SHA_GUARD $gid"
+            fi
+          done
+      - name: Produce complete 81-game additive details and validate original-source SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/licensed_feed/igp81_complete_detail_layers.py --root "$RUNNER_TEMP/private"
+          echo IGP81_SOURCE_GRADED_ALL_BLUEPRINT_MODULES_AND_SHOT_LEDGER_CHECKED
+      - name: Commit only to private additive branch; preserve original 56 data
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all81_v1
+          for gid in 0022600018 0022600019 0022600020 0022600021; do
+            git add -f "gamepulse/fusion/evidence/companion_sdk_original_$gid"
+          done
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo IGP81_PRIVATE_DETAILED_LAYERS_ALREADY_SOURCE_VERIFIED
+            exit 0
+          fi
+          git commit -q -m 'data(igp): add SHA-graded Blueprint and original 30-feature shot detail across 81 games'
+          for n in 1 2 3 4 5; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo IGP81_ADDITIVE_DETAIL_LAYER_PRIVATE_COMMIT_SUCCESS
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 29
