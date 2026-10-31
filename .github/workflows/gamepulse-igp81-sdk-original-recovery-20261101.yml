@@ -250,7 +250,7 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
-          dest="gamepulse/fusion/qa/igp_v32/igp81_full_native_source_promotion_gate_v1.json"
+          dest="gamepulse/fusion/qa/igp_v32/igp81_full_native_source_promotion_gate_run_${GITHUB_RUN_ID}.json"
           if test -s "$dest"; then
             if python3 - "$dest" <<'PY'
           import json,sys
