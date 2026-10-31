@@ -1,5 +1,5 @@
 name: Protected private analysis CPU shard
-# Approved by the public content guard; all source results stay private.
+# Approved by the public content guard; protected analysis reads current private method version.
 # Public control surface only. Private algorithm, dataset, revisions, results,
 # and detailed failures remain in the authenticated private repository.
 on:
