@@ -863,6 +863,7 @@ jobs:
           print("PRIVATE_IGP81_PERIMETER_V2_QA_PUBLISHED")
           PY
 
+  # v3 restart after private manifest-variable collision fix; guard and opaque paths unchanged
   private-context-v3-shard:
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-league-run-trigger-20261101' }}
     strategy:
