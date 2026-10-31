@@ -1,5 +1,5 @@
 # Opaque public runner: only authorized SDK client; never store raw source on public repo.
-name: IGP81 three-gap companion authorized recovery
+name: IGP81 five highest-risk companion gaps authorized recovery
 on:
   push:
     branches: [main]
@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 35
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 5
       matrix:
         include:
           - id: '0022600006'
@@ -24,6 +24,10 @@ jobs:
             tipoff: '2026-10-21T23:00:00Z'
           - id: '0022600142'
             tipoff: '2026-10-29T01:30:00Z'
+          - id: '0022600111'
+            tipoff: '2026-10-25T02:00:00Z'
+          - id: '0022600143'
+            tipoff: '2026-10-29T02:30:00Z'
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       NBA_GAME_ID: ${{ matrix.id }}
