@@ -1,4 +1,5 @@
 # Public workflow only. Original NBA payloads remain in private 104.
+# Reviewed source-only workflow; allowlisted by tools/public_content_guard.py.
 name: IGP81 Oct30 immutable companion source final join
 on:
   push:
