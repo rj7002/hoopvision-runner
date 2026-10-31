@@ -65,6 +65,20 @@ jobs:
                             "--out",str(output)],cwd=root,capture_output=True,text=True,
                             env={**os.environ,"PYTHONPATH":str(root/"gamepulse/fusion")})
           if p.returncode:
+              # Store diagnostic only in the private repository. Public logs
+              # never receive tracebacks, private paths, coordinates or actors.
+              path=f'{item["out_dir"]}/shard_{shard}_failure.json'
+              target=f"repos/{repo}/contents/{path}"
+              diagnosis={"state":"PRIVATE_ANALYSIS_FAILED",
+                         "shard":shard,"returncode":p.returncode,
+                         "stderr_tail_private":p.stderr[-3000:]}
+              payload={"branch":ref,
+                       "message":f"qa(private): protected shard {shard} failed",
+                       "content":base64.b64encode(json.dumps(diagnosis).encode()).decode()}
+              previous=subprocess.run(["gh","api",target],capture_output=True,text=True)
+              if previous.returncode==0:payload["sha"]=json.loads(previous.stdout)["sha"]
+              subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
+                             input=json.dumps(payload),capture_output=True)
               print("PRIVATE_ANALYSIS_SOURCE_EXECUTION_FAILED")
               sys.exit(1)
           data=output.read_bytes()
