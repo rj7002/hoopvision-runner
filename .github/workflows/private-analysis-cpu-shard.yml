@@ -1,0 +1,89 @@
+name: Protected private analysis CPU shard
+# Public control surface only. Private algorithm, dataset, revisions, results,
+# and detailed failures remain in the authenticated private repository.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/private-analysis-cpu-shard.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: protected-private-analytics-2026
+  cancel-in-progress: false
+jobs:
+  private-shard:
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        shard: [0,1,2,3,4,5,6,7,8]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate public boundary and authenticated private read
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Run private task and retain aggregate evidence only in private source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,json,os,pathlib,subprocess,sys,time
+          def cmd(argv, **kw):
+              return subprocess.run(argv,check=True,**kw)
+          repo="timeedmonds-maker/104"
+          item=json.loads(base64.b64decode(subprocess.check_output(
+              ["gh","api",f"repos/{repo}/contents/analysis_execution/current_igp_task.json?ref=main",
+               "--jq",".content"])))
+          assert type(item["shards"]) is int and item["shards"]==9
+          assert item["script"].startswith("gamepulse/fusion/analysis/")
+          assert item["out_dir"].startswith("gamepulse/fusion/qa/analysis/")
+          ref=item["ref"]
+          assert ref.startswith("analysis/") and all(c.isalnum() or c in "-_/." for c in ref)
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-src"
+          cmd(["gh","auth","setup-git"],stdout=subprocess.DEVNULL)
+          cmd(["git","clone","-q","--depth=1","--filter=blob:none","--sparse",
+               "-b",ref,f"https://github.com/{repo}.git",str(root)])
+          cmd(["git","-C",str(root),"sparse-checkout","set","gamepulse/fusion"],
+              stdout=subprocess.DEVNULL)
+          task=root/item["script"]
+          assert task.is_file()
+          shard=int(os.environ["SHARD"])
+          output=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-summary.json"
+          p=subprocess.run([sys.executable,str(task),"--root",str(root),
+                            "--shard",str(shard),"--shards",str(item["shards"]),
+                            "--out",str(output)],cwd=root,capture_output=True,text=True)
+          if p.returncode:
+              print("PRIVATE_ANALYSIS_SOURCE_EXECUTION_FAILED")
+              sys.exit(1)
+          data=output.read_bytes()
+          result=json.loads(data)
+          assert result["shard"]==shard and result["shards"]==9
+          assert result["engine_id"]==item["engine"] and result["original_source_modified"] is False
+          path=f'{item["out_dir"]}/shard_{shard}.json'
+          target=f"repos/{repo}/contents/{path}"
+          payload={"branch":ref,"message":f"data(private): IGP analytics protected shard {shard}",
+                   "content":base64.b64encode(data).decode()}
+          for attempt in range(12):
+              prev=subprocess.run(["gh","api",target],capture_output=True,text=True)
+              content=dict(payload)
+              if prev.returncode==0:content["sha"]=json.loads(prev.stdout)["sha"]
+              r=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
+                               input=json.dumps(content),capture_output=True,text=True)
+              if r.returncode==0:break
+              time.sleep(2+attempt)
+          else:
+              print("PRIVATE_ANALYSIS_RECEIPT_WRITE_FAILED")
+              sys.exit(1)
+          print("PRIVATE_ANALYSIS_SHARD_COMMITTED")
+          PY
