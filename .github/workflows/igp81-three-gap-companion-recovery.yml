@@ -76,7 +76,7 @@ jobs:
           gh auth setup-git
           git clone -q --depth=1 --filter=blob:none --sparse -b "$TARGET_BRANCH" \
              https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
-          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/evidence gamepulse/fusion/qa/igp_v32
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/evidence gamepulse/fusion/qa/igp_v32 gamepulse/fusion/qa/igp_progress_20261029
           cd "$RUNNER_TEMP/private"
           python3 - <<'PY'
           import json,hashlib,os,shutil
@@ -88,6 +88,14 @@ jobs:
           out.mkdir(parents=True,exist_ok=True)
           body=out/"sdk_observed_original.json"
           receipt=out/"sdk_original_receipt.json"
+          if body.exists() and not receipt.exists():
+              legacy=Path("gamepulse/fusion/qa/igp_progress_20261029")/("igp_companion_sdk_authorized_source_"+gid+"_20261029.json")
+              assert legacy.is_file(),"PRIOR_ORIGINAL_WITHOUT_ANY_SHA_RECEIPT:"+gid
+              prior=json.loads(legacy.read_bytes())
+              assert prior["game_id"]==gid and prior["status"]=="FULL_EVENT_RESPONSE_OBSERVED"
+              assert hashlib.sha256(body.read_bytes()).hexdigest()==prior["original_body_sha256"]
+              assert len(body.read_bytes())==prior["original_body_bytes"]
+              receipt.write_text(json.dumps(prior,sort_keys=True,indent=2)+"\n")
           if new["status"]=="FULL_EVENT_RESPONSE_OBSERVED":
               src=root/"recheck/companion_original_sdk_response.json"
               data=src.read_bytes()
