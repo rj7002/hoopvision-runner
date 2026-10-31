@@ -1,4 +1,5 @@
 name: IGP81 source-graded full Blueprint and shot biomechanics integration
+# Public orchestration only; source remains in private 104 and all emitted logs are aggregate
 on:
   push:
     branches: [main]
