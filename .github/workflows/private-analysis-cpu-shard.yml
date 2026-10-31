@@ -1037,3 +1037,65 @@ jobs:
           if task.returncode:sys.exit(1)
           print("PRIVATE_IGP81_V3_CONTEXTUAL_RESEARCH_PUBLISHED")
           PY
+
+  private-gravity-source-inventory:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-gravity-discovery-20261101' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check protected public bridge
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+      - name: Privately inventory existing NBA gravity API fields and file sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,pathlib,subprocess,sys,time
+          def run(args,**kw):return subprocess.run(args,check=True,**kw)
+          repo="timeedmonds-maker/104"
+          branch="analysis/igp81-context-adjusted-proximity-v3-20261101"
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-gravity-discovery"
+          run(["gh","auth","setup-git"],stdout=subprocess.DEVNULL)
+          run(["git","clone","-q","--depth=1","--filter=blob:none","--sparse",
+               "-b",branch,f"https://github.com/{repo}.git",str(root)])
+          run(["git","-C",str(root),"sparse-checkout","set","gamepulse/fusion",
+               "docs/gamepulse"],stdout=subprocess.DEVNULL)
+          script=root/"gamepulse/fusion/analysis/igp81_gravity_api_inventory_v1.py"
+          run([sys.executable,"-m","py_compile",str(script)])
+          dest=root/"gamepulse/fusion/qa/analysis/igp81_gravity_api_inventory_20261101"
+          dest.mkdir(parents=True,exist_ok=True)
+          data=dest/"gravity_source_inventory.json"
+          task=subprocess.run([sys.executable,str(script),"--root",str(root),
+                 "--out",str(data)],cwd=root,capture_output=True,text=True)
+          if task.returncode:
+              data.write_text(json.dumps({"state":"GRAVITY_SCHEMA_SCAN_FAILED",
+                      "private_error":task.stderr[-4000:]}))
+              print("PRIVATE_GRAVITY_SCHEMA_SCAN_FAILED")
+          else:
+              d=json.loads(data.read_bytes())
+              assert d["source_kind"]=="PRIVATE_GIT"
+              print("PRIVATE_GRAVITY_API_INVENTORY_COMPLETED",
+                    d["source_files_considered"],d["gravity_keys_found"])
+          run(["git","-C",str(root),"config","user.name","IGP Protected Runner"])
+          run(["git","-C",str(root),"config","user.email",
+               "runner@users.noreply.github.com"])
+          run(["git","-C",str(root),"add","-f",str(dest.relative_to(root))])
+          run(["git","-C",str(root),"commit","-qm","qa(private): source-file-backed NBA gravity API discovery inventory"])
+          for i in range(6):
+              push=subprocess.run(["git","-C",str(root),"push","-q","origin",
+                  f"HEAD:refs/heads/{branch}"],capture_output=True,text=True)
+              if push.returncode==0:break
+              run(["git","-C",str(root),"pull","-q","--rebase","origin",branch])
+              time.sleep(i+1)
+          else:print("PRIVATE_GRAVITY_REPORT_PUSH_FAILED");sys.exit(1)
+          if task.returncode:sys.exit(1)
+          print("PRIVATE_GRAVITY_SOURCE_INVENTORY_PUBLISHED")
+          PY
