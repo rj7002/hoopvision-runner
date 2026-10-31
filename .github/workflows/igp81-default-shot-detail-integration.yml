@@ -56,79 +56,61 @@ jobs:
           file=root/"gamepulse/fusion/igp81_default_engine_v1.py"
           source=file.read_text()
           old='def query(root=".", *, engine=DEFAULT_ENGINE, **filters):\n    if engine == DEFAULT_ENGINE:'
-          new='''def query(root=".", *, engine=DEFAULT_ENGINE, **filters):
-              # Source-conserving additive detailed-shot path: official FGA
-              # identity, Blueprint, companion biomechanics, published xFG.
-              # The pre-existing tracking/statistical query is untouched.
-              detailed=filters.pop("include_shots",False)
-              action=filters.pop("shot_action_number",None)
-              offset=filters.pop("shot_offset",0)
-              limit=filters.pop("shot_limit",20)
-              if detailed or action is not None:
-                  if engine != DEFAULT_ENGINE:
-                      raise ValueError("DETAILS_REQUIRE_FULL81_DEFAULT_ENGINE")
-                  game_id=filters.pop("game_id",None)
-                  if filters:raise ValueError("SHOT_QUERY_CANNOT_MIX_TEAM_OR_TRACKING_FILTERS")
-                  from query_igp81_full_shot_detail_v1 import query as shot_query
-                  return shot_query(root,game_id,action,offset,limit)
-              if engine == DEFAULT_ENGINE:'''
-          # Dedent source manually, preserving exact original module syntax.
-          new=new.replace('              ','    ').replace('                  ','        ')
-          # Reconstruct the actual function with deliberate indentation.
-          new='''def query(root=".", *, engine=DEFAULT_ENGINE, **filters):
-    # Official shot ledger is an additive query; native tracking never changes.
-    detailed=filters.pop("include_shots",False)
-    action=filters.pop("shot_action_number",None)
-    offset=filters.pop("shot_offset",0)
-    limit=filters.pop("shot_limit",20)
-    if detailed or action is not None:
-        if engine != DEFAULT_ENGINE:
-            raise ValueError("DETAILS_REQUIRE_FULL81_DEFAULT_ENGINE")
-        game_id=filters.pop("game_id",None)
-        if filters:
-            raise ValueError("SHOT_QUERY_CANNOT_MIX_TEAM_OR_TRACKING_FILTERS")
-        from query_igp81_full_shot_detail_v1 import query as shot_query
-        return shot_query(root,game_id,action,offset,limit)
-    if engine == DEFAULT_ENGINE:'''
+          new=[
+          'def query(root=".", *, engine=DEFAULT_ENGINE, **filters):',
+          '    # Original81 detailed-FGA view: source-grade without changing tracking.',
+          '    detailed=filters.pop("include_shots",False)',
+          '    action=filters.pop("shot_action_number",None)',
+          '    offset=filters.pop("shot_offset",0)',
+          '    limit=filters.pop("shot_limit",20)',
+          '    if detailed or action is not None:',
+          '        if engine != DEFAULT_ENGINE:',
+          '            raise ValueError("DETAILS_REQUIRE_FULL81_DEFAULT_ENGINE")',
+          '        game_id=filters.pop("game_id",None)',
+          '        if filters:raise ValueError("SHOT_QUERY_CANNOT_MIX_TEAM_OR_TRACKING_FILTERS")',
+          '        from query_igp81_full_shot_detail_v1 import query as shot_query',
+          '        return shot_query(root,game_id,action,offset,limit)',
+          '    if engine == DEFAULT_ENGINE:',
+          ]
           if 'from query_igp81_full_shot_detail_v1 import query as shot_query' not in source:
               assert source.count(old)==1,"ENGINE_DEFAULT_QUERY_ANCHOR_CHANGED"
-              source=source.replace(old,new)
+              source=source.replace(old,"\n".join(new))
           p='    p.add_argument("--summary-only", action="store_true")'
-          addition=p+'''
-    p.add_argument("--shots", action="store_true",
-                   help="Read 81-game official FGA rows with Blueprint/biomechanics")
-    p.add_argument("--shot-action-number", type=int)
-    p.add_argument("--shot-offset", type=int, default=0)
-    p.add_argument("--shot-limit", type=int, default=20)'''
+          addition=p+"\n"+'\n'.join([
+          '    p.add_argument("--shots", action="store_true")',
+          '    p.add_argument("--shot-action-number", type=int)',
+          '    p.add_argument("--shot-offset", type=int, default=0)',
+          '    p.add_argument("--shot-limit", type=int, default=20)',
+          ])
           if 'p.add_argument("--shots",' not in source:
               assert source.count(p)==1,"ENGINE_CLI_SHOTS_ANCHOR_CHANGED"
               source=source.replace(p,addition)
-          p='''    if args.start_utc_ms is not None:
-        if not args.game_id:'''
-          replacement='''    if args.start_utc_ms is not None:
-        if args.shots or args.shot_action_number is not None:
-            p.error("shot-detail and native-scene modes cannot be mixed")
-        if not args.game_id:'''
+          p='    if args.start_utc_ms is not None:\n        if not args.game_id:'
+          replacement='    if args.start_utc_ms is not None:\n        if args.shots or args.shot_action_number is not None:\n            p.error("shot-detail and native-scene modes cannot be mixed")\n        if not args.game_id:'
           if 'shot-detail and native-scene modes cannot be mixed' not in source:
               assert source.count(p)==1,"ENGINE_CLI_NATIVE_ANCHOR_CHANGED"
               source=source.replace(p,replacement)
-          p='''    else:
-        result = query(args.root, game_id=args.game_id, team=args.team,
-                       engine=args.engine,
-                       include_team_game_rows=not args.summary_only)
-    print(json.dumps(result, sort_keys=True))'''
-          replacement='''    else:
-        if args.shots or args.shot_action_number is not None:
-            if args.team is not None or not args.game_id:
-                p.error("shot detail requires --game-id and cannot mix --team")
-            result = query(args.root, game_id=args.game_id, engine=args.engine,
-                           include_shots=True, shot_action_number=args.shot_action_number,
-                           shot_offset=args.shot_offset, shot_limit=args.shot_limit)
-        else:
-            result = query(args.root, game_id=args.game_id, team=args.team,
-                           engine=args.engine,
-                           include_team_game_rows=not args.summary_only)
-    print(json.dumps(result, sort_keys=True))'''
+          p='\n'.join([
+          '    else:',
+          '        result = query(args.root, game_id=args.game_id, team=args.team,',
+          '                       engine=args.engine,',
+          '                       include_team_game_rows=not args.summary_only)',
+          '    print(json.dumps(result, sort_keys=True))',
+          ])
+          replacement='\n'.join([
+          '    else:',
+          '        if args.shots or args.shot_action_number is not None:',
+          '            if args.team is not None or not args.game_id:',
+          '                p.error("shot detail requires --game-id and cannot mix --team")',
+          '            result = query(args.root, game_id=args.game_id, engine=args.engine,',
+          '                           include_shots=True, shot_action_number=args.shot_action_number,',
+          '                           shot_offset=args.shot_offset, shot_limit=args.shot_limit)',
+          '        else:',
+          '            result = query(args.root, game_id=args.game_id, team=args.team,',
+          '                           engine=args.engine,',
+          '                           include_team_game_rows=not args.summary_only)',
+          '    print(json.dumps(result, sort_keys=True))',
+          ])
           if 'if args.shots or args.shot_action_number is not None:\n            if args.team' not in source:
               assert source.count(p)==1,"ENGINE_CLI_QUERY_ANCHOR_CHANGED"
               source=source.replace(p,replacement)
