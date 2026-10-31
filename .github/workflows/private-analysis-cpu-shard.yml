@@ -59,6 +59,7 @@ jobs:
               stdout=subprocess.DEVNULL)
           task=root/item["script"]
           assert task.is_file()
+          cmd([sys.executable,"-m","py_compile",str(task)])
           shard=int(os.environ["SHARD"])
           output=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-summary.json"
           p=subprocess.run([sys.executable,str(task),"--root",str(root),
@@ -126,7 +127,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import base64,json,os,pathlib,subprocess,sys
+          import base64,json,os,pathlib,subprocess,sys,time
           repo="timeedmonds-maker/104"
           def fetch(path,ref):
               raw=subprocess.check_output(
@@ -144,23 +145,44 @@ jobs:
           script=root/"rank.py"
           script.write_bytes(fetch(
               "gamepulse/fusion/analysis/igp81_halfcourt_nearest_defender_rank_v1.py",ref))
-          out=root/"top20.json"
+          outputs={
+              "top20.json":root/"top20.json",
+              "all_league_players.json":root/"all_league_players.json",
+              "all_league_players.csv":root/"all_league_players.csv",
+              "all_player_team_splits.csv":root/"all_player_team_splits.csv"}
+          subprocess.run([sys.executable,"-m","py_compile",str(script)],check=True)
           proc=subprocess.run([sys.executable,str(script),"--dir",str(root),
-                               "--out",str(out)],capture_output=True,text=True)
+                               "--out",str(outputs["top20.json"]),
+                               "--league-json",str(outputs["all_league_players.json"]),
+                               "--league-csv",str(outputs["all_league_players.csv"]),
+                               "--team-csv",str(outputs["all_player_team_splits.csv"])],
+                              capture_output=True,text=True)
           if proc.returncode:
               print("PRIVATE_RANKING_VALIDATION_FAILED")
               sys.exit(1)
-          result=json.loads(out.read_bytes())
-          assert result["games_processed"]==81 and result["original_source_modified"] is False
-          target=f'repos/{repo}/contents/{task["out_dir"]}/top20.json'
-          payload={"branch":ref,"message":"qa(private): publish source-graded 81-game halfcourt proximity leaderboard",
-                   "content":base64.b64encode(out.read_bytes()).decode()}
-          old=subprocess.run(["gh","api",target],capture_output=True,text=True)
-          if old.returncode==0:payload["sha"]=json.loads(old.stdout)["sha"]
-          r=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
-                           input=json.dumps(payload),capture_output=True,text=True)
-          if r.returncode:
-              print("PRIVATE_RANKING_RECEIPT_WRITE_FAILED")
-              sys.exit(1)
-          print("PRIVATE_AGGREGATE_RANKING_READY")
+          top=json.loads(outputs["top20.json"].read_bytes())
+          league=json.loads(outputs["all_league_players.json"].read_bytes())
+          assert top["games_processed"]==81 and league["games_processed"]==81
+          assert top["original_source_modified"] is False
+          assert league["original_source_modified"] is False
+          assert league["total_players_with_samples"]==len(league["all_league_players"])
+          assert league["total_player_team_rows"]==len(league["all_player_team_splits"])
+          assert top["analysis_code_sha256"]==league["analysis_code_sha256"]
+          for name,out in outputs.items():
+              target=f'repos/{repo}/contents/{task["out_dir"]}/{name}'
+              payload={"branch":ref,
+                       "message":f"data(private): IGP81 proximity verified {name}",
+                       "content":base64.b64encode(out.read_bytes()).decode()}
+              for attempt in range(12):
+                  old=subprocess.run(["gh","api",target],capture_output=True,text=True)
+                  req=dict(payload)
+                  if old.returncode==0:req["sha"]=json.loads(old.stdout)["sha"]
+                  r=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
+                                   input=json.dumps(req),capture_output=True,text=True)
+                  if r.returncode==0:break
+                  time.sleep(2+attempt)
+              else:
+                  print("PRIVATE_RANKING_RECEIPT_WRITE_FAILED")
+                  sys.exit(1)
+          print("PRIVATE_AGGREGATE_LEAGUE_AND_TEAM_TABLES_READY")
           PY
