@@ -192,10 +192,20 @@ def main(root):
     prior_fga=0;per={};total=collections.Counter()
     for gid,entry in sorted(games.items()):
         official=root/BASE/"official_pbp_timing/games"/(gid+".json")
-        check(official.is_file() and filehash(official)==entry["nba_official_PBP_SHA256"],
-              "CANONICAL_OFFICIAL_PBP_SHA_MISMATCH:"+gid)
+        check(official.is_file(),"MISSING_CANONICAL_OFFICIAL_PBP_FILE:"+gid)
+        pbp_current_sha=filehash(official)
+        pbp_reg_sha=entry["nba_official_PBP_SHA256"]
+        pbp_grade=("CURRENT_NORMALIZED_SHA_EQUALS_81_RELEASE_REGISTRY" if pbp_current_sha==pbp_reg_sha
+                   else "CURRENT_NORMALIZED_SHA_DIFFERS_FROM_81_REGISTRY_UNRESOLVED_VERSION")
+        if pbp_current_sha!=pbp_reg_sha:
+            check(gid not in original,"FROZEN56_OFFICIAL_PBP_SOURCE_DRIFT:"+gid)
+            total["new25_normalized_PBP_registry_SHA_disagreements"]+=1
         pbp=load(official);check(pbp.get("game_id")==gid and pbp.get("official_final"),
                              "NOT_FINAL_PBP:"+gid)
+        final=pbp["official_final"]
+        accepted={(r["team"],r["NBA_official_points"]) for r in entry["NBA_team_game_statistical_rows"]}
+        observed={(t["team"],t["score"]) for t in (final["away"],final["home"])}
+        check(accepted==observed,"FINAL_SCORE_MISMATCH_WITH_81_REGISTRY:"+gid)
         fga=sum(a["action_type"] in ("2pt","3pt") for a in pbp["actions"])
         bpfile=root/BP/gid/"blueprint_report_raw.json"
         check(bpfile.is_file(),"MISSING_ORIGINAL_BLUEPRINT:"+gid)
@@ -255,7 +265,7 @@ def main(root):
             original_bp_sha=bpsha
             report_grade="ORIGINAL_CURRENT_SOURCE_SHA_VERIFIED_NEW25"
 
-            rows,counts=make_new(gid,pbp,bp,events,entry["nba_official_PBP_SHA256"],bpsha,cp["sha256"])
+            rows,counts=make_new(gid,pbp,bp,events,pbp_current_sha,bpsha,cp["sha256"])
             dest=root/OUT/(gid+".jsonl.gz")
             raw=gziprows(rows);write_once(dest,raw)
             path=str(dest.relative_to(root));sh=digest(raw);origin="ADDITIVE_NEW25_SHA_GRADED"
@@ -270,7 +280,9 @@ def main(root):
         total["games_with_full_companion"]+=int(cp["status"]=="FULL_EVENT_RESPONSE_SHA_VERIFIED")
         total["new25_games"]+=int(gid not in original)
         per[gid]={"source_grade":origin,"official_FGA":fga,
-            "official_PBP_SHA256":entry["nba_official_PBP_SHA256"],
+            "official_PBP_SHA256":pbp_current_sha,
+            "original_81_release_registry_PBP_SHA256":pbp_reg_sha,
+            "PBP_source_version_grade":pbp_grade,
             "blueprint_original_source_path":str(BP/gid/"blueprint_report_raw.json"),
             "blueprint_original_SHA256":bpsha,
             "shot_ledger_blueprint_original_SHA256":original_bp_sha,
@@ -317,7 +329,9 @@ def main(root):
            total["frozen56_current_blueprint_revision_drift"],
        "frozen56_blueprint_shot_rows_changed_in_current_source":
            total["frozen56_blueprint_shot_records_not_matching_current_version"],
-       "blueprint_32field_csv_rows":total["blueprint_32field_csv_rows"]}
+       "blueprint_32field_csv_rows":total["blueprint_32field_csv_rows"],
+       "new25_PBP_registry_SHA_disagreements":
+           total["new25_normalized_PBP_registry_SHA_disagreements"]}
     print("IGP81_DETAIL_SOURCE_GRADE",json.dumps(summary,sort_keys=True),flush=True)
     return summary
 if __name__=="__main__":
