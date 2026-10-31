@@ -37,7 +37,16 @@ jobs:
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
           if ! python3 -m unittest -q gamepulse/fusion/tests/test_igp81_default_team_offrtg.py gamepulse/fusion/tests/test_igp_v32_p2b_nba81_unified_default_v1.py > "$RUNNER_TEMP/private-gate.log" 2>&1; then
-            echo IGP81_PRIVATE_HYBRID_TEST_GATE_FAILED
+            mkdir -p gamepulse/fusion/qa/igp_v32
+            cp "$RUNNER_TEMP/private-gate.log" gamepulse/fusion/qa/igp_v32/igp81_unified_private_ci_failure_20261101.txt
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add -f gamepulse/fusion/qa/igp_v32/igp81_unified_private_ci_failure_20261101.txt
+            git commit -q -m "qa(igp81): retain private combined-source failed test evidence"
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"
+            echo IGP81_PRIVATE_HYBRID_TEST_GATE_FAILED_RECEIPT_PRIVATE
             exit 2
           fi
           python3 gamepulse/fusion/igp_v32_p2b_nba81_unified_default_v1.py --summary-only > "$RUNNER_TEMP/private-hybrid.json"
@@ -52,7 +61,6 @@ jobs:
           print("IGP81_PRIVATE_HYBRID_SOURCE_GRADE_TEST_PASSED")
           PY
   recover-five:
-    needs: source-tests
     strategy:
       fail-fast: false
       max-parallel: 2
