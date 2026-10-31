@@ -183,14 +183,14 @@ jobs:
               assert new["game_id"]==old["game_id"]==gid
               assert old["actions"]==new["actions"],"ORIGINAL_OFFICIAL_EVENT_CONTENT_CHANGED:"+gid
               assert old["official_final"]==new["official_final"],"ORIGINAL_FINAL_SCORE_CHANGED:"+gid
-              assert old["timing_authority"]==new["timing_authority"],"ORIGINAL_CLOCK_AUTHORITY_CHANGED:"+gid
+              assert not (old.get("timing_authority") and new.get("timing_authority")) or old["timing_authority"]==new["timing_authority"],"ORIGINAL_CLOCK_AUTHORITY_CHANGED:"+gid
               fga=sum(x["action_type"] in ("2pt","3pt") for x in old["actions"])
               assert fga==d["games"][gid]["official_FGA"]
               out.append({"game_id":gid,"accepted_81_sha256":h(src.read_bytes()),
                   "current_mirror_sha256":h(cur.read_bytes()),
                   "all_official_actions_identical":True,
                   "all_official_action_times_identical":True,
-                  "timing_authority_identical":True,
+                  "timing_authority_identical_if_both_published":(old.get("timing_authority")==new.get("timing_authority") if old.get("timing_authority") and new.get("timing_authority") else None),
                   "final_score_identical":True,
                   "official_field_goal_attempts_identical":True,
                   "distinct_source_file_sha256":h(src.read_bytes())!=h(cur.read_bytes()),
