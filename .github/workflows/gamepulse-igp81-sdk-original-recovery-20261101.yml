@@ -36,6 +36,8 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp81_sdk_original_5game_recovery_v1.py gamepulse/fusion/igp81_new10_guarded_p2b_shadow_audit_v1.py gamepulse/fusion/igp81_full_native_source_acceptance_gate_v1.py gamepulse/fusion/igp81_full_native_source_guarded_default_v1.py
+          python3 -m unittest -q gamepulse/fusion/tests/test_igp81_newten_source_masks_and_release_gate_v1.py gamepulse/fusion/tests/test_igp81_full_native_source_guarded_default_v1.py
           if ! python3 -m unittest -q gamepulse/fusion/tests/test_igp81_default_team_offrtg.py gamepulse/fusion/tests/test_igp_v32_p2b_nba81_unified_default_v1.py > "$RUNNER_TEMP/private-gate.log" 2>&1; then
             mkdir -p gamepulse/fusion/qa/igp_v32
             cp "$RUNNER_TEMP/private-gate.log" gamepulse/fusion/qa/igp_v32/igp81_unified_private_ci_failure_20261101.txt
@@ -60,54 +62,7 @@ jobs:
           assert x["all81_tracking_coverage_pct"] is None
           print("IGP81_PRIVATE_HYBRID_SOURCE_GRADE_TEST_PASSED")
           PY
-  backfill-remaining-five:
-    strategy:
-      fail-fast: false
-      max-parallel: 3
-      matrix:
-        game:
-          - {id: '0022600017', tipoff: '2026-10-30T23:30:00Z'}
-          - {id: '0022600018', tipoff: '2026-10-30T23:30:00Z'}
-          - {id: '0022600019', tipoff: '2026-10-30T23:30:00Z'}
-          - {id: '0022600020', tipoff: '2026-10-31T00:00:00Z'}
-          - {id: '0022600021', tipoff: '2026-10-31T00:00:00Z'}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 120
-    env:
-      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      GAMEPULSE_PRIORITY_FINALIZE: 'true'
-      GAMEPULSE_FINAL_FASTLANE: 'true'
-      GAMEPULSE_PRIORITY_ID: ${{ matrix.game.id }}
-      GAMEPULSE_PRIORITY_TIPOFF: ${{ matrix.game.tipoff }}
-      GAMEPULSE_PARTS_PER_RUN: '13'
-    steps:
-      - uses: actions/checkout@v4
-        with: {persist-credentials: false}
-      - uses: actions/setup-node@v4
-        with: {node-version: '22'}
-      - name: Validate protected SDK recorder and NBA source tipoff
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 tools/public_content_guard.py
-          test -n "$GH_TOKEN"
-          cd tools/licensed_feed
-          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
-          npm install --ignore-scripts --no-audit --no-fund --silent
-          node --test season_core.test.mjs sdk_slot.test.mjs
-      - name: Privately recover all 13 SDK original checkpoints without fabricating missing source
-        shell: bash
-        working-directory: tools/licensed_feed
-        run: |
-          set -euo pipefail
-          node season_private_release.mjs > "$RUNNER_TEMP/private-sdk-backfill.log" 2>&1 || {
-            echo IGP81_PRIVATE_SDK_BACKFILL_REQUIRES_REVIEW
-            exit 4
-          }
-          echo IGP81_PRIVATE_GAME_SDK_RELEASE_SHA_VALIDATED
   recover-five:
-    needs: backfill-remaining-five
-    if: always()
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -247,3 +202,65 @@ jobs:
             exit 5
           fi
           echo IGP81_PRIVATE_P2B_SHADOW_QA_COMMITTED
+
+
+  grade-full81:
+    needs: evaluate-new-native
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: release/igp32-p2b-nba81-unified-default-20261101
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Private-only approval context
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: Save exact 81-game source acceptance decision privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          dest="gamepulse/fusion/qa/igp_v32/igp81_full_native_source_promotion_gate_v1.json"
+          if test -s "$dest"; then
+            echo IGP81_FULL_NATIVE_DECISION_ALREADY_PRESERVED
+            exit 0
+          fi
+          python3 gamepulse/fusion/igp81_full_native_source_acceptance_gate_v1.py --root . --out "$dest" > "$RUNNER_TEMP/private-grade.log" 2>&1 || {
+            echo IGP81_PRIVATE_FINAL_GATE_SCRIPT_ERROR
+            exit 6
+          }
+          python3 - "$dest" <<'PY'
+          import json,sys
+          x=json.load(open(sys.argv[1]))
+          assert x['statistical_NBA_POSS_cohort_games']==81
+          assert x['frozen_original71_tracking_games']==71
+          assert x['source_grade_not_independently_video_certified']
+          assert x['existing_engine_promoted_to_81'] is False
+          print('IGP81_FINAL_SOURCE_GRADE_RECEIPT_VALID')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$dest"
+          git commit -q -m "qa(igp81): persist fail-closed full 81 guarded SDK source release decision"
+          saved=0
+          for attempt in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              saved=1
+              break
+            fi
+            sleep "$attempt"
+          done
+          test "$saved" -eq 1
+          echo IGP81_SOURCE_GRADE_DECISION_PRIVATE_SAVED
