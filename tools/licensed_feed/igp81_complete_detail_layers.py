@@ -66,6 +66,7 @@ def get_source(root,gid):
     d=root/EV/("companion_sdk_original_"+gid)
     source=d/"sdk_observed_original.json"
     receipts=[d/"sdk_original_receipt.json",
+              root/BASE/"qa/igp_progress_20261030"/("igp_original_companion_source_"+gid+"_20261030.json"),
               root/OLD_QA/("igp_companion_sdk_authorized_source_"+gid+"_20261029.json")]
     receipt=next((p for p in receipts if p.is_file()),None)
     if receipt is None:
