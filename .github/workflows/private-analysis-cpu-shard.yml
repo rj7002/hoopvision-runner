@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   private-shard:
-    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-league-run-trigger-20261101') }}
+    if: ${{ github.event_name != 'pull_request' }}
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -98,7 +98,7 @@ jobs:
           PY
   private-ranking:
     needs: [private-shard]
-    if: ${{ success() && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-league-run-trigger-20261101')) }}
+    if: ${{ success() && github.event_name != 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -183,4 +183,86 @@ jobs:
               print("PRIVATE_RESULTS_PUSH_FAILED")
               sys.exit(1)
           print("PRIVATE_81_GAME_LEAGUE_AND_TOP20_EXPORTS_COMMITTED")
+          PY
+
+  private-3pa-filter:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-league-run-trigger-20261101' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate public source boundary
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+      - name: Run official season 3PA >=10 filter in protected private repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,pathlib,subprocess,sys
+          def run(args,**kw):return subprocess.run(args,check=True,**kw)
+          repo="timeedmonds-maker/104"
+          ref="analysis/igp81-halfcourt-defender-proximity-20261101"
+          base="gamepulse/fusion/qa/analysis/igp81_halfcourt_nearest_defender_20261101"
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-threepa"
+          run(["gh","auth","setup-git"],stdout=subprocess.DEVNULL)
+          run(["git","clone","-q","--depth=1","--filter=blob:none",
+               "--sparse","-b",ref,f"https://github.com/{repo}.git",str(root)])
+          run(["git","-C",str(root),"sparse-checkout","set",
+               "gamepulse/fusion/analysis","gamepulse/fusion/qa/analysis"],
+               stdout=subprocess.DEVNULL)
+          script=root/"gamepulse/fusion/analysis/igp81_halfcourt_min10_3pa_v1.py"
+          test=root/"gamepulse/fusion/analysis/test_igp81_halfcourt_min10_3pa_source_free_v1.py"
+          run([sys.executable,"-m","py_compile",str(script),str(test)])
+          probe=subprocess.run([sys.executable,str(test)],capture_output=True,text=True,
+               env={**os.environ,"PYTHONPATH":str(script.parent)})
+          if probe.returncode:
+              print("PRIVATE_3PA_SOURCE_FREE_TEST_FAILED");sys.exit(1)
+          tracked=set()
+          for i in range(9):
+              shard=json.loads((root/base/f"shard_{i}.json").read_bytes())
+              assert shard["shard"]==i and shard["shards"]==9
+              tracked.update(shard["games"])
+          assert len(tracked)==81
+          ids=pathlib.Path(os.environ["RUNNER_TEMP"])/"tracking81.json"
+          ids.write_text(json.dumps(sorted(tracked)))
+          dest=root/base/"3pa10_official_season"
+          dest.mkdir(parents=True,exist_ok=True)
+          args=[sys.executable,str(script),
+              "--league-json",str(root/base/"all_league_players.json"),
+              "--tracking-games-json",str(ids),
+              "--out-json",str(dest/"top20_3pa10.json"),
+              "--out-csv",str(dest/"all_league_players_3pa10.csv"),
+              "--out-team-csv",str(dest/"all_player_team_splits_3pa10.csv"),
+              "--raw-archive",str(dest/"nba_final_game_source_raw.tar.gz"),
+              "--source-manifest",str(dest/"nba_final_game_source_manifest.json")]
+          job=subprocess.run(args,capture_output=True,text=True,cwd=root)
+          if job.returncode:
+              (dest/"private_failure.json").write_text(json.dumps({
+                  "state":"OFFICIAL_3PA_GATE_FAILED","returncode":job.returncode,
+                  "stderr_tail_private":job.stderr[-5000:]}))
+              print("PRIVATE_OFFICIAL_3PA_GATE_FAILED")
+          else:
+              result=json.loads((dest/"top20_3pa10.json").read_bytes())
+              assert result["tracking_population_games"]==81
+              assert result["minimum_total_3pa"]==10
+              assert len(result["all_league_players"])==424
+              print("PRIVATE_OFFICIAL_3PA_GATE_VERIFIED")
+          run(["git","-C",str(root),"config","user.name","IGP Protected Runner"])
+          run(["git","-C",str(root),"config","user.email",
+                "runner@users.noreply.github.com"])
+          run(["git","-C",str(root),"add","-f",str(dest.relative_to(root))])
+          run(["git","-C",str(root),"commit","-qm","data(private): official 2026-27 season 3PA gating"])
+          pushed=subprocess.run(["git","-C",str(root),"push","-q","origin",
+                f"HEAD:refs/heads/{ref}"],capture_output=True,text=True)
+          if pushed.returncode:
+              print("PRIVATE_3PA_OUTPUT_WRITE_FAILED");sys.exit(1)
+          if job.returncode:sys.exit(1)
+          print("PRIVATE_3PA_LEAGUE_FILTER_PUBLISHED")
           PY
