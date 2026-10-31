@@ -36,8 +36,8 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
-          python3 -m py_compile gamepulse/fusion/igp81_sdk_original_5game_recovery_v1.py gamepulse/fusion/igp81_new10_guarded_p2b_shadow_audit_v1.py gamepulse/fusion/igp81_full_native_source_acceptance_gate_v1.py gamepulse/fusion/igp81_full_native_source_guarded_default_v1.py
-          python3 -m unittest -q gamepulse/fusion/tests/test_igp81_newten_source_masks_and_release_gate_v1.py gamepulse/fusion/tests/test_igp81_full_native_source_guarded_default_v1.py
+          python3 -m py_compile gamepulse/fusion/query_igp81_original_native_guarded_scene_v1.py gamepulse/fusion/igp81_sdk_original_5game_recovery_v1.py gamepulse/fusion/igp81_new10_guarded_p2b_shadow_audit_v1.py gamepulse/fusion/igp81_full_native_source_acceptance_gate_v1.py gamepulse/fusion/igp81_full_native_source_guarded_default_v1.py
+          python3 -m unittest -q gamepulse/fusion/tests/test_igp81_newten_source_masks_and_release_gate_v1.py gamepulse/fusion/tests/test_igp81_full_native_source_guarded_default_v1.py gamepulse/fusion/tests/test_query_igp81_original_native_guarded_scene_v1.py
           if ! python3 -m unittest -q gamepulse/fusion/tests/test_igp81_default_team_offrtg.py gamepulse/fusion/tests/test_igp_v32_p2b_nba81_unified_default_v1.py > "$RUNNER_TEMP/private-gate.log" 2>&1; then
             mkdir -p gamepulse/fusion/qa/igp_v32
             cp "$RUNNER_TEMP/private-gate.log" gamepulse/fusion/qa/igp_v32/igp81_unified_private_ci_failure_20261101.txt
