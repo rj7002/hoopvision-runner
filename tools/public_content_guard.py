@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    "tools/licensed_feed/igp81_test_default_shot_route.py",  # deterministic source-free private default 81game shot acceptance
+    "tools/licensed_feed/igp81_wire_default_shots.py",  # deterministic source-free private default 81game shot acceptance
     ".github/workflows/igp81-default-shot-detail-integration.yml",  # private-only QA-validated 81game default shot route
     "tools/licensed_feed/igp81_default_shot_detail_query.py",  # source-free original 81game shot read-only interface
     ".github/workflows/igp81-source-adjusted-10hz.yml",  # private original SDK availability source mask; public only aggregate metrics
