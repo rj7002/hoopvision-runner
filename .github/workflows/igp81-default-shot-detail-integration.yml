@@ -1,6 +1,7 @@
 # Source-free public runner. All licensed original FGA rows and protected hashes
 # remain in private repository 104. No source payload printed publicly.
 name: IGP81 default engine all-game detailed shot integration
+# Original canonical source index intentionally retained immutable; query only extended
 on:
   push:
     branches: [main]
