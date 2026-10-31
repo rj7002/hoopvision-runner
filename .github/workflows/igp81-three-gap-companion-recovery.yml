@@ -1,0 +1,139 @@
+# Opaque public runner: only authorized SDK client; never store raw source on public repo.
+name: IGP81 three-gap companion authorized recovery
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp81-three-gap-companion-recovery.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp81-three-gap-companion-recovery
+  cancel-in-progress: false
+jobs:
+  original-sdk-retry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - id: '0022600006'
+            tipoff: '2026-10-22T23:00:00Z'
+          - id: '0022600086'
+            tipoff: '2026-10-21T23:00:00Z'
+          - id: '0022600142'
+            tipoff: '2026-10-29T01:30:00Z'
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      NBA_GAME_ID: ${{ matrix.id }}
+      NBA_TIPOFF_UTC: ${{ matrix.tipoff }}
+      IGP_SDK_INIT_TIMEOUT_MS: '45000'
+      TARGET_BRANCH: research/igp81-all-layers-source-grade-20261101
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify public source guard and install reviewed first-party SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          cd tools/licensed_feed
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Recheck exact original app program without bypass or guessed response
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/recheck"
+          export IGP_PRIVATE_CAPTURE_DIR="$RUNNER_TEMP/recheck"
+          node tools/licensed_feed/companion_original_sdk_probe.mjs > "$RUNNER_TEMP/original-sdk-private.log"
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          d=Path(os.environ["IGP_PRIVATE_CAPTURE_DIR"])
+          p=json.loads((d/"companion_probe_receipt.json").read_bytes())
+          assert p["game_id"]==os.environ["NBA_GAME_ID"]
+          assert not p["authentication_bypass_attempted"]
+          assert not p["raw_29joint_pose_60hz_observed"]
+          if p["status"]=="FULL_EVENT_RESPONSE_OBSERVED":
+              data=(d/"companion_original_sdk_response.json").read_bytes()
+              assert hashlib.sha256(data).hexdigest()==p["original_body_sha256"]
+              assert len(json.loads(data))==p["original_body_event_count"]
+          print("IGP81_AUTHORIZED_RECOVERY_SOURCE_GRADE",p["game_id"],p["status"],p.get("original_body_shot_details_count",0))
+          PY
+      - name: Preserve every genuine source response privately; keep missing explicit
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$TARGET_BRANCH" \
+             https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/evidence gamepulse/fusion/qa/igp_v32
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          import json,hashlib,os,shutil
+          from pathlib import Path
+          gid=os.environ["NBA_GAME_ID"]
+          root=Path(os.environ["RUNNER_TEMP"])
+          new=json.loads((root/"recheck/companion_probe_receipt.json").read_bytes())
+          out=Path("gamepulse/fusion/evidence")/("companion_sdk_original_"+gid)
+          out.mkdir(parents=True,exist_ok=True)
+          body=out/"sdk_observed_original.json"
+          receipt=out/"sdk_original_receipt.json"
+          if new["status"]=="FULL_EVENT_RESPONSE_OBSERVED":
+              src=root/"recheck/companion_original_sdk_response.json"
+              data=src.read_bytes()
+              assert hashlib.sha256(data).hexdigest()==new["original_body_sha256"]
+              if not body.exists():
+                  shutil.copyfile(src,body)
+                  receipt.write_text(json.dumps(new,sort_keys=True,indent=2)+"\n")
+              else:
+                  old=json.loads(receipt.read_bytes())
+                  assert hashlib.sha256(body.read_bytes()).hexdigest()==old["original_body_sha256"]
+                  assert old["original_body_shot_details_count"]>=0
+                  if new["original_body_shot_details_count"]>old["original_body_shot_details_count"]:
+                      history=out/"source_revision_history"
+                      history.mkdir(exist_ok=True)
+                      shutil.copyfile(body,history/(old["original_body_sha256"]+".json"))
+                      shutil.copyfile(receipt,history/(old["original_body_sha256"]+".receipt.json"))
+                      shutil.copyfile(src,body)
+                      receipt.write_text(json.dumps(new,sort_keys=True,indent=2)+"\n")
+          elif not receipt.exists():
+              receipt.write_text(json.dumps(new,sort_keys=True,indent=2)+"\n")
+          safe={k:new.get(k) for k in ("game_id","status","initialization_result",
+                    "observed_200_event_responses","observed_200_slot_responses",
+                    "original_body_shot_details_count","original_body_sha256",
+                    "raw_29joint_pose_60hz_observed","authentication_bypass_attempted")}
+          safe["schema"]="igp81.targeted-original-companion-retry.v1"
+          qa=Path("gamepulse/fusion/qa/igp_v32")/("igp81_gap_retry_"+gid+".json")
+          if qa.exists():
+              prev=json.loads(qa.read_bytes())
+              if prev.get("status")=="FULL_EVENT_RESPONSE_OBSERVED" and safe["status"]!="FULL_EVENT_RESPONSE_OBSERVED":
+                  safe=prev
+          qa.write_text(json.dumps(safe,sort_keys=True,indent=2)+"\n")
+          print("IGP81_RETRY_PRIVATE_RESULT",gid,safe["status"],safe.get("original_body_shot_details_count",0))
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "gamepulse/fusion/evidence/companion_sdk_original_$NBA_GAME_ID" \
+            "gamepulse/fusion/qa/igp_v32/igp81_gap_retry_$NBA_GAME_ID.json"
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo IGP81_SOURCE_RETRY_NO_IMPROVEMENT
+            exit 0
+          fi
+          git commit -q -m "data(igp81): private original-source companion gap retry $NBA_GAME_ID"
+          for n in $(seq 1 12); do
+            git fetch -q origin "$TARGET_BRANCH"
+            git rebase -q "origin/$TARGET_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$TARGET_BRANCH"; then
+              echo IGP81_GAP_RETRY_PRIVATE_SHA_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 27
