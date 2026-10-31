@@ -281,6 +281,25 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f "$dest"
+          # A successful ten-game source/lineup/holdout gate is followed by
+          # one canonical 81-game game->SDK->PBP->NBA-POSS->P2B join index.
+          # A failing gate never generates an accepted canonical index.
+          if python3 - "$dest" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1]))
+          sys.exit(0 if d["all_81_original_SDK_source_QA_complete"] is True else 1)
+          PY
+          then
+            registry="gamepulse/fusion/qa/igp_v32/igp81_unified_native_possession_tracking_registry_run_${GITHUB_RUN_ID}.json"
+            python3 gamepulse/fusion/igp81_unified_native_possession_tracking_registry_v1.py --root . --out "$registry" > "$RUNNER_TEMP/private-registry.log" 2>&1 || {
+              echo IGP81_PRIVATE_CANONICAL_REGISTRY_GATE_FAILED
+              exit 7
+            }
+            git add -f "$registry"
+            echo IGP81_CANONICAL_81_GAME_SOURCE_REGISTRY_READY
+          else
+            echo IGP81_CANONICAL_REGISTRY_ABSTAINS_UNTIL_ALL10_QA_ACCEPTED
+          fi
           git commit -q -m "qa(igp81): persist fail-closed full 81 guarded SDK source release decision"
           saved=0
           for attempt in 1 2 3 4 5 6 7 8; do
