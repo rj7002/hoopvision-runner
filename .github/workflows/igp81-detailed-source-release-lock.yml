@@ -1,0 +1,180 @@
+# Source-graded 81 game detail view only. Opaque public CI, private source and output.
+name: IGP81 immutable source-grade detailed shot query and release census
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp81-detailed-source-release-lock.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp81-source-grade-detail-lock
+  cancel-in-progress: false
+jobs:
+  audit-private-source-and-query:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      TARGET_BRANCH: research/igp81-all-layers-source-grade-20261101
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Private original-source mirror and full 81-game shot index retrieval
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$TARGET_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set \
+            gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all56_v2 \
+            gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all81_v1 \
+            gamepulse/fusion/qa/igp_v32 \
+            gamepulse/fusion/qa/igp_progress_20261029
+      - name: Install read-only exact-action 81-game shot query in private repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          cat > gamepulse/fusion/query_igp81_complete_source_graded_shots_2026.py <<'PY'
+          """Read-only SHA-verified 81-game source-graded NBA shot detail query."""
+          from __future__ import annotations
+          import argparse,gzip,hashlib,json
+          from pathlib import Path
+          ROOT=Path(__file__).resolve().parents[2]
+          IDX=ROOT/"gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all81_v1/index.json"
+          def load(p):return json.loads(p.read_bytes())
+          def query(gid,action=None,offset=0,limit=25):
+              assert gid.startswith("00226") and len(gid)==10 and gid.isdigit()
+              assert 0<=offset and 1<=limit<=200
+              idx=load(IDX)
+              entry=idx["games"][gid]
+              p=ROOT/entry["shot_ledger_path"]
+              assert hashlib.sha256(p.read_bytes()).hexdigest()==entry["shot_ledger_sha256"]
+              rows=[json.loads(x) for x in gzip.decompress(p.read_bytes()).splitlines() if x.strip()]
+              assert len(rows)==entry["official_FGA"]
+              if action is not None:rows=[r for r in rows if r["nba_action_number"]==action]
+              return {"game_id":gid,"all_official_FGA":entry["official_FGA"],
+                "matching_shots":len(rows),"source_grade":entry["source_grade"],
+                "original_companion_source":entry["original_companion"]["status"],
+                "original_29_joint_60hz_pose_certified":False,
+                "rows":rows[offset:offset+limit]}
+          if __name__=="__main__":
+              p=argparse.ArgumentParser()
+              p.add_argument("game_id")
+              p.add_argument("--action",type=int,default=None)
+              p.add_argument("--offset",type=int,default=0)
+              p.add_argument("--limit",type=int,default=25)
+              x=p.parse_args()
+              print(json.dumps(query(x.game_id,x.action,x.offset,x.limit),sort_keys=True))
+          PY
+          python3 -m py_compile gamepulse/fusion/query_igp81_complete_source_graded_shots_2026.py
+      - name: Audit one official FGA per row, original SHA, source grades and missingness
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          import collections,gzip,hashlib,json
+          from pathlib import Path
+          base=Path("gamepulse/fusion")
+          idxfile=base/"materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all81_v1/index.json"
+          regfile=base/"qa/igp_v32/igp81_unified_native_possession_tracking_registry_run_41231284682.json"
+          semfile=base/"qa/igp_v32/igp81_official_pbp_blueprint_semantic_reconciliation_v1.json"
+          idx=json.loads(idxfile.read_bytes());reg=json.loads(regfile.read_bytes());sem=json.loads(semfile.read_bytes())
+          assert idx["official_games"]==reg["counts"]["games"]==81
+          assert set(idx["games"])==set(reg["games"])
+          assert sem["ten_new_games_official_action_sequences_and_times_identical"]
+          cnt=collections.Counter();games={}
+          for gid,item in sorted(idx["games"].items()):
+              p=Path(item["shot_ledger_path"])
+              raw=p.read_bytes()
+              assert hashlib.sha256(raw).hexdigest()==item["shot_ledger_sha256"],"SHOT_SHA:"+gid
+              rows=[json.loads(s) for s in gzip.decompress(raw).splitlines() if s.strip()]
+              assert len(rows)==item["official_FGA"],"OFFICIAL_FGA_COUNT:"+gid
+              seen=set();b=0;c=0;xfg=0
+              for row in rows:
+                  n=row["nba_action_number"]
+                  assert n not in seen and row["game_id"]==gid, "SHOT_CROSSGAME_OR_DUPLICATE:"+gid
+                  assert row["nba_official_shot_event"]["nba_action_number"]==n
+                  assert row["nba_official_shot_event"]["action_type"] in ("2pt","3pt")
+                  assert row["nba_pbp_normalized_source_sha256"]==item["official_PBP_SHA256"]
+                  assert row["actual_shot_release_UTC_independently_verified"] is False
+                  assert row["original_29_joint_60hz_pose_trajectories_available"] is False
+                  seen.add(n)
+                  b+=row["published_blueprint"] is not None
+                  c+=row["published_advanced_companion"] is not None
+                  xfg+=row["best_published_xfg_probability"] is not None
+              v=item["shot_identity_join_counts"]
+              assert b==v.get("blueprint_matched",0)
+              assert c==v.get("advanced_matched",0)
+              assert xfg==v.get("any_published_xfg",0)
+              cnt["official_fga"]+=len(rows)
+              cnt["blueprint_matched"]+=b
+              cnt["advanced_matched"]+=c
+              cnt["published_xfg"]+=xfg
+              cnt["full_companion_games"]+=item["original_companion"]["status"]=="FULL_EVENT_RESPONSE_SHA_VERIFIED"
+              cnt["missing_blueprint_module_games"]+=bool(item.get("blueprint_reported_missing_modules"))
+              cnt["frozen56"]+=item["source_grade"]=="UNCHANGED_ACCEPTED_56"
+              cnt["new25"]+=item["source_grade"]=="ADDITIVE_NEW25_SHA_GRADED"
+              games[gid]={"official_fga":len(rows),"blueprint":b,
+                "companion_advanced":c,"published_xfg":xfg,
+                "unpublished_advanced_fields":len(rows)-c,
+                "unpublished_xfg":len(rows)-xfg,
+                "missing_Blueprint_modules":item.get("blueprint_reported_missing_modules"),
+                "source_original_companion_status":item["original_companion"]["status"]}
+          assert cnt["frozen56"]==56 and cnt["new25"]==25
+          assert cnt["official_fga"]==idx["totals"]["official_fga"]==14375
+          assert cnt["blueprint_matched"]==idx["totals"]["blueprint_matched"]
+          assert cnt["advanced_matched"]==idx["totals"]["advanced_matched"]
+          assert cnt["published_xfg"]==idx["totals"]["any_published_xfg"]
+          receipt={"schema":"igp81-frozen-source-graded-detailed-game-shot-query.v1",
+            "status":"SOURCE_GRADED_81GAME_SHOT_QUERY_COMPLETE_WITH_ORIGINAL_SOURCE_MISSINGNESS",
+            "all_original_NBA_games_searchable":81,
+            "all_original_official_FGA_indexed_once":True,
+            "all_original_pbp_NBA_action_versions_semantically_reconciled":True,
+            "all_original_frozen56_source_shot_ledgers_unchanged":True,
+            "all_original_81_native_XYZ_manifests_source_grades_preserved":True,
+            "null_advanced_biomechanics_not_invented":True,
+            "raw29joint60Hz_pose_or_exact_release_certified":False,
+            "not_production_default_until_source_gaps_and_physical_QA_resolved":True,
+            "read_only_query":"gamepulse/fusion/query_igp81_complete_source_graded_shots_2026.py",
+            "detail_index_sha256":hashlib.sha256(idxfile.read_bytes()).hexdigest(),
+            "native_registry_sha256":hashlib.sha256(regfile.read_bytes()).hexdigest(),
+            "counts":dict(cnt),"games":games}
+          dest=base/"qa/igp_v32/igp81_81game_shot_source_grade_lock_v1.json"
+          raw=(json.dumps(receipt,sort_keys=True,indent=2)+"\n").encode()
+          if dest.exists():assert dest.read_bytes()==raw,"SOURCE_GRADE_RELEASE_LOCK_IMMUTABLE_DRIFT"
+          else:dest.write_bytes(raw)
+          print("IGP81_81GAME_SHOT_QUERY_QA_SUCCESS",json.dumps({"games":len(games),
+            "official_fga":cnt["official_fga"],
+            "blueprint_matched":cnt["blueprint_matched"],
+            "advanced_matched":cnt["advanced_matched"],
+            "published_xfg":cnt["published_xfg"],
+            "companion_full":cnt["full_companion_games"],
+            "blueprint_missing_module_games":cnt["missing_blueprint_module_games"]},sort_keys=True),flush=True)
+          PY
+      - name: Commit versioned read-only query and QA to private only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/query_igp81_complete_source_graded_shots_2026.py \
+            gamepulse/fusion/qa/igp_v32/igp81_81game_shot_source_grade_lock_v1.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo IGP81_81GAME_QUERY_UNCHANGED; exit 0; fi
+          git commit -q -m 'feat(igp81): SHA-graded all81 shot-by-shot private query with explicit missing biomechanics'
+          for n in $(seq 1 12); do
+            git fetch -q origin "$TARGET_BRANCH"
+            git rebase -q "origin/$TARGET_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$TARGET_BRANCH"; then
+              echo IGP81_SOURCE_GRADED_SEARCHABLE_81GAME_QUERY_PRIVATE_ACCEPTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 25
