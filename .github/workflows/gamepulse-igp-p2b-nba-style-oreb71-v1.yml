@@ -1,4 +1,5 @@
 # Public orchestration of private original NBA PBP. No licensed XYZ or raw PBP in public logs.
+# Approved by the explicit public_content_guard allowlist.
 name: IGP NBA71 advanced-style OREB continuation possession audit
 on:
   push:
