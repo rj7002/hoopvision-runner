@@ -1,0 +1,190 @@
+# Compare private licensed NBA originals; public runner emits aggregate counts only.
+name: IGP81 original positions variant vs native XYZ SHA delta
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp81-position-source-native-delta.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp81-source-positions-native-delta
+  cancel-in-progress: false
+jobs:
+  reconcile-exact-original-native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      TARGET_BRANCH: research/igp81-all-layers-source-grade-20261101
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Original source-private SHA integrity gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$TARGET_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set \
+            gamepulse/fusion/evidence \
+            gamepulse/fusion/materialized/igp_all_original_xyz \
+            gamepulse/fusion/materialized/igp_original_positions_variant_additive \
+            gamepulse/fusion/qa/igp_v32
+      - name: Strict source-only original timestamp and actor XYZ delta, new additive overlay only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          import collections,gzip,hashlib,json,math
+          from pathlib import Path
+          root=Path("gamepulse/fusion")
+          def sha(data):return hashlib.sha256(data).hexdigest()
+          def valid_pos(p):
+              if not isinstance(p,dict):return {}
+              return {str(k):list(map(float,v[:3])) for k,v in p.items()
+                 if isinstance(v,(tuple,list)) and len(v)>=3
+                 and all(type(x) in (int,float) and math.isfinite(x) for x in v[:3])}
+          def quality(pos):return (sum(k!="ball" for k in pos),int("ball" in pos))
+          def original(gid):
+              native=root/"materialized/igp_all_original_xyz"/gid
+              manifest_file=native/"index.json"
+              doc=json.loads(manifest_file.read_bytes())
+              assert doc["game_id"]==gid
+              rows={}
+              for ch in doc["chunks"]:
+                  c=(native/ch["path"]).read_bytes()
+                  assert sha(c)==ch["sha256"],"ORIGINAL_SDK_NATIVE_CHUNK_SHA_MISMATCH"
+                  for raw in gzip.decompress(c).splitlines():
+                      v=json.loads(raw)
+                      t=v["source_frame_utc_ms"]
+                      assert type(t)==int and t not in rows,"ORIGINAL_NATIVE_DUPLICATE_TIMESTAMP"
+                      rows[t]=v["positions_native_units"]
+              assert len(rows)==doc["original_frame_counts"]["unique_original_native_timestamps"]
+              return rows,sha(manifest_file.read_bytes())
+          result={}
+          for gid in ("0022600006","0022600111"):
+              p=root/"evidence"/("companion_positions_sdk_original_"+gid)
+              r=json.loads((p/"sdk_original_receipt.json").read_bytes())
+              blob=(p/"sdk_observed_original.json").read_bytes()
+              assert r["app_program_variant"]=="positions" and r["status"]=="FULL_EVENT_RESPONSE_OBSERVED"
+              assert sha(blob)==r["original_body_sha256"]
+              events=json.loads(blob)
+              assert len(events)==r["original_body_event_count"]
+              c=collections.Counter()
+              alt={};ambiguous=set();seen_by_t=collections.Counter()
+              for i,e in enumerate(events):
+                  if e.get("event")!="Positions#show":continue
+                  m=e.get("metadata") or {}
+                  for frame in m.get("keyframes") or []:
+                      t=frame.get("timestamp")
+                      if type(t)!=int:continue
+                      pos=valid_pos(frame.get("positions"))
+                      if not pos:continue
+                      c["original_position_keyframes"]+=1
+                      seen_by_t[t]+=1
+                      q=quality(pos)
+                      prior=alt.get(t)
+                      if prior is None or q>prior["quality"]:
+                          alt[t]={"positions":pos,"quality":q,"event_idx":i,
+                             "interpolated":frame.get("interpolated")}
+                          ambiguous.discard(t)
+                      elif q==prior["quality"] and pos!=prior["positions"]:
+                          ambiguous.add(t)
+              direct,manifest_sha=original(gid)
+              c["original_native_timestamps"]=len(direct)
+              c["positions_variant_unique_timestamps"]=len(alt)
+              c["positions_variant_timestamps_with_multiple_original_keyframes"]=sum(n>1 for n in seen_by_t.values())
+              c["positions_variant_ambiguous_equal_richness_timestamps"]=len(ambiguous)
+              overlay=[]
+              for t,v in sorted(alt.items()):
+                  if t in ambiguous:
+                      c["quarantined_position_variant_timestamps"]+=1
+                      continue
+                  pos=v["positions"]
+                  prev=direct.get(t)
+                  accepted={}
+                  if prev is None:
+                      c["novel_original_timestamps"]+=1
+                      accepted=pos
+                  else:
+                      c["overlapping_original_timestamps"]+=1
+                      for actor,xyz in pos.items():
+                          if actor not in prev:accepted[actor]=xyz
+                          elif prev[actor]==xyz:c["exact_identical_original_actor_xyz"]+=1
+                          else:c["source_conflicting_actor_xyz_quarantined"]+=1
+                  if accepted:
+                      c["new_original_actor_ball_xyz"]+=len(accepted)
+                      c["new_original_player_xyz"]+=sum(a!="ball" for a in accepted)
+                      c["new_original_ball_xyz"]+=int("ball" in accepted)
+                      overlay.append({"source_frame_utc_ms":t,
+                         "source_original_companion_positions_sha256":sha(blob),
+                         "source_event_array_index":v["event_idx"],
+                         "source_original_upstream_interpolated":v["interpolated"],
+                         "positions_native_units":accepted,
+                         "original_native_key_status":"ALTERNATE_SOURCE_NOT_IN_NATIVE_INDEX" if prev is None else "ADDITIVE_ONLY_MISSING_ACTORS",
+                         "official_lineup_certified":False,
+                         "physical_possession_certified":False,
+                         "raw29_joint_pose_certified":False})
+              dest=root/"materialized/igp_original_positions_variant_additive"/gid
+              dest.mkdir(parents=True,exist_ok=True)
+              target=dest/"additive-original-source.jsonl.gz"
+              if overlay:
+                  import io
+                  b=io.BytesIO()
+                  with gzip.GzipFile(fileobj=b,mode="wb",mtime=0,filename="") as gz:
+                      for row in overlay:
+                          gz.write((json.dumps(row,sort_keys=True,separators=(",",":"))+"\n").encode())
+                  data=b.getvalue()
+                  if target.exists():
+                      assert target.read_bytes()==data,"SOURCE_OVERLAY_VARIANT_IMMUTABLE_SHA_CONFLICT"
+                  else:target.write_bytes(data)
+              receipt={"schema":"igp81-source-original-positions-variant-native-exact-delta.v1",
+                "game_id":gid,
+                "original_sdk_positions_response_sha256":sha(blob),
+                "existing_native_manifest_sha256":manifest_sha,
+                "existing_original_native_XYZ_immutable":True,
+                "new_variant_original_XYZ_not_automatically_promoted_to_default":True,
+                "original_variant_interpolated_flags_retained":True,
+                "separate_physical_possession_and_29joint_pose_not_certified":True,
+                "source_actor_conflicts_quarantined":True,
+                "overlay_path":str(target) if overlay else None,
+                "overlay_sha256":sha(target.read_bytes()) if overlay else None,
+                "counts":dict(c)}
+              qa=root/"qa/igp_v32"/("igp81_positions_native_delta_"+gid+".json")
+              data=(json.dumps(receipt,sort_keys=True,indent=2)+"\n").encode()
+              if qa.exists():assert qa.read_bytes()==data,"SOURCE_DELTA_QA_SHA_DRIFT"
+              else:qa.write_bytes(data)
+              result[gid]={"native_timestamps":c["original_native_timestamps"],
+                "alternate_timestamps":c["positions_variant_unique_timestamps"],
+                "new_original_actor_ball_xyz":c["new_original_actor_ball_xyz"],
+                "new_original_timestamps":c["novel_original_timestamps"],
+                "same_actor_exact":c["exact_identical_original_actor_xyz"],
+                "actor_conflicts":c["source_conflicting_actor_xyz_quarantined"]}
+          print("IGP81_AUTHORIZED_POSITIONS_VS_NATIVE_ORIGINAL_SHA_DELTA",json.dumps(result,sort_keys=True),flush=True)
+          PY
+      - name: Commit only private novel original-source overlay and QA, never overwrite native
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/materialized/igp_original_positions_variant_additive \
+            gamepulse/fusion/qa/igp_v32/igp81_positions_native_delta_*.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo IGP81_NO_NEW_ORIGINAL_POSITION_SOURCE; exit 0; fi
+          git commit -q -m 'data(igp81): preserve new first-party alternate XYZ timestamp/actor observations without changing originals'
+          for n in $(seq 1 12); do
+            git fetch -q origin "$TARGET_BRANCH"
+            git rebase -q "origin/$TARGET_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$TARGET_BRANCH"; then
+              echo IGP81_SOURCE_ADDITIVE_POSITIONS_DELTA_PRIVATE_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 26
