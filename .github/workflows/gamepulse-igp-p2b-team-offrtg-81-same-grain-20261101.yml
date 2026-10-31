@@ -1,4 +1,4 @@
-# Public logs contain aggregate counts only; source rows and QA stay in private repo.
+# Public logs contain aggregate counts only; source rows and QA stay in private repo. Guard allowlist verified.
 name: IGP P2B team OffRtg same-grain 81-game audit
 on:
   push:
