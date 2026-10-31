@@ -31,7 +31,7 @@ jobs:
           gh auth setup-git
           git clone -q --depth=1 --filter=blob:none --sparse -b "$TARGET_BRANCH" "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/target"
           git clone -q --depth=1 --filter=blob:none --sparse -b "$SOURCE_BRANCH" "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/source"
-          git -C "$RUNNER_TEMP/target" sparse-checkout set gamepulse/fusion/evidence gamepulse/fusion/official_pbp_timing/games gamepulse/fusion/qa/igp_v32
+          git -C "$RUNNER_TEMP/target" sparse-checkout set gamepulse/fusion/evidence gamepulse/fusion/official_pbp_timing gamepulse/fusion/qa/igp_v32
           git -C "$RUNNER_TEMP/source" sparse-checkout set gamepulse/fusion/evidence
       - name: Preserve ten real companion bodies and original 81 PBP/SDK release invariants
         shell: bash
@@ -57,7 +57,7 @@ jobs:
           rows=[]; newly=0
           for gid in gameids:
               assert gid in reg["games"]
-              pbpfile=target/G/"official_pbp_timing/games"/(gid+".json")
+              pbpfile=target/G/"official_pbp_timing/pbp_only_oct21_10/games"/(gid+".json")
               pbpbytes=pbpfile.read_bytes()
               assert hashlib.sha256(pbpbytes).hexdigest()==reg["games"][gid]["nba_official_PBP_SHA256"],"OFFICIAL_PBP_SOURCE_DRIFT:"+gid
               official=json.loads(pbpbytes)
