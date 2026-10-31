@@ -1,5 +1,6 @@
 # Compare private licensed NBA originals; public runner emits aggregate counts only.
 name: IGP81 original positions variant vs native XYZ SHA delta
+# Safe source-first overlay: never substitute novel positions into accepted model silently
 on:
   push:
     branches: [main]
