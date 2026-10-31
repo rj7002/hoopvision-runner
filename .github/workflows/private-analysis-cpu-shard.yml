@@ -1041,7 +1041,7 @@ jobs:
   # Rerun after source QA corrected to use 20ft denominator, not 3pt population.
   # v4 corrected 20ft-domain denominator: context frames are a subset of 20ft observations, not beyond-arc observations.
   private-nba20-v4-shard:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-nba20ft-gravity-v4-trigger-20261101' }}
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-nba20ft-v4-corrected-trigger-20261101' }}
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -1122,7 +1122,7 @@ jobs:
           PY
   private-nba20-v4-gravity-validation:
     needs: [private-nba20-v4-shard]
-    if: ${{ success() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-nba20ft-gravity-v4-trigger-20261101' }}
+    if: ${{ success() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-nba20ft-v4-corrected-trigger-20261101' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
