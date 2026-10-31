@@ -356,7 +356,7 @@ jobs:
 
 
   private-paint-residence-rank:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-league-run-trigger-20261101' }}
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 18
     env:
@@ -442,3 +442,173 @@ jobs:
           if task.returncode:sys.exit(1)
           print("IGP81_OUTSIDE_PAINT_85_RESIDENCE_TOP20_PUBLISHED_PRIVATE")
           PY
+
+  private-3pt-shard:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-league-run-trigger-20261101' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        shard: [0,1,2,3,4,5,6,7,8]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate public source boundary and protected git credentials
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+      - name: Run source-graded private shard and publish only to private git
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,pathlib,shutil,subprocess,sys
+          def run(argv,**kw):
+              return subprocess.run(argv,check=True,**kw)
+          repo="timeedmonds-maker/104"
+          ref="analysis/igp81-outside-3pt-residence-20261101"
+          source="gamepulse/fusion/analysis/igp81_halfcourt_outside_paint_with_3pt_residence_v1.py"
+          dest="gamepulse/fusion/qa/analysis/igp81_threepoint_residence_native_20261101"
+          engine="IGP32_P2B_GUARDED_NBA81_FULL_SOURCE_QA_10HZ_20261101"
+          shard=int(os.environ["SHARD"])
+          run_id=os.environ["GITHUB_RUN_ID"]
+          branch=f"analysis/igp81-threepoint-shard-{run_id}-{shard}"
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-src"
+          run(["gh","auth","setup-git"],stdout=subprocess.DEVNULL)
+          run(["git","clone","-q","--depth=1","--filter=blob:none","--sparse","-b",ref,
+               f"https://github.com/{repo}.git",str(root)])
+          run(["git","-C",str(root),"sparse-checkout","set","gamepulse/fusion"],
+              stdout=subprocess.DEVNULL)
+          analysis=root/source
+          run([sys.executable,"-m","py_compile",str(analysis)])
+          test=root/"gamepulse/fusion/analysis/test_igp81_three_point_arc_geometry_source_free_v1.py"
+          assert test.is_file()
+          env={**os.environ,"PYTHONPATH":str(root/"gamepulse/fusion/analysis")+os.pathsep+str(root/"gamepulse/fusion")}
+          probe=subprocess.run([sys.executable,str(test)],cwd=root,capture_output=True,text=True,env=env)
+          if probe.returncode:
+              print("PRIVATE_ANALYSIS_SOURCE_FREE_REGRESSION_FAILED")
+              sys.exit(1)
+          out=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-summary.json"
+          p=subprocess.run([sys.executable,str(analysis),"--root",str(root),
+                            "--shard",str(shard),"--shards","9","--out",str(out)],
+                           cwd=root,capture_output=True,text=True,env=env)
+          if p.returncode:
+              payload=json.dumps({"state":"PRIVATE_ANALYSIS_FAILED","shard":shard,
+                                  "returncode":p.returncode,"stderr_tail_private":p.stderr[-3000:]})
+              filename=f"shard_{shard}_failure.json"
+          else:
+              data=json.loads(out.read_text())
+              assert data["shard"]==shard and data["shards"]==9
+              assert data["engine_id"]==engine and data["original_source_modified"] is False
+              payload=out.read_text()
+              filename=f"shard_{shard}.json"
+          run(["git","-C",str(root),"switch","-q","-c",branch])
+          target=root/dest/filename
+          target.parent.mkdir(parents=True,exist_ok=True)
+          target.write_text(payload)
+          run(["git","-C",str(root),"config","user.name","IGP Protected Runner"])
+          run(["git","-C",str(root),"config","user.email","runner@users.noreply.github.com"])
+          run(["git","-C",str(root),"add","-f",str(target.relative_to(root))])
+          run(["git","-C",str(root),"commit","-qm",f"qa(private): protected IGP81 shard {shard}"],stdout=subprocess.DEVNULL)
+          run(["git","-C",str(root),"push","-q","origin",f"HEAD:refs/heads/{branch}"])
+          if p.returncode:
+              print("PRIVATE_ANALYSIS_FAILED_RECEIPT_IN_PRIVATE_GIT")
+              sys.exit(1)
+          print("PRIVATE_ANALYSIS_SHARD_COMMITTED_TO_PRIVATE_GIT")
+          PY
+  private-3pt-ranking:
+    needs: [private-3pt-shard]
+    if: ${{ success() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-league-run-trigger-20261101' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate public source boundary and protected git credentials
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+      - name: Finalize 81-game league plus team filtered exports in private git
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,pathlib,shutil,subprocess,sys,time
+          def run(argv,**kw):
+              return subprocess.run(argv,check=True,**kw)
+          repo="timeedmonds-maker/104"
+          ref="analysis/igp81-outside-3pt-residence-20261101"
+          source="gamepulse/fusion/analysis/igp81_halfcourt_3pt_residence_source_rank_v1.py"
+          dest="gamepulse/fusion/qa/analysis/igp81_threepoint_residence_native_20261101"
+          run_id=os.environ["GITHUB_RUN_ID"]
+          run(["gh","auth","setup-git"],stdout=subprocess.DEVNULL)
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-finalizer"
+          run(["git","clone","-q","--depth=1","--filter=blob:none","--sparse","-b",ref,
+               f"https://github.com/{repo}.git",str(root)])
+          run(["git","-C",str(root),"sparse-checkout","set","gamepulse/fusion/analysis",
+               "gamepulse/fusion/qa/analysis"],stdout=subprocess.DEVNULL)
+          summaries=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-summaries"
+          summaries.mkdir()
+          for i in range(9):
+              branch=f"analysis/igp81-threepoint-shard-{run_id}-{i}"
+              run(["git","-C",str(root),"fetch","-q","--no-tags","--depth=1",
+                   "origin",f"refs/heads/{branch}"],stdout=subprocess.DEVNULL)
+              private_path=f"{dest}/shard_{i}.json"
+              raw=subprocess.check_output(["git","-C",str(root),"show",
+                                           f"FETCH_HEAD:{private_path}"])
+              (summaries/f"shard_{i}.json").write_bytes(raw)
+          script=root/source
+          run([sys.executable,"-m","py_compile",str(script)])
+          args=[sys.executable,str(script),"--dir",str(summaries)]
+          outputs={"top20.json":summaries/"top20.json",
+                   "all_league_players.json":summaries/"all_league_players.json",
+                   "all_league_players.csv":summaries/"all_league_players.csv",
+                   "all_player_team_splits.csv":summaries/"all_player_team_splits.csv"}
+          args+=["--out",str(outputs["top20.json"]),
+                 "--league-json",str(outputs["all_league_players.json"]),
+                 "--league-csv",str(outputs["all_league_players.csv"]),
+                 "--team-csv",str(outputs["all_player_team_splits.csv"])]
+          proc=subprocess.run(args,capture_output=True,text=True)
+          if proc.returncode:
+              print("PRIVATE_RANKING_VALIDATION_FAILED")
+              sys.exit(1)
+          top=json.loads(outputs["top20.json"].read_bytes())
+          league=json.loads(outputs["all_league_players.json"].read_bytes())
+          assert top["games_processed"]==81 and league["games_processed"]==81
+          assert top["original_source_modified"] is False
+          assert league["original_source_modified"] is False
+          assert top["analysis_code_sha256"]==league["analysis_code_sha256"]
+          assert league["total_players_with_samples"]==len(league["all_league_players"])
+          assert league["total_player_team_rows"]==len(league["all_player_team_splits"])
+          path=root/dest
+          path.mkdir(parents=True,exist_ok=True)
+          for f in summaries.iterdir():
+              if f.name.startswith("shard_") or f.name in outputs:
+                  shutil.copy2(f,path/f.name)
+          run(["git","-C",str(root),"config","user.name","IGP Protected Runner"])
+          run(["git","-C",str(root),"config","user.email","runner@users.noreply.github.com"])
+          run(["git","-C",str(root),"add","-f",str(path.relative_to(root))])
+          run(["git","-C",str(root),"commit","-qm","data(private): validated IGP81 complete league/player-team proximity results"])
+          for attempt in range(6):
+              r=subprocess.run(["git","-C",str(root),"push","-q","origin",
+                                 f"HEAD:refs/heads/{ref}"],capture_output=True,text=True)
+              if r.returncode==0:break
+              run(["git","-C",str(root),"pull","-q","--rebase","origin",ref])
+              time.sleep(2+attempt)
+          else:
+              print("PRIVATE_RESULTS_PUSH_FAILED")
+              sys.exit(1)
+          print("PRIVATE_81_GAME_LEAGUE_AND_TOP20_EXPORTS_COMMITTED")
+          PY
+
