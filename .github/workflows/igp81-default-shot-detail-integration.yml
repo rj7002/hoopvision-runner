@@ -59,7 +59,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/igp81_default_engine_v1.py gamepulse/fusion/query_igp81_full_shot_detail_v1.py gamepulse/fusion/qa/igp_v32/igp81_shot_detail_default_route_81game_qa_v1.json
+          git add --sparse -f gamepulse/fusion/igp81_default_engine_v1.py gamepulse/fusion/query_igp81_full_shot_detail_v1.py gamepulse/fusion/qa/igp_v32/igp81_shot_detail_default_route_81game_qa_v1.json
           git diff --cached --check
           if git diff --cached --quiet; then echo IGP81_SHOT_ROUTE_ALREADY_RELEASED; exit 0; fi
           git commit -q -m 'feat(igp81): default release now queries all81 source-graded biomechanics and Blueprint'
