@@ -3,7 +3,7 @@ import {appendFileSync,readFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 const TOKEN=process.env.GH_TOKEN;
 const NOW=Date.now();
-const MAX=3;
+const MAX=10; // Bounded full Oct 30 NBA ten-game slate fanout; do not exceed 10.
 if(!TOKEN || !process.env.GITHUB_OUTPUT)throw Error('PRIVATE_TOKEN_OR_OUTPUT_MISSING');
 async function get(url,privateRead=false){
  if(privateRead){
@@ -137,7 +137,14 @@ const rotation=incomplete.length?Math.floor(NOW/(3*3600000))%incomplete.length:0
 // existing incomplete-game rotation resumes, preventing long-term starvation.
 const urgent=pending.filter(g=>NOW-g.start<=48*3600000)
   .sort((a,b)=>b.start-a.start||b.id.localeCompare(a.id));
-const candidates=[...fresh,...urgent,...incomplete.slice(rotation),...incomplete.slice(0,rotation)];
+// Oct 30 US games (Oct 31 NZ): explicitly prioritize this completed ten-game slate
+// over earlier incomplete games. This is date-scoped official schedule selection,
+// not inferred game identifiers or a permanent change to the baseline release.
+const oct30=pending.filter(g=>g.start>=Date.parse('2026-10-30T04:00:00Z')
+    &&g.start<Date.parse('2026-10-31T04:00:00Z'));
+if (oct30.length > 0 && oct30.length !== 10)
+  throw Error('IGP91_OCT30_OFFICIAL_FINAL_TEN_COUNT_NOT_READY');
+const candidates=[...oct30,...fresh,...urgent,...incomplete.slice(rotation),...incomplete.slice(0,rotation)];
 const selected=[...new Map(candidates.map(g=>[g.id,g])).values()].slice(0,MAX);
 const parts=[],apps=[],games=[],sdkGames=[];
 let reused=0,releaseReadDeferred=0;
