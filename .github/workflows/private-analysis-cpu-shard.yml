@@ -1037,3 +1037,180 @@ jobs:
           if task.returncode:sys.exit(1)
           print("PRIVATE_IGP81_V3_CONTEXTUAL_RESEARCH_PUBLISHED")
           PY
+
+  private-nba20-v4-shard:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-nba20ft-gravity-v4-trigger-20261101' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        shard: [0,1,2,3,4,5,6,7,8]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate public source boundary and protected git credentials
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+      - name: Run source-graded private shard and publish only to private git
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,pathlib,shutil,subprocess,sys
+          def run(argv,**kw):
+              return subprocess.run(argv,check=True,**kw)
+          repo="timeedmonds-maker/104"
+          ref="analysis/igp81-nba-perimeter-20ft-gravity-v4-20261101"
+          source="gamepulse/fusion/analysis/igp81_nba20ft_gravity_aligned_scene_v4.py"
+          dest="gamepulse/fusion/qa/analysis/igp81_nba20ft_gravity_v4_20261101"
+          engine="IGP32_P2B_GUARDED_NBA81_FULL_SOURCE_QA_10HZ_20261101"
+          shard=int(os.environ["SHARD"])
+          run_id=os.environ["GITHUB_RUN_ID"]
+          branch=f"analysis/igp81-nba20-v4-shard-{run_id}-{shard}"
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-src"
+          run(["gh","auth","setup-git"],stdout=subprocess.DEVNULL)
+          run(["git","clone","-q","--depth=1","--filter=blob:none","--sparse","-b",ref,
+               f"https://github.com/{repo}.git",str(root)])
+          run(["git","-C",str(root),"sparse-checkout","set","gamepulse/fusion"],
+              stdout=subprocess.DEVNULL)
+          analysis=root/source
+          run([sys.executable,"-m","py_compile",str(analysis)])
+          test=root/"gamepulse/fusion/analysis/test_igp81_three_point_arc_geometry_source_free_v1.py"
+          assert test.is_file()
+          env={**os.environ,"PYTHONPATH":str(root/"gamepulse/fusion/analysis")+os.pathsep+str(root/"gamepulse/fusion")}
+          probe=subprocess.run([sys.executable,str(test)],cwd=root,capture_output=True,text=True,env=env)
+          if probe.returncode:
+              print("PRIVATE_ANALYSIS_SOURCE_FREE_REGRESSION_FAILED")
+              sys.exit(1)
+          out=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-summary.json"
+          p=subprocess.run([sys.executable,str(analysis),"--root",str(root),
+                            "--shard",str(shard),"--shards","9","--out",str(out)],
+                           cwd=root,capture_output=True,text=True,env=env)
+          if p.returncode:
+              payload=json.dumps({"state":"PRIVATE_ANALYSIS_FAILED","shard":shard,
+                                  "returncode":p.returncode,"stderr_tail_private":p.stderr[-3000:]})
+              filename=f"shard_{shard}_failure.json"
+          else:
+              data=json.loads(out.read_text())
+              assert data["shard"]==shard and data["shards"]==9
+              assert data["engine_id"]==engine and data["original_source_modified"] is False
+              payload=out.read_text()
+              filename=f"shard_{shard}.json"
+          run(["git","-C",str(root),"switch","-q","-c",branch])
+          target=root/dest/filename
+          target.parent.mkdir(parents=True,exist_ok=True)
+          target.write_text(payload)
+          run(["git","-C",str(root),"config","user.name","IGP Protected Runner"])
+          run(["git","-C",str(root),"config","user.email","runner@users.noreply.github.com"])
+          run(["git","-C",str(root),"add","-f",str(target.relative_to(root))])
+          run(["git","-C",str(root),"commit","-qm",f"qa(private): protected IGP81 shard {shard}"],stdout=subprocess.DEVNULL)
+          run(["git","-C",str(root),"push","-q","origin",f"HEAD:refs/heads/{branch}"])
+          if p.returncode:
+              print("PRIVATE_ANALYSIS_FAILED_RECEIPT_IN_PRIVATE_GIT")
+              sys.exit(1)
+          print("PRIVATE_ANALYSIS_SHARD_COMMITTED_TO_PRIVATE_GIT")
+          PY
+  private-nba20-v4-gravity-validation:
+    needs: [private-nba20-v4-shard]
+    if: ${{ success() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-nba20ft-gravity-v4-trigger-20261101' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce opaque public-runner boundary
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test -f public_nba_gravity_leaders_2026_27_current.json
+      - name: Validate heldout 81-game NBA20 distances + official NBA Gravity source comparison
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,sys,json,pathlib,subprocess,time
+          def run(args,**kw):return subprocess.run(args,check=True,**kw)
+          repo="timeedmonds-maker/104"
+          ref="analysis/igp81-nba-perimeter-20ft-gravity-v4-20261101"
+          folder="gamepulse/fusion/qa/analysis/igp81_nba20ft_gravity_v4_20261101"
+          runid=os.environ["GITHUB_RUN_ID"]
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-nba20"
+          run(["gh","auth","setup-git"],stdout=subprocess.DEVNULL)
+          run(["git","clone","-q","--depth=1","--filter=blob:none","--sparse",
+               "-b",ref,f"https://github.com/{repo}.git",str(root)])
+          run(["git","-C",str(root),"sparse-checkout","set",
+               "gamepulse/fusion/analysis","gamepulse/fusion/qa/analysis"],
+              stdout=subprocess.DEVNULL)
+          code=root/"gamepulse/fusion/analysis/igp81_nba20ft_gravity_alignment_eval_v4.py"
+          test=root/"gamepulse/fusion/analysis/test_igp81_nba20ft_gravity_v4.py"
+          run([sys.executable,"-m","py_compile",str(code),str(test)])
+          env={**os.environ,"PYTHONPATH":str(code.parent)}
+          unit=subprocess.run([sys.executable,str(test)],capture_output=True,
+                              text=True,cwd=root,env=env)
+          if unit.returncode:
+              print("PRIVATE_NBA20_V4_SOURCEFREE_TEST_FAILED")
+              print(unit.stderr[-2500:])
+              sys.exit(1)
+          shards=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-nba20-shards"
+          shards.mkdir()
+          for i in range(9):
+              b=f"analysis/igp81-nba20-v4-shard-{runid}-{i}"
+              run(["git","-C",str(root),"fetch","-q","--no-tags","--depth=1",
+                   "origin",f"refs/heads/{b}"],stdout=subprocess.DEVNULL)
+              raw=subprocess.check_output(["git","-C",str(root),"show",
+                   f"FETCH_HEAD:{folder}/shard_{i}.json"])
+              (shards/f"shard_{i}.json").write_bytes(raw)
+          roster=root/"gamepulse/fusion/qa/analysis/igp81_perimeter_pressure_v2_20261101/research_v2/all_424_players_v2.csv"
+          output=root/folder/"research_v4"
+          gravity=pathlib.Path(os.environ["GITHUB_WORKSPACE"])/"public_nba_gravity_leaders_2026_27_current.json"
+          cmd=[sys.executable,str(code),"--shard-dir",str(shards),
+             "--official-gravity-json",str(gravity),"--roster-csv",str(roster),
+             "--out-dir",str(output)]
+          task=subprocess.run(cmd,capture_output=True,text=True,cwd=root,env=env)
+          if task.returncode:
+              issue=root/folder/"private_v4_failure.json"
+              issue.parent.mkdir(parents=True,exist_ok=True)
+              issue.write_text(json.dumps({"result":"V4_VALIDATION_FAILED",
+                  "returncode":task.returncode,
+                  "private_error":task.stderr[-7000:]}))
+              print("PRIVATE_V4_NBA20_SOURCE_RECONCILIATION_FAILED")
+          else:
+              d=json.loads((output/"audit_v4.json").read_bytes())
+              assert d["qa"]["baseline_halfcourt_frames"]==1247319
+              assert d["qa"]["old_outside_paint_frames"]==1120038
+              assert d["qa"]["pbp_rebounds_found"]>1000
+              assert d["qa"]["rebound_near_frames_excluded"]>0
+              assert d["qa"]["context_frames"]>100000
+              assert d["source_nba_gravity_sha256"]=="4ec2380b4f71b16d154793ddb794eb0fef27fd8271c310244cafc67b0e34bc70"
+              assert d["accept_as_production"] is False
+              print("PRIVATE_NBA20_V4_SOURCE_AND_GRAVITY_RECONCILED",
+                    json.dumps({"qa":d["qa"],"heldout":d["heldout_performance"],
+                    "external":d["external_gravity_validation"]},sort_keys=True))
+          run(["git","-C",str(root),"config","user.name","IGP Protected Runner"])
+          run(["git","-C",str(root),"config","user.email","runner@users.noreply.github.com"])
+          run(["git","-C",str(root),"add","-f",folder])
+          run(["git","-C",str(root),"commit","-qm",
+               "data(private): NBA81 native-distance-feet NBA20 context model and official gravity cross-validation"])
+          for k in range(6):
+              push=subprocess.run(["git","-C",str(root),"push","-q","origin",
+                  f"HEAD:refs/heads/{ref}"],capture_output=True,text=True)
+              if push.returncode==0:break
+              run(["git","-C",str(root),"pull","-q","--rebase","origin",ref])
+              time.sleep(k+1)
+          else:
+              print("PRIVATE_NBA20_V4_RESULTS_PUSH_FAILED");sys.exit(1)
+          if task.returncode:sys.exit(1)
+          print("PRIVATE_NBA20_V4_DEFENDER_DISTANCE_AND_NBA_GRAVITY_VALIDATED")
+          PY
