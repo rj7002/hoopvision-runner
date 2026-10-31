@@ -1038,6 +1038,7 @@ jobs:
           print("PRIVATE_IGP81_V3_CONTEXTUAL_RESEARCH_PUBLISHED")
           PY
 
+  # Rerun after source QA corrected to use 20ft denominator, not 3pt population.
   private-nba20-v4-shard:
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-nba20ft-gravity-v4-trigger-20261101' }}
     strategy:
