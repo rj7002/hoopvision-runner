@@ -1,5 +1,6 @@
 # Private licensed NBA data only; public runner stores no original payloads.
 name: IGP81 source-grade authorized positions companion variant probe
+# Dedicated original-provider source fallback for five detail gaps and one control
 on:
   push:
     branches: [main]
