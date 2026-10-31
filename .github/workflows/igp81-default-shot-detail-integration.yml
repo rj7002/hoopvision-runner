@@ -1,0 +1,189 @@
+# Source-free public runner. All licensed original FGA rows and protected hashes
+# remain in private repository 104. No source payload printed publicly.
+name: IGP81 default engine all-game detailed shot integration
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp81-default-shot-detail-integration.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp81-default-shot-detail-private-release
+  cancel-in-progress: false
+jobs:
+  integrate-and-certify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      TARGET_BRANCH: release/igp32-p2b-nba81-unified-default-20261101
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Check source code guard and authenticate private only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          python3 -m py_compile tools/licensed_feed/igp81_default_shot_detail_query.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Load private 81-game detail source and original immutable query
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$TARGET_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
+            'gamepulse/fusion/*.py' \
+            gamepulse/fusion/qa/igp_v32/igp81_unified_native_possession_tracking_registry_run_41231284682.json \
+            gamepulse/fusion/qa/igp_v32/igp81_official_pbp_blueprint_semantic_reconciliation_v1.json \
+            gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all81_v1
+          test -f "$RUNNER_TEMP/private/gamepulse/fusion/igp81_default_engine_v1.py"
+          test -f "$RUNNER_TEMP/private/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all81_v1/index.json"
+      - name: Add immutable, SHA-gated shot detail route to existing default engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp tools/licensed_feed/igp81_default_shot_detail_query.py \
+            "$RUNNER_TEMP/private/gamepulse/fusion/query_igp81_full_shot_detail_v1.py"
+          export IGP_PRIVATE_DIR="$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          root=Path(os.environ["IGP_PRIVATE_DIR"])
+          file=root/"gamepulse/fusion/igp81_default_engine_v1.py"
+          source=file.read_text()
+          old='def query(root=".", *, engine=DEFAULT_ENGINE, **filters):\n    if engine == DEFAULT_ENGINE:'
+          new='''def query(root=".", *, engine=DEFAULT_ENGINE, **filters):
+              # Source-conserving additive detailed-shot path: official FGA
+              # identity, Blueprint, companion biomechanics, published xFG.
+              # The pre-existing tracking/statistical query is untouched.
+              detailed=filters.pop("include_shots",False)
+              action=filters.pop("shot_action_number",None)
+              offset=filters.pop("shot_offset",0)
+              limit=filters.pop("shot_limit",20)
+              if detailed or action is not None:
+                  if engine != DEFAULT_ENGINE:
+                      raise ValueError("DETAILS_REQUIRE_FULL81_DEFAULT_ENGINE")
+                  game_id=filters.pop("game_id",None)
+                  if filters:raise ValueError("SHOT_QUERY_CANNOT_MIX_TEAM_OR_TRACKING_FILTERS")
+                  from query_igp81_full_shot_detail_v1 import query as shot_query
+                  return shot_query(root,game_id,action,offset,limit)
+              if engine == DEFAULT_ENGINE:'''
+          # Dedent source manually, preserving exact original module syntax.
+          new=new.replace('              ','    ').replace('                  ','        ')
+          # Reconstruct the actual function with deliberate indentation.
+          new='''def query(root=".", *, engine=DEFAULT_ENGINE, **filters):
+    # Official shot ledger is an additive query; native tracking never changes.
+    detailed=filters.pop("include_shots",False)
+    action=filters.pop("shot_action_number",None)
+    offset=filters.pop("shot_offset",0)
+    limit=filters.pop("shot_limit",20)
+    if detailed or action is not None:
+        if engine != DEFAULT_ENGINE:
+            raise ValueError("DETAILS_REQUIRE_FULL81_DEFAULT_ENGINE")
+        game_id=filters.pop("game_id",None)
+        if filters:
+            raise ValueError("SHOT_QUERY_CANNOT_MIX_TEAM_OR_TRACKING_FILTERS")
+        from query_igp81_full_shot_detail_v1 import query as shot_query
+        return shot_query(root,game_id,action,offset,limit)
+    if engine == DEFAULT_ENGINE:'''
+          if 'from query_igp81_full_shot_detail_v1 import query as shot_query' not in source:
+              assert source.count(old)==1,"ENGINE_DEFAULT_QUERY_ANCHOR_CHANGED"
+              source=source.replace(old,new)
+          p='    p.add_argument("--summary-only", action="store_true")'
+          addition=p+'''
+    p.add_argument("--shots", action="store_true",
+                   help="Read 81-game official FGA rows with Blueprint/biomechanics")
+    p.add_argument("--shot-action-number", type=int)
+    p.add_argument("--shot-offset", type=int, default=0)
+    p.add_argument("--shot-limit", type=int, default=20)'''
+          if 'p.add_argument("--shots",' not in source:
+              assert source.count(p)==1,"ENGINE_CLI_SHOTS_ANCHOR_CHANGED"
+              source=source.replace(p,addition)
+          p='''    if args.start_utc_ms is not None:
+        if not args.game_id:'''
+          replacement='''    if args.start_utc_ms is not None:
+        if args.shots or args.shot_action_number is not None:
+            p.error("shot-detail and native-scene modes cannot be mixed")
+        if not args.game_id:'''
+          if 'shot-detail and native-scene modes cannot be mixed' not in source:
+              assert source.count(p)==1,"ENGINE_CLI_NATIVE_ANCHOR_CHANGED"
+              source=source.replace(p,replacement)
+          p='''    else:
+        result = query(args.root, game_id=args.game_id, team=args.team,
+                       engine=args.engine,
+                       include_team_game_rows=not args.summary_only)
+    print(json.dumps(result, sort_keys=True))'''
+          replacement='''    else:
+        if args.shots or args.shot_action_number is not None:
+            if args.team is not None or not args.game_id:
+                p.error("shot detail requires --game-id and cannot mix --team")
+            result = query(args.root, game_id=args.game_id, engine=args.engine,
+                           include_shots=True, shot_action_number=args.shot_action_number,
+                           shot_offset=args.shot_offset, shot_limit=args.shot_limit)
+        else:
+            result = query(args.root, game_id=args.game_id, team=args.team,
+                           engine=args.engine,
+                           include_team_game_rows=not args.summary_only)
+    print(json.dumps(result, sort_keys=True))'''
+          if 'if args.shots or args.shot_action_number is not None:\n            if args.team' not in source:
+              assert source.count(p)==1,"ENGINE_CLI_QUERY_ANCHOR_CHANGED"
+              source=source.replace(p,replacement)
+          file.write_text(source)
+          print("IGP81_DEFAULT_QUERY_SHOT_ENTRYPOINT_ADDED_WITHOUT_CHANGING_TEAM_OR_NATIVE_QUERY")
+          PY
+      - name: SHA-validate every one of 81 games and test default engine shot path
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH="$PWD/gamepulse/fusion"
+          python3 -m py_compile gamepulse/fusion/igp81_default_engine_v1.py gamepulse/fusion/query_igp81_full_shot_detail_v1.py
+          python3 gamepulse/fusion/query_igp81_full_shot_detail_v1.py --root . --audit > "$RUNNER_TEMP/private-shot-audit.log"
+          tail -n 1 "$RUNNER_TEMP/private-shot-audit.log"
+          python3 - <<'PY'
+          import json
+          import igp81_default_engine_v1 as default
+          from query_igp81_full_shot_detail_v1 import audit,query
+          # Verify the live default engine string is unchanged.
+          assert default.DEFAULT_ENGINE=="IGP32_P2B_GUARDED_NBA81_FULL_SOURCE_QA_10HZ_20261101"
+          # Same game, action and original source for each immutable cohort.
+          for gid in ("0022600009","0022600015","0022600142","0022600143"):
+              q=default.query(".",game_id=gid,include_shots=True,shot_limit=1)
+              assert q["official_fga_game"]>=1 and len(q["rows"])==1
+              action=q["rows"][0]["nba_action_number"]
+              single=default.query(".",game_id=gid,shot_action_number=action,shot_limit=1)
+              assert len(single["rows"])==1 and single["rows"][0]==q["rows"][0]
+              assert single["tracking_engine_id"]==default.DEFAULT_ENGINE
+              print("IGP81_DEFAULT_SHOT_QUERY_ACCEPTED",gid,action,
+                    int(single["rows"][0].get("published_advanced_companion") is not None))
+          print("IGP81_DEFAULT_TRACKING_ENTRYPOINT_UNMODIFIED")
+          PY
+      - name: Commit accepted additive query + QA to private default release
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/igp81_default_engine_v1.py \
+            gamepulse/fusion/query_igp81_full_shot_detail_v1.py \
+            gamepulse/fusion/qa/igp_v32/igp81_shot_detail_default_route_81game_qa_v1.json
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo IGP81_PRIVATE_DEFAULT_SHOT_ROUTE_ALREADY_ACCEPTED
+            exit 0
+          fi
+          git commit -q -m 'feat(igp81): release 81-game official Blueprint companion biomechanics query in default engine'
+          for n in $(seq 1 12); do
+            git fetch -q origin "$TARGET_BRANCH"
+            git rebase -q "origin/$TARGET_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$TARGET_BRANCH"; then
+              echo IGP81_DEFAULT_ALL81_SHOT_DETAIL_PRIVATE_RELEASE_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 29
