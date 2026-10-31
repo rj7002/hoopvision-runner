@@ -160,3 +160,106 @@ jobs:
             sleep "$n"
           done
           exit 24
+
+  audit-original-position-schema:
+    needs: probe-position-source
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      TARGET_BRANCH: research/igp81-all-layers-source-grade-20261101
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Inspect original authorized positions metadata structure privately only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$TARGET_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set \
+            gamepulse/fusion/evidence gamepulse/fusion/qa/igp_v32
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          import collections,hashlib,json
+          from pathlib import Path
+          root=Path("gamepulse/fusion")
+          output={}
+          for gid in ("0022600006","0022600086","0022600111","0022600142","0022600143","0022600009"):
+              base=root/"evidence"/("companion_positions_sdk_original_"+gid)
+              body=base/"sdk_observed_original.json"
+              rec=base/"sdk_original_receipt.json"
+              if not body.exists() or not rec.exists():
+                  output[gid]={"status":"NO_AUTHORIZED_POSITIONS_SOURCE","events":0}
+                  continue
+              receipt=json.loads(rec.read_bytes())
+              raw=body.read_bytes()
+              assert hashlib.sha256(raw).hexdigest()==receipt["original_body_sha256"]
+              events=json.loads(raw)
+              assert isinstance(events,list) and len(events)==receipt["original_body_event_count"]
+              fields=collections.Counter();shape=collections.Counter()
+              arrlens=collections.defaultdict(collections.Counter)
+              joint_candidates=collections.Counter()
+              per_event=collections.Counter()
+              def walk(v,path,depth):
+                  if depth>5:return
+                  if isinstance(v,dict):
+                      for key,x in v.items():
+                          name=str(key)
+                          if depth<=2:fields[path+"."+name]+=1
+                          walk(x,path+"."+name,depth+1)
+                  elif isinstance(v,list):
+                      arrlens[path][len(v)]+=1
+                      if len(v)==29 and ("joint" in path.lower() or "pose" in path.lower()):
+                          joint_candidates[path]+=1
+                      if v:
+                          shape[path+":"+type(v[0]).__name__]+=1
+                          walk(v[0],path+"[]",depth+1)
+              for ev in events:
+                  per_event[str(ev.get("event"))]+=1
+                  walk(ev.get("metadata"),"metadata",0)
+              out={"schema":"igp81-original-positions-program-shape-census.v1",
+                  "game_id":gid,
+                  "source_status":"FULL_EVENT_RESPONSE_SHA_VERIFIED",
+                  "original_source_sha256":receipt["original_body_sha256"],
+                  "original_event_count":len(events),
+                  "event_types":dict(per_event),
+                  "metadata_top_and_second_level_key_counts":dict(fields.most_common(90)),
+                  "nested_array_lengths":{
+                      k:dict(v) for k,v in arrlens.items() if len(k)<100
+                  },
+                  "nested_array_element_type_counts":dict(shape),
+                  "pose_29_joint_shape_candidates_not_certified":dict(joint_candidates),
+                  "raw_29joint_60Hz_per_player_pose_certified":False,
+                  "no_original_XYZ_coordinates_emitted_publicly":True}
+              qa=root/"qa/igp_v32"/("igp81_positions_schema_"+gid+".json")
+              qa.parent.mkdir(parents=True,exist_ok=True)
+              content=(json.dumps(out,sort_keys=True,indent=2)+"\n").encode()
+              if qa.exists():assert qa.read_bytes()==content,"IMMUTABLE_SOURCE_SCHEMA_VARIANT_DRIFT"
+              else:qa.write_bytes(content)
+              output[gid]={"status":"ORIGINAL_SHA_VERIFIED","events":len(events),
+                "metadata_paths":len(fields),"array_paths":len(arrlens),
+                "29_joint_candidate_paths":len(joint_candidates)}
+          print("IGP81_ALTERNATE_POSITIONS_SOURCE_SCHEMA_AGGREGATE",
+                json.dumps(output,sort_keys=True),flush=True)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_v32/igp81_positions_schema_*.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo IGP81_ORIGINAL_POSITIONS_SCHEMA_ALREADY_SAVED; exit 0; fi
+          git commit -q -m 'qa(igp81): audit original first-party positions source shapes without exposing coordinates'
+          for n in $(seq 1 12); do
+            git fetch -q origin "$TARGET_BRANCH"
+            git rebase -q "origin/$TARGET_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$TARGET_BRANCH"; then
+              echo IGP81_SOURCE_POSITION_SHAPE_PRIVATE_ACCEPTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 20
