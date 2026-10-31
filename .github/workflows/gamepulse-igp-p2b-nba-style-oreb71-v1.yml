@@ -17,7 +17,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-v32-p2b-all-action-crosswalk-20261031
-      PIN: 9938929ef8688265a85267bd8d95b9ff7fa5cd3c
+      PIN: 33ceef12e412e8a42341d6289f3735431b1556ec
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -91,6 +91,25 @@ jobs:
             gamepulse/fusion/igp_v32_p2b_advanced_possession_71_flag_triage_v1.py
           python3 -m unittest -v \
             gamepulse/fusion/tests/test_query_igp_v32_p2b_nba_style_possessions_v1.py
+          python3 gamepulse/fusion/query_igp_v32_p2b_nba_style_possessions_v1.py \
+            --root . --game-id 0022600009 --second-chance-only --limit 1 \
+            > "$RUNNER_TEMP/nba_style_real_game_query.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          q=json.loads((Path(os.environ["RUNNER_TEMP"])/"nba_style_real_game_query.json").read_bytes())
+          assert q["game_id"]=="0022600009"
+          assert q["matched_statistical_possession_CANDIDATES"]>0
+          assert q["source_PBP_possession_count"]==200
+          assert len(q["possessions"])==1
+          assert q["possessions"][0]["offensive_rebound_action_ids"]
+          assert q["physical_custody_certified"] is False
+          print("NBA_STYLE_REAL_GAME_POSSESSION_QUERY_PASS",json.dumps({
+              "source_chain_count":q["source_PBP_possession_count"],
+              "matching_second_chance_parents":q["matched_statistical_possession_CANDIDATES"],
+              "returned":len(q["possessions"]),
+              "source_PBP_sha256":q["original_PBP_SHA256"]},sort_keys=True))
+          PY
           python3 gamepulse/fusion/igp_v32_p2b_advanced_possession_71_flag_triage_v1.py \
             --root . --out "$RUNNER_TEMP/igp_nba_style_71game_flag_triage_v1.json" \
             > "$RUNNER_TEMP/igp_nba_style_flag_private.log" 2>&1 || {
