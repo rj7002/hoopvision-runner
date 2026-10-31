@@ -185,86 +185,8 @@ jobs:
           print("PRIVATE_81_GAME_LEAGUE_AND_TOP20_EXPORTS_COMMITTED")
           PY
 
-  private-3pa-filter:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-league-run-trigger-20261101' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Verify public content boundary
-        run: |
-          set -euo pipefail
-          python3 tools/public_content_guard.py
-          test -n "$GH_TOKEN"
-      - name: Verify ESPN 2026-27 season FG3A and PBP81 floor in private source
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json,os,pathlib,subprocess,sys
-          def run(args,**kw):return subprocess.run(args,check=True,**kw)
-          repo="timeedmonds-maker/104"
-          ref="analysis/igp81-halfcourt-defender-proximity-20261101"
-          base="gamepulse/fusion/qa/analysis/igp81_halfcourt_nearest_defender_20261101"
-          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-espn-season-3pa"
-          run(["gh","auth","setup-git"],stdout=subprocess.DEVNULL)
-          run(["git","clone","-q","--depth=1","--filter=blob:none","--sparse",
-               "-b",ref,f"https://github.com/{repo}.git",str(root)])
-          run(["git","-C",str(root),"sparse-checkout","set",
-               "gamepulse/fusion/analysis","gamepulse/fusion/qa/analysis"],
-              stdout=subprocess.DEVNULL)
-          script=root/"gamepulse/fusion/analysis/igp81_halfcourt_3pa10_espn_season_v1.py"
-          tests=root/"gamepulse/fusion/analysis/test_igp81_halfcourt_3pa10_espn_season_v1.py"
-          run([sys.executable,"-m","py_compile",str(script),str(tests)])
-          smoke=subprocess.run([sys.executable,str(tests)],cwd=root,
-               capture_output=True,text=True,
-               env={**os.environ,"PYTHONPATH":str(script.parent)})
-          if smoke.returncode:
-              print("PROTECTED_3PA_2027_SOURCE_FREE_TEST_FAILED")
-              sys.exit(1)
-          out=root/base/"3pa10_espn_season_v1"
-          out.mkdir(parents=True,exist_ok=True)
-          task=[sys.executable,str(script),
-                "--league-json",str(root/base/"all_league_players.json"),
-                "--pbp-floor-json",str(root/base/"3pa10_official_season/nba_pbp81_proven_3pa10.json"),
-                "--out-json",str(out/"full_league_2027_3pa10.json"),
-                "--out-csv",str(out/"full_league_2027_3pa10.csv"),
-                "--raw-tar",str(out/"espn_2027_original_json.tar.gz"),
-                "--source-manifest",str(out/"espn_2027_source_manifest.json")]
-          result=subprocess.run(task,cwd=root,capture_output=True,text=True)
-          if result.returncode:
-              (out/"private_error.json").write_text(json.dumps({
-                  "state":"ESPN_2027_THREEPA_JOIN_FAILED",
-                  "returncode":result.returncode,
-                  "stderr_tail_private":result.stderr[-5000:]}))
-              print("ESPN_2027_THREEPA_SOURCE_GRADE_FAILED")
-          else:
-              data=json.loads((out/"full_league_2027_3pa10.json").read_bytes())
-              assert data["baseline_tracked_games"]==81
-              assert data["tracking_players"]==424
-              assert data["season_minimum_3pa"]==10
-              assert data["original_tracking_modified"] is False
-              print("ESPN_2027_THREEPA_SOURCE_GRADE_PASS")
-          run(["git","-C",str(root),"config","user.name","IGP Protected Runner"])
-          run(["git","-C",str(root),"config","user.email",
-               "runner@users.noreply.github.com"])
-          run(["git","-C",str(root),"add","-f",str(out.relative_to(root))])
-          run(["git","-C",str(root),"commit","-qm",
-               "data(private): source-backed ESPN 2027 season FG3A crosswalk and NBA floor"])
-          push=subprocess.run(["git","-C",str(root),"push","-q","origin",
-               f"HEAD:refs/heads/{ref}"],capture_output=True,text=True)
-          if push.returncode:
-              print("PRIVATE_SEASON_RESULT_PUSH_FAILED");sys.exit(1)
-          if result.returncode:sys.exit(1)
-          print("IGP81_ESPN_SEASON_3PA_FILTER_READY")
-          PY
-
   private-paint-shard:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-league-run-trigger-20261101' }}
+    if: ${{ github.event_name != 'pull_request' }}
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -345,7 +267,7 @@ jobs:
           PY
   private-paint-ranking:
     needs: [private-paint-shard]
-    if: ${{ success() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-league-run-trigger-20261101' }}
+    if: ${{ success() && github.event_name != 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -432,3 +354,91 @@ jobs:
           print("PRIVATE_81_GAME_LEAGUE_AND_TOP20_EXPORTS_COMMITTED")
           PY
 
+
+  private-paint-residence-rank:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-league-run-trigger-20261101' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate public source boundary
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+      - name: Reconcile and apply 85pct outside-paint share using private source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,pathlib,subprocess,sys,time
+          def run(a,**kw):
+              return subprocess.run(a,check=True,**kw)
+          repo="timeedmonds-maker/104"
+          ref="analysis/igp81-outside-paint-proximity-20261101"
+          parent="gamepulse/fusion/qa/analysis"
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-igp81-paint-share"
+          run(["gh","auth","setup-git"],stdout=subprocess.DEVNULL)
+          run(["git","clone","-q","--depth=1","--filter=blob:none","--sparse",
+               "-b",ref,f"https://github.com/{repo}.git",str(root)])
+          run(["git","-C",str(root),"sparse-checkout","set",
+               "gamepulse/fusion/analysis",parent],stdout=subprocess.DEVNULL)
+          source=root/"gamepulse/fusion/analysis/igp81_halfcourt_outside_paint_residence_share_v1.py"
+          tests=root/"gamepulse/fusion/analysis/test_igp81_halfcourt_outside_paint_residence_share_v1.py"
+          run([sys.executable,"-m","py_compile",str(source),str(tests)])
+          probe=subprocess.run([sys.executable,str(tests)],cwd=root,
+              capture_output=True,text=True,
+              env={**os.environ,"PYTHONPATH":str(source.parent)})
+          if probe.returncode:
+              print("PRIVATE_85PCT_SOURCE_FREE_REGRESSION_FAILED")
+              sys.exit(1)
+          base=root/parent/"igp81_halfcourt_nearest_defender_20261101"/"all_league_players.json"
+          outer=root/parent/"igp81_outside_paint_nearest_defender_20261101"/"all_league_players.json"
+          dest=root/parent/"igp81_outside_paint_residence_85_20261101"
+          dest.mkdir(parents=True,exist_ok=True)
+          outputs={
+             "out-json":"outside_paint_residence_top20_and_league.json",
+             "out-league-csv":"all_league_players_residence_85.csv",
+             "out-team-csv":"all_player_team_splits_residence_85.csv",
+             "out-top20-csv":"top20_outside_paint_residence_85.csv"}
+          args=[sys.executable,str(source),
+                "--baseline-json",str(base),"--outside-json",str(outer)]
+          for key,name in outputs.items():args.extend(["--"+key,str(dest/name)])
+          task=subprocess.run(args,cwd=root,capture_output=True,text=True)
+          if task.returncode:
+              (dest/"private_validation_failure.json").write_text(json.dumps({
+                 "state":"OUTSIDE_PAINT_RESIDENCE_GATE_FAILED",
+                 "return_code":task.returncode,
+                 "details_private":task.stderr[-4000:]}))
+              print("PRIVATE_OUTSIDE_PAINT_RESIDENCE_VALIDATION_FAILED")
+          else:
+              d=json.loads((dest/outputs["out-json"]).read_bytes())
+              assert d["games_processed"]==81
+              assert d["minimum_outside_paint_time_share_pct"]==85
+              assert d["three_point_filter_applied"] is False
+              assert d["eligible_players"]==157
+              assert len(d["top20"])==20
+              assert d["excluded_inside_paint_frames"]==127281
+              print("PRIVATE_OUTSIDE_PAINT_RESIDENCE_FILTER_85_VALIDATED")
+          run(["git","-C",str(root),"config","user.name","IGP Protected Runner"])
+          run(["git","-C",str(root),"config","user.email",
+               "runner@users.noreply.github.com"])
+          run(["git","-C",str(root),"add","-f",str(dest.relative_to(root))])
+          run(["git","-C",str(root),"commit","-qm",
+               "data(private): validated NBA81 >=85pct outside paint residence player league view"])
+          for i in range(5):
+              push=subprocess.run(["git","-C",str(root),"push","-q","origin",
+                  f"HEAD:refs/heads/{ref}"],capture_output=True,text=True)
+              if push.returncode==0:break
+              run(["git","-C",str(root),"pull","-q","--rebase","origin",ref])
+              time.sleep(i+1)
+          else:
+              print("PRIVATE_PAINT_SHARE_RESULT_PUSH_FAILED")
+              sys.exit(1)
+          if task.returncode:sys.exit(1)
+          print("IGP81_OUTSIDE_PAINT_85_RESIDENCE_TOP20_PUBLISHED_PRIVATE")
+          PY
