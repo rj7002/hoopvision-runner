@@ -60,6 +60,15 @@ jobs:
           task=root/item["script"]
           assert task.is_file()
           cmd([sys.executable,"-m","py_compile",str(task)])
+          test=root/"gamepulse/fusion/analysis/test_igp81_halfcourt_league_rank_source_free_v1.py"
+          assert test.is_file()
+          probe=subprocess.run([sys.executable,str(test)],
+                               cwd=root,capture_output=True,text=True,
+                               env={**os.environ,
+                                    "PYTHONPATH":str(root/"gamepulse/fusion/analysis")})
+          if probe.returncode:
+              print("PRIVATE_ANALYSIS_SOURCE_FREE_REGRESSION_FAILED")
+              sys.exit(1)
           shard=int(os.environ["SHARD"])
           output=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-summary.json"
           p=subprocess.run([sys.executable,str(task),"--root",str(root),
