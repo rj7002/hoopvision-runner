@@ -444,7 +444,7 @@ jobs:
           PY
 
   private-3pt-shard:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-league-run-trigger-20261101' }}
+    if: ${{ github.event_name != 'pull_request' }}
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -525,7 +525,7 @@ jobs:
           PY
   private-3pt-ranking:
     needs: [private-3pt-shard]
-    if: ${{ success() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-league-run-trigger-20261101' }}
+    if: ${{ success() && github.event_name != 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -612,3 +612,88 @@ jobs:
           print("PRIVATE_81_GAME_LEAGUE_AND_TOP20_EXPORTS_COMMITTED")
           PY
 
+
+  private-3pt-32pct-filter:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-league-run-trigger-20261101' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate public source boundary
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+      - name: Source-validate and privately publish custom 32pct NBA 3PT residence filter
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,pathlib,subprocess,sys,time
+          def run(args,**kw):return subprocess.run(args,check=True,**kw)
+          repo="timeedmonds-maker/104"
+          ref="analysis/igp81-outside-3pt-residence-20261101"
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"igp81-protected-arc-32"
+          parent="gamepulse/fusion/qa/analysis"
+          run(["gh","auth","setup-git"],stdout=subprocess.DEVNULL)
+          run(["git","clone","-q","--depth=1","--filter=blob:none",
+               "--sparse","-b",ref,f"https://github.com/{repo}.git",str(root)])
+          run(["git","-C",str(root),"sparse-checkout","set",
+               "gamepulse/fusion/analysis",parent],stdout=subprocess.DEVNULL)
+          script=root/"gamepulse/fusion/analysis/igp81_halfcourt_3pt_residence_threshold_v1.py"
+          test=root/"gamepulse/fusion/analysis/test_igp81_halfcourt_3pt_residence_threshold_v1.py"
+          run([sys.executable,"-m","py_compile",str(script),str(test)])
+          smoke=subprocess.run([sys.executable,str(test)],capture_output=True,text=True,
+              env={**os.environ,"PYTHONPATH":str(script.parent)})
+          if smoke.returncode:
+              print("PRIVATE_3PT_32_SOURCE_FREE_TEST_FAILED");sys.exit(1)
+          arc=root/parent/"igp81_threepoint_residence_native_20261101"/"all_league_players.json"
+          base=root/parent/"igp81_outside_paint_nearest_defender_20261101"/"all_league_players.json"
+          dest=root/parent/"igp81_threepoint_residence_32_20261101"
+          dest.mkdir(parents=True,exist_ok=True)
+          output={
+              "out":"threepoint_residence_32_full_league_and_top20.json",
+              "out-csv":"all_league_players_3pt_residence_32.csv",
+              "out-top20-csv":"top20_3pt_residence_32.csv"}
+          args=[sys.executable,str(script),"--arc-league",str(arc),
+                "--baseline-league",str(base),"--threshold","32"]
+          for flag,name in output.items():args.extend(["--"+flag,str(dest/name)])
+          task=subprocess.run(args,capture_output=True,text=True,cwd=root)
+          if task.returncode:
+              (dest/"private_3pt_32_error.json").write_text(json.dumps({
+                  "state":"PRIVATE_3PT_SHARE_VALIDATION_FAILED",
+                  "return_code":task.returncode,
+                  "traceback_tail_private":task.stderr[-5000:]}))
+              print("PRIVATE_3PT_32_SOURCE_VALIDATION_FAILED")
+          else:
+              j=json.loads((dest/output["out"]).read_bytes())
+              assert j["eligible_players"]==165 and j["total_players"]==424
+              assert j["threshold_pct"]==32 and j["games_processed"]==81
+              assert j["outside_3pt_arc_player_frames"]==724596
+              assert j["threepoint_attempt_filter_applied"] is False
+              players={x["name"]:x for x in j["all_league_players"]}
+              for name in ("Mitchell Robinson","Rudy Gobert"):
+                  assert players[name]["eligible_outside_3pt_arc_share"] is False
+                  assert players[name]["outside_arc_gate_boundary_sensitivity"]=="ROBUST_FAIL_0_5FT_ARC_BOUNDARY"
+              assert players["Stephen Curry"]["eligible_outside_3pt_arc_share"]
+              print("PRIVATE_3PT_32_SOURCE_VALIDATED")
+          run(["git","-C",str(root),"config","user.name","IGP Protected Runner"])
+          run(["git","-C",str(root),"config","user.email","runner@users.noreply.github.com"])
+          run(["git","-C",str(root),"add","-f",str(dest.relative_to(root))])
+          run(["git","-C",str(root),"commit","-qm",
+               "data(private): source-validated 81game 32pct outside-threepoint residence filter"])
+          for i in range(6):
+              pushed=subprocess.run(["git","-C",str(root),"push","-q","origin",
+                  f"HEAD:refs/heads/{ref}"],capture_output=True,text=True)
+              if pushed.returncode==0:break
+              run(["git","-C",str(root),"pull","-q","--rebase","origin",ref])
+              time.sleep(i+1)
+          else:
+              print("PRIVATE_3PT32_RESULT_PUSH_FAILED");sys.exit(1)
+          if task.returncode:sys.exit(1)
+          print("PRIVATE_IGP81_ARC32_FILTER_PUBLISHED")
+          PY
