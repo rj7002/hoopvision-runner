@@ -63,6 +63,7 @@ jobs:
           print("IGP81_PRIVATE_HYBRID_SOURCE_GRADE_TEST_PASSED")
           PY
   recover-five:
+    if: github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -141,7 +142,7 @@ jobs:
 
   evaluate-new-native:
     needs: recover-five
-    if: always()
+    if: github.event_name == 'workflow_dispatch' && always()
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -226,7 +227,7 @@ jobs:
 
   grade-full81:
     needs: evaluate-new-native
-    if: always()
+    if: github.event_name == 'workflow_dispatch' && always()
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -313,3 +314,148 @@ jobs:
           done
           test "$saved" -eq 1
           echo IGP81_SOURCE_GRADE_DECISION_PRIVATE_SAVED
+
+
+  finalize-81-native:
+    if: github.event_name == 'push'
+    needs: source-tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: release/igp32-p2b-nba81-unified-default-20261101
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Public privacy boundary, transient private original NBA source checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: Verify all81 source, guarded metrics, masked holdouts, and real query readbacks
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp81_unified_native_possession_tracking_registry_v1.py gamepulse/fusion/query_igp81_source_first_10hz_scene_v1.py
+          python3 -m unittest -q gamepulse/fusion/tests/test_igp81_unified_native_possession_tracking_registry_v1.py gamepulse/fusion/tests/test_query_igp81_source_first_10hz_scene_v1.py > "$RUNNER_TEMP/private81-unit-tests.txt" 2>&1 || {
+            cp "$RUNNER_TEMP/private81-unit-tests.txt" gamepulse/fusion/qa/igp_v32/igp81_final_query_unit_failure.txt
+            echo IGP81_PRIVATE_FINAL_QUERY_UNIT_TEST_FAILURE
+            exit 7
+          }
+          python3 - <<'PY' > "$RUNNER_TEMP/igp81-final-smoke.log" 2>&1 || {
+          import json
+          from pathlib import Path
+          from igp81_full_native_source_acceptance_gate_v1 import validate
+          from igp81_full_native_source_guarded_default_v1 import query as full_query
+          from query_igp81_source_first_10hz_scene_v1 import query as scenes
+          from igp_71_source_context_v1 import source_index,load_context
+          from igp81_new10_guarded_p2b_shadow_audit_v1 import raw_reference,EXTRA
+          from igp_g4_post36_official_ten_evidence_v1 import paired_windows
+          from igp_68_live_play_tracking_qa_v1 import (
+              LIVE,official_event_pair_segments,clip_to_official_windows)
+          import hashlib
+          gate=validate(".")
+          assert gate["all_81_original_SDK_source_QA_complete"]
+          assert gate["eligible_full81_10hz_source_grade_samples"]==1340811
+          assert gate["eligible_full81_10hz_complete_samples"]==1171507
+          assert gate["eligible_full81_source_grade_coverage_pct"]==87.37302
+          hybrid=full_query(".",include_team_game_rows=False)
+          assert hybrid["all81_tracking_validation_passed"]
+          assert hybrid["all81_complete_ten_plus_ball_samples"]==1171507
+          assert hybrid["team_nba_published_POSS"]==16508
+          assert hybrid["physical_custody_boundaries_certified"]==0
+          ids=["0022600001","0022600022"]
+          for gid in ids:
+              if gid=="0022600001":
+                  index=source_index(".")
+                  context,_=load_context(".",gid,entries=index["per_game"])
+                  pb=json.loads((Path("gamepulse/fusion/official_pbp_timing/games")/(gid+".json")).read_bytes())
+                  windows=context["official_paired_windows"]
+              else:
+                  meta,raw=raw_reference(Path("."))
+                  item=meta[gid]
+                  pb=json.loads((Path(".")/EXTRA/"games"/(gid+".json")).read_bytes())
+                  box=json.loads(raw["boxscore_"+gid+".json"])
+                  windows,_,_=paired_windows(pb,box)
+              segments=clip_to_official_windows(
+                  official_event_pair_segments(pb["actions"])[0],windows)
+              samples=[((lo+99)//100)*100 for lo,hi,state,*_ in segments
+                       if state==LIVE and ((lo+99)//100)*100<=hi]
+              assert samples
+              s=scenes(".",gid,samples[0],samples[0],
+                       require_full81_accepted=gid!="0022600001")
+              assert s["game_id"]==gid and len(s["rows"])==1
+              assert s["rows"][0]["official_expected_ten"] is not None
+              assert s["rows"][0]["physical_possession_certified"] is False
+              assert s["rows"][0]["play_state_proxy"]==LIVE
+          print("IGP81_ORIGINAL_SOURCE_SCENE_AND_STATISTICAL_POSS_READBACK_PASSED")
+          PY
+            cp "$RUNNER_TEMP/igp81-final-smoke.log" gamepulse/fusion/qa/igp_v32/igp81_final_private_source_scene_error.txt
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add -f gamepulse/fusion/qa/igp_v32/igp81_final_private_source_scene_error.txt
+            git commit -q -m "qa(igp81): retain private final native source query traceback"
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"
+            echo IGP81_PRIVATE_SCENE_READBACK_REQUIRES_REPAIR
+            exit 8
+          }
+          echo IGP81_PRIVATE_REAL_SCENE_SOURCE_READBACK_PASS
+      - name: Materialize the canonical original-native/PBP/guarded-P2B 81game index privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          out="gamepulse/fusion/materialized/igp81_unified_native_tracking_registry_v1/index.json"
+          if test -s "$out"; then
+            echo IGP81_PRIVATE_UNIFIED_INDEX_ALREADY_SAVED
+            exit 0
+          fi
+          if ! python3 gamepulse/fusion/igp81_unified_native_possession_tracking_registry_v1.py --root . --out "$out" > "$RUNNER_TEMP/private81-index-result.log" 2>&1; then
+            cp "$RUNNER_TEMP/private81-index-result.log" gamepulse/fusion/qa/igp_v32/igp81_index_private_failure.txt
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add -f gamepulse/fusion/qa/igp_v32/igp81_index_private_failure.txt
+            git commit -q -m "qa(igp81): original SDK indexed registry private failure"
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"
+            echo IGP81_PRIVATE_CANONICAL_INDEX_NOT_ADMITTED
+            exit 9
+          fi
+          python3 - "$out" <<'PY'
+          import json,sys
+          x=json.load(open(sys.argv[1]))
+          assert x["schema"]=="igp81.unified.original-nba-sdk-guarded-p2b-team-poss.link-index.v1"
+          c=x["counts"]
+          assert len(x["games"])==81 and c["NBA_official_team_POSS"]==16508
+          assert c["NBA_PBP_original_logical_chains"]==16581
+          assert c["strict_S1_10hz_samples"]==1340811
+          assert c["guarded_complete_ten_plus_ball"]==1171507
+          assert c["guarded_complete_pct"]==87.37302
+          print("IGP81_PRIVATE_CANONICAL_REGISTRY_SOURCE_QA_PASSED")
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$out"
+          git commit -q -m "data(igp81): source-grade 81game original NBA SDK PBP and team POSS unified canonical index"
+          published=0
+          for attempt in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              published=1
+              break
+            fi
+            sleep "$attempt"
+          done
+          test "$published" -eq 1
+          echo IGP81_PRIVATE_CANONICAL_FULL81_INDEX_COMMITTED
