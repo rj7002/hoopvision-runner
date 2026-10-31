@@ -172,8 +172,27 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           out="gamepulse/fusion/qa/igp_v32/igp81_new10_guarded_shadow_${{ matrix.game }}.json"
           if test -s "$out"; then
-            echo IGP81_NATIVE_SHADOW_ALREADY_MATERIALIZED
-            exit 0
+            # An earlier missing-SDK result is a provisional abstention,
+            # NOT a permanent accepted receipt. Preserve its bytes and
+            # regenerate only after the authentic native source is admitted.
+            status=$(python3 - "$out" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1]))
+          a=list(d.get("games",{}).values())
+          print(a[0].get("state","UNKNOWN") if len(a)==1 else "UNKNOWN")
+          PY
+          )
+            if test "$status" = SOURCE_GRADED_NEW10_P2B_SHADOW_NOT_PROMOTED; then
+              echo IGP81_NATIVE_SHADOW_ALREADY_MATERIALIZED
+              exit 0
+            fi
+            if test "$status" = ORIGINAL_SDK_NOT_MATERIALIZED &&
+               test -s "gamepulse/fusion/materialized/igp_all_original_xyz/${{ matrix.game }}/index.json"; then
+              git mv "$out" "$out.previous-unavailable.json"
+            else
+              echo IGP81_SOURCE_NOT_READY_OR_QA_UNKNOWN
+              exit 0
+            fi
           fi
           if ! python3 gamepulse/fusion/igp81_new10_guarded_p2b_shadow_audit_v1.py --root . --games "${{ matrix.game }}" --out "$out" > "$RUNNER_TEMP/igp81-newsource-qa.log" 2>&1; then
             cp "$RUNNER_TEMP/igp81-newsource-qa.log" "$out.failure.txt"
@@ -185,6 +204,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f "$out"
+          if test -f "$out.previous-unavailable.json"; then git add -f "$out.previous-unavailable.json"; fi
           git commit -q -m "qa(igp81): private original NBA ten 10Hz P2B shadow or diagnostic"
           published=0
           for attempt in 1 2 3 4 5 6 7 8; do
