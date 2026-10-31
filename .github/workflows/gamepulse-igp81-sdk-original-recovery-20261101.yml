@@ -60,6 +60,51 @@ jobs:
           assert x["all81_tracking_coverage_pct"] is None
           print("IGP81_PRIVATE_HYBRID_SOURCE_GRADE_TEST_PASSED")
           PY
+  backfill-remaining-five:
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        game:
+          - {id: '0022600017', tipoff: '2026-10-30T23:30:00Z'}
+          - {id: '0022600018', tipoff: '2026-10-30T23:30:00Z'}
+          - {id: '0022600019', tipoff: '2026-10-30T23:30:00Z'}
+          - {id: '0022600020', tipoff: '2026-10-31T00:00:00Z'}
+          - {id: '0022600021', tipoff: '2026-10-31T00:00:00Z'}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GAMEPULSE_PRIORITY_FINALIZE: 'true'
+      GAMEPULSE_FINAL_FASTLANE: 'true'
+      GAMEPULSE_PRIORITY_ID: ${{ matrix.game.id }}
+      GAMEPULSE_PRIORITY_TIPOFF: ${{ matrix.game.tipoff }}
+      GAMEPULSE_PARTS_PER_RUN: '13'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate protected SDK recorder and NBA source tipoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          cd tools/licensed_feed
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+          node --test season_core.test.mjs sdk_slot.test.mjs
+      - name: Privately recover all 13 SDK original checkpoints without fabricating missing source
+        shell: bash
+        working-directory: tools/licensed_feed
+        run: |
+          set -euo pipefail
+          node season_private_release.mjs > "$RUNNER_TEMP/private-sdk-backfill.log" 2>&1 || {
+            echo IGP81_PRIVATE_SDK_BACKFILL_REQUIRES_REVIEW
+            exit 4
+          }
+          echo IGP81_PRIVATE_GAME_SDK_RELEASE_SHA_VALIDATED
   recover-five:
     strategy:
       fail-fast: false
