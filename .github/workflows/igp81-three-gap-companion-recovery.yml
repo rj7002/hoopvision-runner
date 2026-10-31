@@ -1,6 +1,8 @@
 # Opaque public runner: only authorized SDK client; never store raw source on public repo.
 name: IGP81 five highest-risk companion gaps authorized recovery
 on:
+  schedule:
+    - cron: '23 4 * * *'
   push:
     branches: [main]
     paths: ['.github/workflows/igp81-three-gap-companion-recovery.yml']
