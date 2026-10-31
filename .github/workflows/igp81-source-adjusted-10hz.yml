@@ -32,17 +32,8 @@ jobs:
           gh auth setup-git
           git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" \
              https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
-          git -C "$RUNNER_TEMP/private" sparse-checkout set \
-             gamepulse/fusion/igp81_new10_guarded_p2b_shadow_audit_v1.py \
-             gamepulse/fusion/igp_g4_post36_official_ten_evidence_v1.py \
-             gamepulse/fusion/igp_native_scene_season_68_benchmark_v1.py \
-             gamepulse/fusion/igp_68_live_play_tracking_qa_v1.py \
-             gamepulse/fusion/igp_native_scene_model_v2.py \
-             gamepulse/fusion/igp_71_new3_live_play_tracking_qa_v1.py \
-             gamepulse/fusion/igp_v32_p2b_guarded_shadow_v1.py \
-             gamepulse/fusion/igp_v32_p2b_eightgame_source_bounded_bidirectional_pilot_v1.py \
-             gamepulse/fusion/igp_v32_71_single_missing_player_short_edge_challenger_v1.py \
-             gamepulse/fusion/igp_v32_71_ball_speed_domain_challenger_v1.py \
+          git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
+             'gamepulse/fusion/*.py' \
              gamepulse/fusion/official_pbp_timing/pbp_only_oct21_10 \
              gamepulse/fusion/qa/igp_v32 \
              gamepulse/fusion/materialized/igp_all_original_xyz
