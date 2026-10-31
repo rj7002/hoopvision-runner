@@ -1,3 +1,4 @@
+# Public logs contain aggregate counts only; source rows and QA stay in private repo.
 name: IGP P2B team OffRtg same-grain 81-game audit
 on:
   push:
