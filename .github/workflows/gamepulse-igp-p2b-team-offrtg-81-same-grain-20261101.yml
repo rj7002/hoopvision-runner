@@ -15,7 +15,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-missed-and-one-81-credit-20261101
-      PIN: ff93a4512d9f4bb32a6c584d94a3add969cba0ab
+      PIN: 3978993c7c9c0f20166a845eb3afdc4e6ded68ef
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -39,6 +39,7 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 -m unittest -q gamepulse/fusion/tests/test_igp_p2b_missed_and_one_credit_v1.py > "$RUNNER_TEMP/igp_test.log" 2>&1 || { echo IGP_SOURCE_TEST_FAILED; exit 61; }
           python3 gamepulse/fusion/audit_igp_p2b_missed_and_one_81_v1.py --root . --output "$RUNNER_TEMP/igp81.json" > "$RUNNER_TEMP/igp_audit.log" 2>&1 || { echo IGP_81_SOURCE_AUDIT_FAILED; exit 62; }
+          python3 gamepulse/fusion/igp_p2b_81_residual_event_triage_v1.py --root . --output "$RUNNER_TEMP/igp81_triage.json" > "$RUNNER_TEMP/igp_triage.log" 2>&1 || { echo IGP_81_RESIDUAL_TRIAGE_FAILED; exit 64; }
           python3 - <<'PY'
           import json,os
           d=json.load(open(os.path.join(os.environ['RUNNER_TEMP'],'igp81.json')))
@@ -48,6 +49,10 @@ jobs:
           assert d['NBA_Advanced_POSS']==16508 and d['exact_team_games']==54
           assert d['absolute_team_game_residual']==156 and d['NBA_POSS_fitted'] is False
           print('IGP81_PRIVATE_SOURCE_AUDIT_PASS',json.dumps({k:d[k] for k in ('games','team_games','original_actions','original_chains_retained','missed_and_one_continuations','candidate_credits','NBA_Advanced_POSS','exact_team_games','absolute_team_game_residual')},sort_keys=True))
+          t=json.load(open(os.path.join(os.environ['RUNNER_TEMP'],'igp81_triage.json')))
+          assert t['games']==81 and t['team_games']==162 and t['baseline_candidate_credits']==16484
+          assert t['baseline_absolute_residual']==156 and t['counterfactual_is_NBA_credit_rule'] is False
+          print('IGP81_RESIDUAL_TRIAGE',json.dumps({k:t[k] for k in ('technical_FT_candidates','baseline_absolute_residual','technical_FT_exclusion_counterfactual_absolute_residual','baseline_exact_team_games','technical_FT_exclusion_counterfactual_exact_team_games','baseline_net','technical_FT_exclusion_counterfactual_net')},sort_keys=True))
           PY
       - name: Commit immutable full QA only on exact private head
         shell: bash
@@ -56,9 +61,9 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git fetch -q origin "$BRANCH"
           test "$(git rev-parse FETCH_HEAD)" = "$PIN" || { echo IGP_PRIVATE_HEAD_MOVED; exit 63; }
-          dest=gamepulse/fusion/qa/igp_v32/igp_p2b_missed_and_one_81_runner_receipt_v1.json
+          dest=gamepulse/fusion/qa/igp_v32/igp_p2b_81_residual_event_triage_v1.json
           test ! -e "$dest"
-          cp "$RUNNER_TEMP/igp81.json" "$dest"
+          cp "$RUNNER_TEMP/igp81_triage.json" "$dest"
           git add "$dest"
           git -c user.name=igp-source-qa -c user.email=igp-source-qa@users.noreply.github.com commit -qm 'qa: execute IGP81 missed and-one original source audit [skip ci]'
           git push -q origin HEAD:"$BRANCH"
