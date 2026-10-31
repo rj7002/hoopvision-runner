@@ -1,5 +1,6 @@
 # Source-graded 81 game detail view only. Opaque public CI, private source and output.
 name: IGP81 immutable source-grade detailed shot query and release census
+# Immutable original 56 plus additive 25; explicit missing provider features
 on:
   push:
     branches: [main]
