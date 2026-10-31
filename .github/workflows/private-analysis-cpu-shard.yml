@@ -7,6 +7,10 @@ on:
     branches: [main]
     paths: ['.github/workflows/private-analysis-cpu-shard.yml']
   workflow_dispatch:
+  pull_request:
+    types: [opened]
+    branches: [main]
+    paths: ['.github/workflows/private-analysis-cpu-shard.yml']
 permissions:
   contents: read
 concurrency:
@@ -14,6 +18,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   private-shard:
+    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-league-run-trigger-20261101') }}
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -116,7 +121,7 @@ jobs:
 
   private-ranking:
     needs: [private-shard]
-    if: success()
+    if: ${{ success() && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == 'timeedmonds-maker/hoopvision-runner' && github.event.pull_request.head.ref == 'analysis/igp81-league-run-trigger-20261101')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
