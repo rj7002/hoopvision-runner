@@ -210,3 +210,5 @@ jobs:
 # Protected replay request; source and method remain private.
 
 # Protected replay with private evidence selection.
+
+# Protected replay request using current private selector.
