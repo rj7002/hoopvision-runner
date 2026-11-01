@@ -1,0 +1,42 @@
+name: IGP81 N2PP source-pinned offline V10
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp81-n2pp-offline-v10.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Confidentiality review
+        run: |
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+      - name: Source-pinned private descriptive comparison
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --filter=blob:none --sparse -b analysis/igp81-two-possession-three-value-20261101 https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
+            'gamepulse/fusion/analysis/igp81_n2pp_official45_blueprint36_v10.py' \
+            'gamepulse/fusion/analysis/igp81_n2pp_native_zone_bootstrap_v6.py' \
+            'gamepulse/fusion/qa/analysis/igp81_n2pp_original_native_v5.json' \
+            'gamepulse/fusion/qa/analysis/igp81_n2pp_original_nba_zone_v8.json'
+          cd "$RUNNER_TEMP/private"
+          PYTHONPATH=gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/igp81_n2pp_official45_blueprint36_v10.py --root . --output "$RUNNER_TEMP/official-v10.json" > "$RUNNER_TEMP/private.log"
+          python3 - <<'PY'
+          import json,os
+          d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"official-v10.json")))
+          assert d["games"]==81 and d["official3"]==6094
+          assert d["first_fga_candidates"]==5461
+          assert not d["statistical_possessions_certified"]
+          print("N2PP_V10_PROVENANCE_GRADED_81",json.dumps(d,sort_keys=True))
+          PY
