@@ -29,7 +29,7 @@ jobs:
           test -n "$GH_TOKEN"
           test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
           gh auth setup-git
-      - name: Read private original 81-game PBP, companion source and tested V4 code
+      - name: Read SHA-pinned current 81 PBP mirror, companion source and V4 code
         shell: bash
         run: |
           set -euo pipefail
