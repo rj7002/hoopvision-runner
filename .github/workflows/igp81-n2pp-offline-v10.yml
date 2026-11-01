@@ -1,53 +1,83 @@
-name: IGP81 N2PP V9 NBA original 81-game SHA adjudication
+name: IGP81 N2PP V11 source-backed 162-team possession differential
 on:
   push:
-    branches: [main, analysis/n2pp-source-verified-runner-20261101]
+    branches: [analysis/n2pp-source-verified-runner-20261101]
     paths: ['.github/workflows/igp81-n2pp-offline-v10.yml']
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
-  verify:
+  differential:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 20
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: analysis/igp81-two-possession-three-value-20261101
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: Confidentiality review
+      - name: Privacy guard
         run: |
+          set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
           test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
           gh auth setup-git
-      - name: Source-pinned private descriptive comparison
-        shell: bash
+      - name: Audit pinned original NBA PBP possessions privately
         run: |
           set -euo pipefail
-          git clone -q --depth=1 --filter=blob:none --sparse -b analysis/igp81-two-possession-three-value-20261101 https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
-            'gamepulse/fusion/analysis/igp81_n2pp_original_nba_pbp_zone_v8.py' \
-            'gamepulse/fusion/analysis/igp81_n2pp_nba_event_geometry_v9.py' \
-            'gamepulse/fusion/analysis/igp81_n2pp_nba_event_geometry_v9_readback.py' \
-            'gamepulse/fusion/analysis/igp81_n2pp_native_zone_bootstrap_v6.py' \
-            'gamepulse/fusion/qa/analysis/igp81_n2pp_original_native_v5.json' \
+            'gamepulse/fusion/analysis/igp81_n2pp_possession_differential_v11.py' \
+            'gamepulse/fusion/analysis/igp81_n2pp_official_first_audit_v3.py' \
+            'gamepulse/fusion/analysis/igp81_threepoint_net_two_possessions_v1.py' \
+            'gamepulse/fusion/analysis/igp81_threepoint_methodology_expert_audit_v2.py' \
+            'gamepulse/fusion/universal_possession_alignment_2026.py' \
+            'gamepulse/fusion/igp_p2b_missed_and_one_credit_v1.py' \
+            'gamepulse/fusion/audit_igp_p2b_missed_and_one_81_v1.py' \
             'gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all81_v1/index.json' \
             'gamepulse/fusion/official_pbp_timing/games/*.json' \
-            'gamepulse/fusion/official_pbp_timing/original_nba_20261029/*/playbyplay.json'
+            'gamepulse/fusion/official_pbp_timing/pbp_only_oct21_10/source_receipt.json' \
+            'gamepulse/fusion/qa/igp_v32/igp_v32_p2b_nba71_published_team_POSS_bridge_v1.json'
           cd "$RUNNER_TEMP/private"
-          PYTHONPATH=gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/igp81_n2pp_nba_event_geometry_v9_readback.py --root . --output "$RUNNER_TEMP/official-v9.json" > "$RUNNER_TEMP/private.log"
+          PYTHONPATH=gamepulse/fusion:gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/igp81_n2pp_possession_differential_v11.py --root . --output "$RUNNER_TEMP/v11.json" > "$RUNNER_TEMP/v11.log" 2>&1 || { echo PRIVATE_POSSESSION_V11_FAILED; exit 43; }
           python3 - <<'PY'
           import json,os
-          d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"official-v9.json")))
-          assert d["games"]==81 and d["official3"]==6094
-          assert d["totals"].get("NBA_official_source_zone",0)>3300
-          assert not d["statistical_possessions_certified"]
-          print("N2PP_V9_ORIGINAL_NBA_81_SOURCE_GRADED",json.dumps({
-              "games":d["games"],"official3":d["official3"],
-              "official_zoned":d["totals"].get("NBA_official_source_zone",0),
-              "official_vs_blueprint_exact":d["totals"].get("nba_blueprint_xy_exact",0),
-              "official_vs_blueprint_tested":d["totals"].get("nba_blueprint_xy_both",0),
-              "source_grades":{k:v for k,v in d["totals"].items() if k.startswith("source_game_")},
-              "original_zones":d["NBA_original_first_fga"],
-              "native_zones":d["native_first_fga"]},sort_keys=True))
+          d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"v11.json")))
+          assert d["games"]==81 and d["team_games"]==162
+          assert d["total"]["adjusted_exact"]==54
+          assert d["statistical_possession_boundaries_certified"] is False
+          print("N2PP_V11_81GAME_POSSESSION_AUDIT",json.dumps({
+            "total":d["total"],
+            "adjusted_residual_histogram":d["adjusted_residual_histogram"],
+            "field_residual_histogram":d["field_residual_histogram"],
+            "feature_cohorts":d["feature_cohorts"]},sort_keys=True))
           PY
+      - name: Commit private QA evidence
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,json,os,pathlib,subprocess
+          file=pathlib.Path(os.environ["RUNNER_TEMP"])/"v11.json"
+          dest="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_n2pp_possession_differential_v11.json"
+          body={"branch":os.environ["BRANCH"],"message":"qa(private): original NBA 162-team possession differential v11 [skip ci]","content":base64.b64encode(file.read_bytes()).decode()}
+          check=subprocess.run(["gh","api",dest+"?ref="+os.environ["BRANCH"]],capture_output=True,text=True)
+          if check.returncode==0:raise RuntimeError("REFUSE_V11_QA_OVERWRITE")
+          out=subprocess.run(["gh","api","-X","PUT",dest,"--input","-"],input=json.dumps(body),capture_output=True,text=True)
+          if out.returncode:raise RuntimeError("V11_PRIVATE_QA_WRITE_FAILED")
+          print("N2PP_V11_PRIVATE_QA_COMMIT",json.loads(out.stdout)["commit"]["sha"])
+          PY
+      - name: Store private diagnostics
+        if: failure()
+        run: |
+          if [ -f "$RUNNER_TEMP/v11.log" ]; then
+            python3 - <<'PY'
+          import base64,json,os,pathlib,subprocess
+          dest="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_n2pp_v11_failure.json"
+          body={"branch":os.environ["BRANCH"],"message":"qa(private): N2PP V11 failure trace [skip ci]","content":base64.b64encode(json.dumps({"trace":(pathlib.Path(os.environ["RUNNER_TEMP"])/"v11.log").read_text()[-5000:]}).encode()).decode()}
+          q=subprocess.run(["gh","api",dest+"?ref="+os.environ["BRANCH"]],capture_output=True,text=True)
+          if q.returncode==0:body["sha"]=json.loads(q.stdout)["sha"]
+          r=subprocess.run(["gh","api","-X","PUT",dest,"--input","-"],input=json.dumps(body),capture_output=True,text=True)
+          if r.returncode:raise RuntimeError("PRIVATE_FAILURE_WRITE_FAILED")
+          print("V11_PRIVATE_DIAGNOSTIC_RECORDED")
+          PY
+          fi
