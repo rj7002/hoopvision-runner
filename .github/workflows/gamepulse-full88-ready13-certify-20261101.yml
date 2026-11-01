@@ -29,6 +29,7 @@ jobs:
           - {id: '0022600147', tipoff: '2026-10-31T19:00:00.000Z'}
           - {id: '0022600148', tipoff: '2026-10-31T22:00:00.000Z'}
           - {id: '0022600149', tipoff: '2026-10-31T23:00:00.000Z'}
+          - {id: '0022600152', tipoff: '2026-11-01T00:00:00.000Z'}
     runs-on: ubuntu-24.04
     timeout-minutes: 70
     env:
@@ -74,7 +75,7 @@ jobs:
       fail-fast: false
       max-parallel: 3
       matrix:
-        game: ['0022600147','0022600148','0022600149']
+        game: ['0022600147','0022600148','0022600149','0022600152']
     runs-on: ubuntu-24.04
     timeout-minutes: 110
     env:
@@ -173,9 +174,9 @@ jobs:
           from pathlib import Path
           x=json.loads(Path('gamepulse/fusion/qa/igp_fullx/LATEST.json').read_bytes())
           assert x['cohort_name']=='FULL88'
-          assert all(x['source_grades'][g]['original_native_13part_grade']=='SHA_INDEXED' for g in ('0022600147','0022600148','0022600149'))
+          assert all(x['source_grades'][g]['original_native_13part_grade']=='SHA_INDEXED' for g in ('0022600147','0022600148','0022600149','0022600152'))
           assert not x['full88_guarded_10hz_default_tracking_promoted']
-          print('FULL88_PRIVATE_3GAME_ORIGINAL_SOURCE_ADMITTED',x['indexed_nba_PBP_games'])
+          print('FULL88_PRIVATE_4GAME_ORIGINAL_SOURCE_ADMITTED',x['indexed_nba_PBP_games'])
           PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
