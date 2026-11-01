@@ -271,3 +271,5 @@ jobs:
 # R9 corrected private audit regression import, immutable request-pinned rerun.
 
 # R9 source-free review-fixture correction; audit period now explicit.
+
+# R9 test-fix-2 replay trigger: protected private-native audit and secondary-convergence verification.
