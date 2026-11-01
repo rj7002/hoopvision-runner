@@ -2,7 +2,7 @@ name: IGP FULL88 default promotion private source acceptance
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/igp-full88-default-promotion-private-20261101.yml']
+    paths: ['.github/workflows/igp-full88-default-promotion-private-20261101.yml', 'tools/public_content_guard.py']
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
