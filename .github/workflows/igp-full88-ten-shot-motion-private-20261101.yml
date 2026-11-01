@@ -62,7 +62,7 @@ jobs:
           PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/qa/igp_fullx/jabari_durant_full88_native_and_10hz_motion_20261101.json
+          git add --sparse -f gamepulse/fusion/qa/igp_fullx/jabari_durant_full88_native_and_10hz_motion_20261101.json
           git diff --cached --check
           git diff --cached --quiet && { echo FULL88_PRIVATE_MOTION_ALREADY_EXTRACTED; exit 0; }
           git commit -q -m 'data(igp): original observed and research model10hz shot motion, private-only'
