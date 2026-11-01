@@ -47,7 +47,7 @@ jobs:
           python3 - <<'PY'
           import json,os
           d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"v15.json")))
-          assert d["games"]==81 and d["team_games"]==162
+          assert len(d["games"])==81 and d["totals"]["team_games"]==162
           assert d["totals"]["candidate_POSS"]==16528 and d["totals"]["exact_team_games"]==134
           assert d["statistical_POSS_equivalence_certified"] is False
           print("N2PP_V15_OFFICIAL_NBA_SCORE_LEDGER",json.dumps({
