@@ -1,0 +1,69 @@
+name: IGP81 opponent three point shot quality versus variance V1
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/igp81-opponent3-luck-source-audit-v1.yml
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp81-opponent3-luck-source-v1
+  cancel-in-progress: false
+jobs:
+  full81-private-source-analysis:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      SOURCE: research/igp81-all-layers-source-grade-20261101
+      QA_BRANCH: analysis/igp81-opponent3-luck-v1-20261101
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Check source-free tests and private token
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          python3 -m py_compile tools/licensed_feed/igp81_opponent3_luck_source_audit_v1.py
+          python3 tools/licensed_feed/igp81_opponent3_luck_source_audit_v1.py --self-test
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+      - name: Load only original Blueprint and canonical NBA PBP into private temp directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$SOURCE"             https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/igp-private"
+          git -C "$RUNNER_TEMP/igp-private" sparse-checkout set             data/extensions/nba_blueprint_2026_27/games             gamepulse/fusion/official_pbp_timing/games             gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all81_v1
+          test -f "$RUNNER_TEMP/igp-private/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all81_v1/index.json"
+      - name: Verify all 81 NBA game hashes and measure opponent 3P quality residual
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/licensed_feed/igp81_opponent3_luck_source_audit_v1.py             --root "$RUNNER_TEMP/igp-private" --out "$RUNNER_TEMP/igp81_opponent3_v1.json"
+      - name: Commit exact aggregate QA to private research branch, never expose shot rows
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,json,os,pathlib,subprocess
+          file=pathlib.Path(os.environ["RUNNER_TEMP"])/"igp81_opponent3_v1.json"
+          x=json.loads(file.read_text())
+          assert x["games"]==81 and x["official_3pa"]==6094 and x["team_count"]==30
+          api="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_opponent3_luck_v1.json"
+          branch=os.environ["QA_BRANCH"]
+          payload={"message":"qa(private): verified full81 team opponent 3PT vs Blueprint xFG exploratory audit [skip ci]",
+                   "branch":branch,"content":base64.b64encode(file.read_bytes()).decode()}
+          old=subprocess.run(["gh","api",api+"?ref="+branch],text=True,capture_output=True)
+          if old.returncode==0:
+             prior=json.loads(old.stdout)
+             if base64.b64decode(prior["content"])==file.read_bytes():
+                print("PRIVATE_QA_ALREADY_IDENTICAL")
+                raise SystemExit(0)
+             raise RuntimeError("EXISTING_PRIVATE_QA_DIFFERS_REFUSE_OVERWRITE")
+          out=subprocess.run(["gh","api","-X","PUT",api,"--input","-"],
+               input=json.dumps(payload),text=True,capture_output=True)
+          if out.returncode:raise RuntimeError("PRIVATE_QA_COMMIT_FAILED")
+          print("IGP81_OPP3_PRIVATE_QA_COMMIT",json.loads(out.stdout)["commit"]["sha"])
+          PY
