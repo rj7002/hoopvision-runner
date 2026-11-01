@@ -573,6 +573,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
+    ".github/workflows/nba-eason-0022600153-exact-action.yml": "5451e1d4731d4d7ad40186b36c30c64e89701896",  # reviewed immutable NBA public shot metadata and public replay locator only
     ".github/workflows/reed-0022600125-exact-action.yml": "1f039e96c534a7ea842e3053b6eb3b3d8fed041e",  # reviewed manual-only official public PBP, no signed media retrieval/persistence
     "reed_0022600125_official_action.json": "935a9ebcbe4177b8d642065e9392fc4f5952b069",  # immutable public NBA action metadata; hls_options empty, no signed URL
     ".github/workflows/gamepulse-pr776-oreb-control-stress.yml": "04e268929cca1ccdd2aa3f8428704000b3ab41f1",  # private original SDK read, aggregate control diagnostic only
@@ -659,6 +660,7 @@ REVIEWED_PUBLIC_NBA_ACTION_METADATA = {
     "reed_0022600125_official_action.json",
 }
 REVIEWED_MEDIA_SOURCE_WORKFLOWS = {
+    ".github/workflows/nba-eason-0022600153-exact-action.yml",  # pinned immutable official NBA public replay-link origin only
     "tools/amen732_official_sixvideo_acquire.py",  # audited official NBA source page only, no signed URLs stored
     "tools/amen732_official_sixvideo_acquire.py",  # vetted native official HLS acquisition; never persists URLs or footage publicly
     ".github/workflows/freeview-amen732-direct-sixvideo-render.yml",  # public NBA stream source only; no native media artifacts
