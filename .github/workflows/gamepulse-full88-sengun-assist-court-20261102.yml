@@ -1,5 +1,5 @@
 name: FULL88 Sengun original-source assist location evidence
-# Replay instrumented departure/catch stages on frozen Full88.
+# Inspect source-distance timelines for abstained assists on frozen Full88.
 # Privacy-reviewed in public_content_guard.py; exact player coordinates remain private.
 on:
   push:
