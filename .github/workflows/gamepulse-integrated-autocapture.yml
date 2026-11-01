@@ -603,3 +603,40 @@ jobs:
             sleep "$n"
           done
           exit 23
+
+  clips-nba-public-url-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Determine actual clips.nba.com NBA game/event query parameter names
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import subprocess,re
+          base="https://clips.nba.com/"
+          candidates=[
+            ("none",""),
+            ("GameID_GameEventID","?GameID=0022600153&GameEventID=12"),
+            ("gameId_eventNum","?gameId=0022600153&eventNum=12"),
+            ("gameId_eventNumber","?gameId=0022600153&eventNumber=12"),
+            ("gameId_eventId","?gameId=0022600153&eventId=12"),
+            ("game_id_event_number","?game_id=0022600153&event_number=12"),
+            ("GameId_EventNum","?GameId=0022600153&EventNum=12"),
+            ("gid_eid","?gid=0022600153&eid=12"),
+            ("GameID_EventNumber","?GameID=0022600153&EventNumber=12"),
+            ("GameId_EventId","?GameId=0022600153&EventId=12"),
+          ]
+          for label,q in candidates:
+            try:
+              v=subprocess.run(["curl","-LsS","--max-time","8","-A","Mozilla/5.0",base+q],
+                               text=True,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL)
+              body=re.sub("<[^>]*>"," ",v.stdout)
+              body=" ".join(body.split())
+              finding=re.search(r"No video clip available for Game ID:.{0,115}",body,re.I)
+              summary=finding.group(0) if finding else body[:110]
+              print("CLIPS_NBA_QUERY_PROBE",label,"exit",v.returncode,
+                    "response_chars",len(v.stdout),"display",repr(summary[:170]))
+            except Exception as e:
+              print("CLIPS_NBA_QUERY_PROBE_ERROR",label,type(e).__name__)
+          PY
