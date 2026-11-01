@@ -664,6 +664,7 @@ REVIEWED_PUBLIC_NBA_ACTION_METADATA = {
     "reed_0022600125_official_action.json",
 }
 REVIEWED_MEDIA_SOURCE_WORKFLOWS = {
+    ".github/workflows/nba-eason-0022600153-replay-access-probe.yml",  # inspected NBA public replay origin HTTP-only, no private media
     ".github/workflows/nba-eason-0022600153-exact-action.yml",  # pinned immutable official NBA public replay-link origin only
     "tools/amen732_official_sixvideo_acquire.py",  # audited official NBA source page only, no signed URLs stored
     "tools/amen732_official_sixvideo_acquire.py",  # vetted native official HLS acquisition; never persists URLs or footage publicly
