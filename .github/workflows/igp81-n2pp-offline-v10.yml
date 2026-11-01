@@ -33,7 +33,7 @@ jobs:
             'gamepulse/fusion/analysis/igp81_n2pp_native_zone_bootstrap_v6.py' \
             'gamepulse/fusion/universal_possession_alignment_2026.py'
           cd "$RUNNER_TEMP/private"
-          PYTHONPATH=gamepulse/fusion:gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/igp2025_26_n2pp_historical_holdout_v1.py --first 1 --last 1230 --workers 8 --output "$RUNNER_TEMP/historical25.json" > "$RUNNER_TEMP/private.log" 2>&1 || { echo PRIVATE_2025_PBP_HOLDOUT_FAILED; exit 46; }
+          PYTHONPATH=gamepulse/fusion:gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/igp2025_26_n2pp_historical_decomposition_v2.py --first 1 --last 1230 --workers 8 --output "$RUNNER_TEMP/historical25.json" > "$RUNNER_TEMP/private.log" 2>&1 || { echo PRIVATE_2025_PBP_HOLDOUT_FAILED; exit 46; }
           python3 - <<'PY'
           import json,os
           d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"historical25.json")))
@@ -69,7 +69,7 @@ jobs:
           if [ -f "$RUNNER_TEMP/private.log" ]; then
             python3 - <<'PY'
           import base64,json,os,pathlib,subprocess
-          route="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp2025_26_n2pp_historical_pilot_failure.json"
+          route="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp2025_26_n2pp_historical_v2_failure.json"
           text=(pathlib.Path(os.environ["RUNNER_TEMP"])/"private.log").read_text()[-4000:]
           body={"branch":os.environ["PRIVATE_BRANCH"],"message":"qa(private): 2025-26 holdout failure [skip ci]",
                 "content":base64.b64encode(json.dumps({"trace":text}).encode()).decode()}
