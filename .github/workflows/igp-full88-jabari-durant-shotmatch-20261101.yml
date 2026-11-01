@@ -54,3 +54,4 @@ jobs:
           done
           exit 22
 # Workflow runs private source matching; public logs only aggregate QA.
+# Source feature-set variable checked in canonical private matcher.
