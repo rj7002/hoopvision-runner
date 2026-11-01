@@ -93,3 +93,5 @@ jobs:
               time.sleep(attempt+1)
           else: raise RuntimeError('PRIVATE_RESULT_WRITE_FAILED')
           PY
+
+# rerun with current allowlisted public guard
