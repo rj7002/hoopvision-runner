@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full88-all-official-assists-private.yml",  # reviewed: original NBA PBP/box and derived assist ledger written to private 104 only; public aggregate counts
     ".github/workflows/gamepulse-full88-sengun-assist-court-20261102.yml",  # private Full88 official PBP and SHA original SDK assist-location audit; aggregate public log only
     ".github/workflows/igp-full88-ten-shot-motion-private-20261101.yml",  # 10 NBA original XYZ and provisional 10Hz privately only; public aggregates only
     ".github/workflows/igp-full88-clips-all-links-private-repair-20261101.yml",  # opaque private-only 88-game SHA-preserving event URL repair; public aggregate counts only
