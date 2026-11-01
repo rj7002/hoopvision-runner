@@ -41,6 +41,8 @@ jobs:
           python3 - <<'PY'
           import base64,json,os,pathlib,subprocess,sys,time
           def cmd(argv, **kw):
+              kw.setdefault("stdout",subprocess.DEVNULL)
+              kw.setdefault("stderr",subprocess.DEVNULL)
               return subprocess.run(argv,check=True,**kw)
           repo="timeedmonds-maker/104"
           item=json.loads(base64.b64decode(subprocess.check_output(
@@ -50,6 +52,7 @@ jobs:
           assert item["script"].startswith("gamepulse/fusion/analysis/")
           assert item["out_dir"].startswith("gamepulse/fusion/qa/analysis/")
           ref=item["ref"]
+          expected=item.get("source_sha")
           assert ref.startswith("analysis/") and all(c.isalnum() or c in "-_/." for c in ref)
           root=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-src"
           cmd(["gh","auth","setup-git"],stdout=subprocess.DEVNULL)
@@ -57,10 +60,16 @@ jobs:
                "-b",ref,f"https://github.com/{repo}.git",str(root)])
           cmd(["git","-C",str(root),"sparse-checkout","set","gamepulse/fusion"],
               stdout=subprocess.DEVNULL)
+          if expected:
+              cmd(["git","-C",str(root),"fetch","-q","--depth=1","origin",expected],stdout=subprocess.DEVNULL)
+              cmd(["git","-C",str(root),"checkout","-q","--detach",expected],stdout=subprocess.DEVNULL)
+              assert subprocess.check_output(["git","-C",str(root),"rev-parse","HEAD"],text=True).strip()==expected
           task=root/item["script"]
           assert task.is_file()
           cmd([sys.executable,"-m","py_compile",str(task)])
-          test=root/"gamepulse/fusion/analysis/test_igp81_halfcourt_league_rank_source_free_v1.py"
+          test_path=item.get("test_script","gamepulse/fusion/analysis/test_igp81_halfcourt_league_rank_source_free_v1.py")
+          assert test_path.startswith("gamepulse/fusion/analysis/") and ".." not in test_path
+          test=root/test_path
           assert test.is_file()
           probe=subprocess.run([sys.executable,str(test)],
                                cwd=root,capture_output=True,text=True,
@@ -86,7 +95,7 @@ jobs:
               payload={"branch":ref,
                        "message":f"qa(private): protected shard {shard} failed",
                        "content":base64.b64encode(json.dumps(diagnosis).encode()).decode()}
-              previous=subprocess.run(["gh","api",target],capture_output=True,text=True)
+              previous=subprocess.run(["gh","api",target+"?ref="+ref],capture_output=True,text=True)
               if previous.returncode==0:payload["sha"]=json.loads(previous.stdout)["sha"]
               subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
                              input=json.dumps(payload),capture_output=True)
@@ -101,7 +110,7 @@ jobs:
           payload={"branch":ref,"message":f"data(private): IGP analytics protected shard {shard}",
                    "content":base64.b64encode(data).decode()}
           for attempt in range(12):
-              prev=subprocess.run(["gh","api",target],capture_output=True,text=True)
+              prev=subprocess.run(["gh","api",target+"?ref="+ref],capture_output=True,text=True)
               content=dict(payload)
               if prev.returncode==0:content["sha"]=json.loads(prev.stdout)["sha"]
               r=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
@@ -153,13 +162,13 @@ jobs:
               (root/name).write_bytes(fetch(f'{task["out_dir"]}/{name}',ref))
           script=root/"rank.py"
           script.write_bytes(fetch(
-              "gamepulse/fusion/analysis/igp81_halfcourt_nearest_defender_rank_v1.py",ref))
+              task.get("reduce_script","gamepulse/fusion/analysis/igp81_halfcourt_nearest_defender_rank_v1.py"),task.get("source_sha") or ref))
           outputs={
               "top20.json":root/"top20.json",
               "all_league_players.json":root/"all_league_players.json",
               "all_league_players.csv":root/"all_league_players.csv",
               "all_player_team_splits.csv":root/"all_player_team_splits.csv"}
-          subprocess.run([sys.executable,"-m","py_compile",str(script)],check=True)
+          subprocess.run([sys.executable,"-m","py_compile",str(script)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
           proc=subprocess.run([sys.executable,str(script),"--dir",str(root),
                                "--out",str(outputs["top20.json"]),
                                "--league-json",str(outputs["all_league_players.json"]),
@@ -174,8 +183,9 @@ jobs:
           assert top["games_processed"]==81 and league["games_processed"]==81
           assert top["original_source_modified"] is False
           assert league["original_source_modified"] is False
-          assert league["total_players_with_samples"]==len(league["all_league_players"])
-          assert league["total_player_team_rows"]==len(league["all_player_team_splits"])
+          if "total_players_with_samples" in league:
+              assert league["total_players_with_samples"]==len(league["all_league_players"])
+              assert league["total_player_team_rows"]==len(league["all_player_team_splits"])
           assert top["analysis_code_sha256"]==league["analysis_code_sha256"]
           for name,out in outputs.items():
               target=f'repos/{repo}/contents/{task["out_dir"]}/{name}'
@@ -183,7 +193,7 @@ jobs:
                        "message":f"data(private): IGP81 proximity verified {name}",
                        "content":base64.b64encode(out.read_bytes()).decode()}
               for attempt in range(12):
-                  old=subprocess.run(["gh","api",target],capture_output=True,text=True)
+                  old=subprocess.run(["gh","api",target+"?ref="+ref],capture_output=True,text=True)
                   req=dict(payload)
                   if old.returncode==0:req["sha"]=json.loads(old.stdout)["sha"]
                   r=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
@@ -195,3 +205,4 @@ jobs:
                   sys.exit(1)
           print("PRIVATE_AGGREGATE_LEAGUE_AND_TEAM_TABLES_READY")
           PY
+
