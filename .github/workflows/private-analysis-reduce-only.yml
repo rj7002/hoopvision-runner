@@ -133,3 +133,5 @@ jobs:
                   sys.exit(1)
           print("PRIVATE_REDUCTION_AND_SOURCE_QA_SUCCESS")
           PY
+
+# Reviewed public guard allowlist, immutable source-verified R10 reduce-only retry.
