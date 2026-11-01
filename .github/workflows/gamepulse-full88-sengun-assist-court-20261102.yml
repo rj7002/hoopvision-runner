@@ -30,7 +30,23 @@ jobs:
           git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
           cd "$RUNNER_TEMP/private"
+          python3 -m pip install --quiet matplotlib==3.10.8
+          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_assist_explorer_v2.py' -v
           python3 gamepulse/fusion/igp_full88_sengun_original_assist_plot_data_v1.py
+          python3 gamepulse/fusion/igp_full88_assist_explorer_v2.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from gamepulse.fusion.igp_assist_explorer_app import render
+          p=Path('gamepulse/fusion/qa/igp_fullx/sengun_assist_explorer_full88_v2.json')
+          d=json.loads(p.read_bytes())
+          assert d['source_game_count']==88
+          assert d['counts']['houston_games_in_full88']==7
+          assert d['counts']['official_event_rows']==len(d['events'])
+          assert len({e['key'] for e in d['events']})==len(d['events'])
+          assert render(d['events'],'geometry',True,'png').startswith(b'\x89PNG')
+          print('FULL88_ASSIST_EXPLORER_PRIVATE_COUNTS', d['counts'])
+          PY
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -48,7 +64,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/qa/igp_fullx/sengun_assist_original_pass_origin_full88_20261102.json
+          git add -f gamepulse/fusion/qa/igp_fullx/sengun_assist_original_pass_origin_full88_20261102.json gamepulse/fusion/qa/igp_fullx/sengun_assist_explorer_full88_v2.json
           git diff --cached --check
           if git diff --cached --quiet; then echo IGP_FULL88_SENGUN_PRIVATE_RESULT_UNCHANGED; exit 0; fi
           git commit -q -m "qa(igp): private source-only Full88 Sengun credited assist origins"
