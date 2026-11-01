@@ -1,4 +1,4 @@
-name: IGP N2PP 2025-26 within-shooter corner and wing comparison
+name: IGP N2PP historical early81 versus current early81 matched-phase test
 on:
   push:
     branches: [analysis/n2pp-cross-season-validation-20261102]
@@ -32,24 +32,25 @@ jobs:
             'gamepulse/fusion/analysis/igp2025_26_n2pp_heldout_block_sensitivity_v2.py' \
             'gamepulse/fusion/analysis/igp2025_26_n2pp_cross_season_generalization_v3.py' \
             'gamepulse/fusion/analysis/igp2025_26_n2pp_within_shooter_v4.py' \
+            'gamepulse/fusion/analysis/igp2025_26_n2pp_early81_matched_v5.py' \
+            'gamepulse/fusion/qa/analysis/igp2025_26_n2pp_cross_season_generalization_v3.json' \
             'gamepulse/fusion/analysis/igp81_n2pp_original_nba_pbp_zone_v8.py' \
             'gamepulse/fusion/analysis/igp81_n2pp_native_zone_bootstrap_v6.py' \
             'gamepulse/fusion/universal_possession_alignment_2026.py' \
             'gamepulse/fusion/qa/analysis/igp81_n2pp_source_ledger_scoring_v16.json'
           cd "$RUNNER_TEMP/private"
-          PYTHONPATH=gamepulse/fusion:gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/igp2025_26_n2pp_within_shooter_v4.py --first 1 --last 1230 --workers 8 --output "$RUNNER_TEMP/shooter-v4.json" > "$RUNNER_TEMP/shooter-v4.log" 2>&1 || { echo N2PP_CROSS_SEASON_RESEARCH_VALIDATION_FAILED; exit 57; }
+          PYTHONPATH=gamepulse/fusion:gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/igp2025_26_n2pp_early81_matched_v5.py --root . --output "$RUNNER_TEMP/phase-v5.json" > "$RUNNER_TEMP/phase-v5.log" 2>&1 || { echo N2PP_CROSS_SEASON_RESEARCH_VALIDATION_FAILED; exit 57; }
           python3 - <<'PY'
           import json,os
-          d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"shooter-v4.json")))
-          assert d["games_attempted"]==1230 and d["eligible_games"]==1230
-          assert d["official_populations"]["paired_zoned"]==81033
-          assert d["official_populations"]["official_3pa"]==90968
-          assert len(d["within_shooter_controls"])==3
-          assert d["statistical_possessions_certified"] is False
-          print("IGP_N2PP_2025_26_SAME_SHOOTER_ZONE_TEST",json.dumps({
-            "games":d["eligible_games"],"official3":d["official_populations"]["official_3pa"],
-            "zone_N2PP":d["zone_N2PP"],"shooter_fixed_cohorts":d["within_shooter_controls"],
-            "statistical_possessions_certified":False},sort_keys=True))
+          d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"phase-v5.json")))
+          assert d["2025_first81"]["games"]==81
+          assert d["2026_first81"]["games"]==81
+          assert d["matched_time_phase_contrast"]["bootstrap_draws"]==5000
+          assert d["stat_possessions_certified"] is False
+          print("IGP_N2PP_PHASE_MATCHED_EARLY81_VALIDATION",json.dumps({
+              "2025":d["2025_first81"],"2026":d["2026_first81"],
+              "same_phase_contrast":d["matched_time_phase_contrast"],
+              "2025_full_season_contrast":d["2025_vs_2026_entire_season_contrast"]},sort_keys=True))
           PY
       - name: Record verified historical and current-season data in private repository
         shell: bash
@@ -57,9 +58,9 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import base64,json,os,pathlib,subprocess
-          raw=(pathlib.Path(os.environ["RUNNER_TEMP"])/"shooter-v4.json").read_bytes()
-          route="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp2025_26_n2pp_within_shooter_v4.json"
-          body={"branch":os.environ["PRIVATE_BRANCH"],"message":"qa(private): 2025-26 NBA same-shooter corner wing N2PP control V4 [skip ci]","content":base64.b64encode(raw).decode()}
+          raw=(pathlib.Path(os.environ["RUNNER_TEMP"])/"phase-v5.json").read_bytes()
+          route="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp2025_26_n2pp_early81_matched_v5.json"
+          body={"branch":os.environ["PRIVATE_BRANCH"],"message":"qa(private): NBA PBP first81 to first81 same phase comparability and clusters V5 [skip ci]","content":base64.b64encode(raw).decode()}
           chk=subprocess.run(["gh","api",route+"?ref="+os.environ["PRIVATE_BRANCH"]],capture_output=True,text=True)
           if chk.returncode==0:raise RuntimeError("PRIVATE_CROSS_SEASON_QA_ALREADY_EXISTS")
           r=subprocess.run(["gh","api","-X","PUT",route,"--input","-"],input=json.dumps(body),capture_output=True,text=True)
@@ -69,11 +70,11 @@ jobs:
       - name: Privately save execution failure cause
         if: failure()
         run: |
-          if [ -f "$RUNNER_TEMP/shooter-v4.log" ]; then
+          if [ -f "$RUNNER_TEMP/phase-v5.log" ]; then
             python3 - <<'PY'
           import base64,json,os,pathlib,subprocess
-          raw=(pathlib.Path(os.environ["RUNNER_TEMP"])/"shooter-v4.log").read_text()[-5000:]
-          route="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp2025_26_n2pp_shooter_v4_failure.json"
+          raw=(pathlib.Path(os.environ["RUNNER_TEMP"])/"phase-v5.log").read_text()[-5000:]
+          route="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp2025_26_n2pp_early81_v5_failure.json"
           body={"branch":os.environ["PRIVATE_BRANCH"],"message":"qa(private): historical/current NBA N2PP validation failure [skip ci]","content":base64.b64encode(json.dumps({"trace":raw}).encode()).decode()}
           chk=subprocess.run(["gh","api",route+"?ref="+os.environ["PRIVATE_BRANCH"]],capture_output=True,text=True)
           if chk.returncode==0:body["sha"]=json.loads(chk.stdout)["sha"]
