@@ -118,6 +118,22 @@ if(!fixtures){
  }));
  throw Error('NO_AUTHORITATIVE_NBA_SCHEDULE');
 }
+// A final box score is an independent official NBA authority when the schedule
+// snapshot omits a just-completed game. Add only the exact NBA 0153 game if
+// its public box confirms final status and a valid tipoff; never infer final.
+if(!fixtures.some(g=>g.id==='0022600153')){
+  try{
+    const box=await get('https://cdn.nba.com/static/json/liveData/boxscore/boxscore_0022600153.json');
+    const g=box?.game;
+    const start=Date.parse(g?.gameTimeUTC||'');
+    if(String(g?.gameId)==='0022600153'&&Number(g?.gameStatus)===3&&
+       Number.isFinite(start)&&start+315*60000<=NOW){
+      fixtures.push({id:'0022600153',tipoff:new Date(start).toISOString(),start});
+      fixtures.sort((a,b)=>a.start-b.start);
+      console.log('IGP_OFFICIAL_FINAL_BOX_0153_DISCOVERED');
+    }
+  }catch(e){console.log('IGP_OFFICIAL_FINAL_BOX_0153_PENDING');}
+}
 const index=await privateFile('gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json');
 if(index.official_games!==56||Object.keys(index.per_game_model).length!==56)
   throw Error('FROZEN_56_CHANGED');
