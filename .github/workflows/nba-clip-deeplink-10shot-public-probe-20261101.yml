@@ -1,55 +1,13 @@
-name: NBA ten-shot public clip URL availability probe
+name: NBA clip probe retired - public URL policy preserved
 on:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/nba-clip-deeplink-10shot-public-probe-20261101.yml
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
-  public-nba-clip-probe:
+  status:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
-      - name: Enforce public content boundary
+      - name: Verify public guard
         run: python3 tools/public_content_guard.py
-      - name: Probe NBA public clip source and canonical event URLs
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import urllib.request, urllib.parse, urllib.error, json, re, time
-          shots=[('J1','0022600125',322),('D1','0022600091',71),
-          ('J2','0022600153',398),('D2','0022600138',14),
-          ('J3','0022600091',87),('D3','0022600107',476),
-          ('J4','0022600153',219),('D4','0022600091',95),
-          ('J5','0022600107',52),('D5','0022600091',23)]
-          headers={'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36','Accept':'text/html,application/json,*/*','Referer':'https://www.nba.com/'}
-          def probe(url):
-              try:
-                  req=urllib.request.Request(url,headers=headers)
-                  with urllib.request.urlopen(req,timeout=14) as r:
-                      raw=r.read(20000)
-                      s=raw.decode('utf8','replace')
-                      return {'status':r.status,'final':r.url[:150],
-                         'body_head':re.sub(r'\\s+',' ',re.sub('<[^>]+>',' ',s))[:220],
-                         'media':r.headers.get('Content-Type','')}
-              except urllib.error.HTTPError as e:
-                  return {'status':e.code,'body_head':e.read(150).decode('utf8','replace')}
-              except Exception as e:return {'error':type(e).__name__+': '+str(e)[:100]}
-          candidates=[('previous','gameId','eventNum'),('variant','GameID','GameEventID'),('variant2','gameID','eventNumber')]
-          for label,gid,act in shots:
-              u='https://clips.nba.com/?'+urllib.parse.urlencode({'gameId':gid,'eventNum':act})
-              result=probe(u)
-              print('CLIP_LINK',label,gid,act,json.dumps(result,sort_keys=True))
-          for name,gid,act in [shots[0],shots[1]]:
-              for schema,gk,ek in candidates[1:]:
-                  u='https://clips.nba.com/?'+urllib.parse.urlencode({gk:gid,ek:act})
-                  print('SCHEMA',name,schema,json.dumps(probe(u),sort_keys=True))
-              url='https://www.nba.com/stats/events?'+urllib.parse.urlencode({'GameEventID':act,'GameID':gid,'Season':'2026-27','flag':1})
-              print('NBA_STATS_EVENTS',name,json.dumps(probe(url),sort_keys=True))
-              url='https://stats.nba.com/stats/videoeventsasset?'+urllib.parse.urlencode({'GameID':gid,'GameEventID':act})
-              print('VIDEOEVENTS_ASSET',name,json.dumps(probe(url),sort_keys=True))
-          PY
-
-# Probe initiated after exact guard allowlist approval.
+      - name: Report probe outcome
+        run: echo "MEDIA_SOURCE_URL_PROBE_NOT_ALLOWED_PUBLIC_RUNNER"
