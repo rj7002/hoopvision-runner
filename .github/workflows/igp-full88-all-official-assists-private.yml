@@ -1,3 +1,4 @@
+# Reviewed public guard registration: private source files and event rows remain in 104.
 name: Full88 official assist source census private
 on:
   push:
