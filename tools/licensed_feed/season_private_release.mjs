@@ -487,8 +487,13 @@ export async function run(){
               gid,local.games[gid].qa,local.games[gid].windows);
   return;
  }
+ // The Oct 25 GSW-PHX one-off source recheck is not a prerequisite for
+ // current slate capture/finalization. Opt in explicitly, never from normal
+ // push-triggered production jobs; preserve its original seven-day expiry.
  if(process.env.GITHUB_EVENT_NAME==='push'&&process.env.GAMEPULSE_PRODUCTION_ENABLED==='true'&&
-    process.env.GAMEPULSE_PRIORITY_FANOUT!=='true')await probeGswPhoenixGap(capture);
+    process.env.GAMEPULSE_GSW_PHOENIX_RECHECK==='true'&&
+    process.env.GAMEPULSE_PRIORITY_FANOUT!=='true'&&
+    process.env.GAMEPULSE_PRIORITY_FINALIZE!=='true')await probeGswPhoenixGap(capture);
  if(process.env.GAMEPULSE_PRIORITY_FANOUT==='true'){
   if(PILOT||!['push','schedule'].includes(process.env.GITHUB_EVENT_NAME))throw Error('priority_context_invalid');
   const game={id:process.env.GAMEPULSE_PRIORITY_ID,start:Date.parse(process.env.GAMEPULSE_PRIORITY_TIPOFF||'')};
