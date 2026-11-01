@@ -212,3 +212,5 @@ jobs:
 # Protected replay with private evidence selection.
 
 # Protected replay request using current private selector.
+
+# Protected replay request: verify source-free regression before private processing.
