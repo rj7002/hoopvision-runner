@@ -79,3 +79,5 @@ jobs:
           exit 25
 
 # Replay: prior Time#show runoff consistency required before crediting late clock.
+
+# Re-execute against private corrected 9s source-free clock countdown fixture.
