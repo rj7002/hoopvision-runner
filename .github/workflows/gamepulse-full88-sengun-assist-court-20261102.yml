@@ -42,6 +42,10 @@ jobs:
           d=json.loads(p.read_bytes())
           assert d['source_game_count']==88
           assert d['counts']['houston_games_in_full88']==7
+          assert d['counts']['complete_official_census']==1
+          assert d['counts']['games_reconciled']==7
+          assert d['counts']['official_assists_reconciled']==37
+          assert all(g['official_assists']==g['boxscore_assists'] for g in d['games'].values())
           assert d['counts']['official_event_rows']==len(d['events'])
           assert len({e['key'] for e in d['events']})==len(d['events'])
           assert render(d['events'],'geometry',True,'png').startswith(b'\x89PNG')
@@ -64,7 +68,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/qa/igp_fullx/sengun_assist_original_pass_origin_full88_20261102.json gamepulse/fusion/qa/igp_fullx/sengun_assist_explorer_full88_v2.json
+          git add -f gamepulse/fusion/qa/igp_fullx/sengun_assist_original_pass_origin_full88_20261102.json gamepulse/fusion/qa/igp_fullx/sengun_assist_explorer_full88_v2.json gamepulse/fusion/qa/igp_fullx/assist_official_raw
           git diff --cached --check
           if git diff --cached --quiet; then echo IGP_FULL88_SENGUN_PRIVATE_RESULT_UNCHANGED; exit 0; fi
           git commit -q -m "qa(igp): private source-only Full88 Sengun credited assist origins"
