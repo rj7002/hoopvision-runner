@@ -48,7 +48,7 @@ jobs:
           d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"v14.json")))
           assert d["games"]==81 and d["team_games"]==162
           assert d["source_episodes_classified"]==304
-          assert d["certified_stat_possessions"] is False
+          assert d["statistical_possessions_certified"] is False
           print("N2PP_V14_SOURCE_EVENT_POSSESSION_CANDIDATES",json.dumps({
             "team_games":d["team_games"],
             "method_comparison":{k:v["totals"] for k,v in d["candidate_methods"].items()},
@@ -74,7 +74,7 @@ jobs:
           if [ -f "$RUNNER_TEMP/v14.log" ]; then
             python3 - <<'PY'
           import base64,json,os,pathlib,subprocess
-          dest="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_n2pp_v12_failure.json"
+          dest="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_n2pp_v14_failure.json"
           body={"branch":os.environ["BRANCH"],"message":"qa(private): N2PP V14 failure trace [skip ci]","content":base64.b64encode(json.dumps({"trace":(pathlib.Path(os.environ["RUNNER_TEMP"])/"v14.log").read_text()[-5000:]}).encode()).decode()}
           q=subprocess.run(["gh","api",dest+"?ref="+os.environ["BRANCH"]],capture_output=True,text=True)
           if q.returncode==0:body["sha"]=json.loads(q.stdout)["sha"]
