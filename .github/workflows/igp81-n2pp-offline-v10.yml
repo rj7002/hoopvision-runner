@@ -1,4 +1,4 @@
-name: IGP N2PP 2025-26 historical full 1230-game source-episode validation
+name: IGP N2PP 2025-26 historical full 1230-game N2PP offense-opponent decomposition
 on:
   push:
     branches: [analysis/n2pp-source-verified-runner-20261101]
@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
-            'gamepulse/fusion/analysis/igp2025_26_n2pp_historical_holdout_v1.py' \
+            'gamepulse/fusion/analysis/igp2025_26_n2pp_historical_decomposition_v2.py' \
             'gamepulse/fusion/analysis/igp81_n2pp_original_nba_pbp_zone_v8.py' \
             'gamepulse/fusion/analysis/igp81_n2pp_native_zone_bootstrap_v6.py' \
             'gamepulse/fusion/universal_possession_alignment_2026.py'
@@ -37,9 +37,12 @@ jobs:
           python3 - <<'PY'
           import json,os
           d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"historical25.json")))
-          assert d["games_attempted"]==1230
+          assert d["games_attempted"]==1230 and d["eligible_games"]==1230
+          assert d["official_populations"]["official_3pa"]==90968
+          assert d["zone_N2PP"]["wing_above_break"]["N2PP"]==0.159768
+          assert d["zone_N2PP"]["corner"]["N2PP"]==0.245801
           assert not d["statistical_possessions_certified"]
-          print("IGP25_FULL1230_HISTORICAL_HOLDOUT",json.dumps({
+          print("IGP25_FULL1230_HISTORICAL_DECOMPOSITION",json.dumps({
             "attempted":d["games_attempted"],"eligible":d["eligible_games"],
             "source_states":d["source_status"],"official_populations":d["official_populations"],
             "zones":d["zone_N2PP"],"wing_minus_corner":d["wing_minus_corner"],
@@ -51,9 +54,9 @@ jobs:
           python3 - <<'PY'
           import base64,json,os,pathlib,subprocess
           body={"branch":os.environ["PRIVATE_BRANCH"],
-                "message":"qa(private): 2025-26 full 1230-game historical source episode N2PP [skip ci]",
+                "message":"qa(private): 2025-26 full 1230-game N2PP offense and next-opponent decomposition [skip ci]",
                 "content":base64.b64encode((pathlib.Path(os.environ["RUNNER_TEMP"])/"historical25.json").read_bytes()).decode()}
-          route="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp2025_26_n2pp_historical_full1230_v1.json"
+          route="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp2025_26_n2pp_historical_full1230_decomposition_v2.json"
           check=subprocess.run(["gh","api",route+"?ref="+os.environ["PRIVATE_BRANCH"]],capture_output=True,text=True)
           if check.returncode==0:raise SystemExit("REFUSE_HISTORICAL_QA_OVERWRITE")
           r=subprocess.run(["gh","api","-X","PUT",route,"--input","-"],input=json.dumps(body),capture_output=True,text=True)
