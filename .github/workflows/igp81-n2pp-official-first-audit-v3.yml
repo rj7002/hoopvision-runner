@@ -29,7 +29,7 @@ jobs:
           test -n "$GH_TOKEN"
           test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
           gh auth setup-git
-      - name: Read pinned-original private 81-game data and tested V3 code
+      - name: Read private original 81-game PBP, companion source and tested V4 code
         shell: bash
         run: |
           set -euo pipefail
@@ -60,7 +60,7 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH="$PWD/gamepulse/fusion:$PWD/gamepulse/fusion/analysis"
-          python3 gamepulse/fusion/analysis/igp81_n2pp_original_companion_v4.py --root . --output "$RUNNER_TEMP/n2pp_v4.json" > "$RUNNER_TEMP/private_analysis.log" 2>&1 || { echo 'IGP81_N2PP_V3_SOURCE_RUN_FAILED'; exit 41; }
+          python3 gamepulse/fusion/analysis/igp81_n2pp_original_companion_v4.py --root . --output "$RUNNER_TEMP/n2pp_v4.json" > "$RUNNER_TEMP/private_analysis.log" 2>&1 || { echo 'IGP81_N2PP_V4_ORIGINAL_COMPANION_RUN_FAILED'; exit 41; }
           python3 - <<'PY'
           import json,os
           p=os.path.join(os.environ["RUNNER_TEMP"],"n2pp_v4.json")
