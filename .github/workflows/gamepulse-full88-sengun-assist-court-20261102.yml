@@ -57,6 +57,9 @@ jobs:
           assert q['counts']['origins']==37 and q['counts']['receivers']==37 and q['counts']['shots']==37
           assert q['counts']['ordered_endpoint_chords']==35 and q['counts']['unpaired_endpoint_chords']==2
           assert q['no_interpolated_positions_added']
+          assert q['endpoint_xyz_source_equal_74_of_74']
+          assert sum(q['endpoint_proximity_grades'].values())==74
+          assert q['ball_paths_drawn']==0
           assert (p/'sengun37_ball_informed_assist_geography.png').read_bytes().startswith(bytes.fromhex('89504e47'))
           assert b'<svg' in (p/'sengun37_ball_informed_assist_geography.svg').read_bytes()[:500]
           print('SENGUN37_NATIVE_BALL_PUBLIC_LOG_AGGREGATES_ONLY',q['events'],q['coherent_ball_trace_events'])
