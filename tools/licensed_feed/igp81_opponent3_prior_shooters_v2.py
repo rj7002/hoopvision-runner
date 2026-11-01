@@ -17,7 +17,7 @@ def loadprior(file):
     raw=file.read_bytes()
     sh=hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\x00"+raw).hexdigest()
     check(sh==PRIOR_BLOB_SHA,"PREVIOUS_SEASON_PUBLIC_SOURCE_BLOB_SHA_DRIFT")
-    rows=list(csv.DictReader(raw.decode("utf8-sig").splitlines()))
+    rows=list(csv.DictReader(raw.decode("utf-8-sig").splitlines()))
     lookup={};sM=sN=0
     for r in rows:
         check(r["season"]=="2025-26" and r["season_type"]=="Regular Season",
