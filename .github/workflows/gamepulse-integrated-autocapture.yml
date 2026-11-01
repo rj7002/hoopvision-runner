@@ -635,7 +635,7 @@ jobs:
           p=Path("gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json")
           games=json.loads(p.read_bytes())["games"]
           paths=["/gamepulse/fusion/evidence/companion_sdk_original_"+g for g in games]
-          subprocess.run(["git","sparse-checkout","add","--no-cone",*paths],check=True)
+          subprocess.run(["git","sparse-checkout","add",*paths],check=True)
           PY
           python3 -m py_compile gamepulse/fusion/igp_full88_unified_shot_event_multiview_v1.py
           python3 gamepulse/fusion/igp_full88_unified_shot_event_multiview_v1.py             --root . --clips-game-key gameId             --clips-schema GAME_ID_QUERY_UNVERIFIED_EVENT_NUM_PROBED
