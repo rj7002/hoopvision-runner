@@ -1,4 +1,4 @@
-name: IGP81 N2PP v6 native-corrected descriptive zone and bootstrap audit
+name: IGP81 N2PP v7 matched-shot zone reclassification sensitivity
 # Opaque public execution of private SHA-pinned 6094-shot V5 registry.
 # Only non-sensitive game-aggregated output appears in public job logs.
 on:
@@ -9,7 +9,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: igp81-n2pp-v6-private-81
+  group: igp81-n2pp-v7-private-81
   cancel-in-progress: false
 jobs:
   private-81-source-audit:
@@ -29,43 +29,44 @@ jobs:
           test -n "$GH_TOKEN"
           test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
           gh auth setup-git
-      - name: Load pinned previous original-native QA and run source-free V6 unit tests
+      - name: Load pinned original-native QA and run paired-zone V7 source-free tests
         shell: bash
         run: |
           set -euo pipefail
           git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
             'gamepulse/fusion/analysis/igp81_n2pp_native_zone_bootstrap_v6.py' \
+            'gamepulse/fusion/analysis/igp81_n2pp_fixed_cohort_zone_v7.py' \
             'gamepulse/fusion/qa/analysis/igp81_n2pp_original_native_v5.json'
           cd "$RUNNER_TEMP/private"
-          python3 -m py_compile gamepulse/fusion/analysis/igp81_n2pp_native_zone_bootstrap_v6.py
+          python3 -m py_compile gamepulse/fusion/analysis/igp81_n2pp_native_zone_bootstrap_v6.py gamepulse/fusion/analysis/igp81_n2pp_fixed_cohort_zone_v7.py
           python3 gamepulse/fusion/analysis/igp81_n2pp_native_zone_bootstrap_v6.py --self-test
-      - name: Run source-pinned complete V5 registered shot N2PP zone/bootstrap comparison
+          PYTHONPATH=gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/igp81_n2pp_fixed_cohort_zone_v7.py --self-test
+      - name: Run source-pinned fixed same-shot zone reclassification and bootstrap V7
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          python3 gamepulse/fusion/analysis/igp81_n2pp_native_zone_bootstrap_v6.py --root . --output "$RUNNER_TEMP/n2pp_v6.json" > "$RUNNER_TEMP/n2pp_private.log" 2>&1 || { echo N2PP_V6_PRIVATE_RESEARCH_FAILED; exit 41; }
+          PYTHONPATH=gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/igp81_n2pp_fixed_cohort_zone_v7.py --root . --output "$RUNNER_TEMP/n2pp_v7.json" > "$RUNNER_TEMP/n2pp_private.log" 2>&1 || { echo N2PP_V7_PRIVATE_RESEARCH_FAILED; exit 41; }
           python3 - <<'PY'
           import json,os
-          p=os.path.join(os.environ['RUNNER_TEMP'],'n2pp_v6.json')
+          p=os.path.join(os.environ['RUNNER_TEMP'],'n2pp_v7.json')
           d=json.load(open(p))
-          assert d['games']==81 and d['official_pbp_population']==6094
-          assert d['official_NBA_possession_boundaries_certified'] is False
-          assert d['tactical_preference_established'] is False
-          assert d['first_fga_official_chain_subset']==5461
-          for name in ('V5_SOURCE_PRIORITY','V4_PROVISIONAL','BLUEPRINT_CONTROL','NATIVE_COMPANION_FIRST'):
-              x=d['strata'][name]['first_fga_primary']
-              z={k:{'n':v['paired'],'n2pp':v['net_n2pp']} for k,v in x['zone_results'].items()}
-              print('N2PP_V6_DESCRIPTIVE_UNCERTIFIED',name,json.dumps({
-                  'eligible':x['eligible_shots'],'zoned':x['zoned'],
-                  'paired':x['paired'],'zones':z,
-                  'wing_minus_corner_95ci':x['whole_game_bootstrap']['pairwise_CI95']['wing_above_break_minus_corner']},sort_keys=True))
-          print('N2PP_V6_PRIVATE_SOURCE_GRADED_RESULT_PASS',json.dumps({
-              'official3':d['official_pbp_population'],
-              'source_version_changes':d['classification_changes'].get('v4_to_v5_zone_changed',0),
-              'zone_conflicts':d['classification_changes'].get('companion_vs_blueprint_disagree',0),
-              'statistical_possessions_certified':False},sort_keys=True))
+          assert d['games']==81 and d['official_threes_all']==6094
+          assert d['statistical_possessions_certified'] is False
+          assert d['independent_physical_shot_release_certified'] is False
+          for name in ('primary_same_shot_cohort','native_companion_corroborated_same_shots'):
+              x=d[name]
+              z={k:{'n':v['n'],'n2pp':v['net_n2pp']} for k,v in x['native_priority'].items()}
+              print('N2PP_V7_FIXED_COHORT',name,json.dumps({
+                  'n':x['population'],'reclassified':x['classification'].get('zone_reclassified',0),
+                  'native_zone_n2pp':z,
+                  'wing_corner_native':x['wing_minus_corner_native'],
+                  'wing_corner_blueprint':x['wing_minus_corner_blueprint'],
+                  'pair_reclassification_delta':x['paired_reclassification_delta'],
+                  'delta_CI95':x['bootstrap']['ci95']['change'],
+                  'native_CI95':x['bootstrap']['ci95']['source']},sort_keys=True))
+          print('N2PP_V7_SOURCE_QA_PASS')
           PY
       - name: Commit complete new QA result in private repository only
         shell: bash
@@ -73,16 +74,16 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import os,base64,json,pathlib,subprocess
-          dest='gamepulse/fusion/qa/analysis/igp81_n2pp_native_zone_bootstrap_v6.json'
-          content=(pathlib.Path(os.environ['RUNNER_TEMP'])/'n2pp_v6.json').read_bytes()
+          dest='gamepulse/fusion/qa/analysis/igp81_n2pp_fixed_cohort_zone_v7.json'
+          content=(pathlib.Path(os.environ['RUNNER_TEMP'])/'n2pp_v7.json').read_bytes()
           target=f'repos/timeedmonds-maker/104/contents/{dest}'
           branch=os.environ['PRIVATE_BRANCH']
           lookup=subprocess.run(['gh','api',target+'?ref='+branch],capture_output=True,text=True)
-          if lookup.returncode==0:raise SystemExit('REFUSE_PRIVATE_V6_QA_OVERWRITE')
-          payload={'branch':branch,'message':'qa(private): N2PP 81game native zone and game bootstrap [skip ci]','content':base64.b64encode(content).decode()}
+          if lookup.returncode==0:raise SystemExit('REFUSE_PRIVATE_V7_QA_OVERWRITE')
+          payload={'branch':branch,'message':'qa(private): N2PP fixed-sample native vs Blueprint zone sensitivity [skip ci]','content':base64.b64encode(content).decode()}
           res=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],input=json.dumps(payload),capture_output=True,text=True)
           if res.returncode:raise RuntimeError('PRIVATE_QA_COMMIT_FAILED')
-          print('N2PP_V6_PRIVATE_QA_COMMIT_SHA',json.loads(res.stdout)['commit']['sha'])
+          print('N2PP_V7_PRIVATE_QA_COMMIT_SHA',json.loads(res.stdout)['commit']['sha'])
           PY
       - name: Private failure diagnosis, no licensed source logs
         if: failure()
@@ -93,12 +94,12 @@ jobs:
             python3 - <<'PY'
           import json,base64,pathlib,os,subprocess
           text=(pathlib.Path(os.environ['RUNNER_TEMP'])/'n2pp_private.log').read_text()[-7500:]
-          dest='repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_n2pp_v6_failure.json'
-          payload={'branch':os.environ['PRIVATE_BRANCH'],'message':'qa(private): N2PP V6 failure [skip ci]','content':base64.b64encode(json.dumps({'error':text}).encode()).decode()}
+          dest='repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_n2pp_v7_failure.json'
+          payload={'branch':os.environ['PRIVATE_BRANCH'],'message':'qa(private): N2PP V7 failure [skip ci]','content':base64.b64encode(json.dumps({'error':text}).encode()).decode()}
           old=subprocess.run(['gh','api',dest+'?ref='+os.environ['PRIVATE_BRANCH']],capture_output=True,text=True)
           if old.returncode==0:payload['sha']=json.loads(old.stdout)['sha']
           check=subprocess.run(['gh','api','-X','PUT',dest,'--input','-'],input=json.dumps(payload),capture_output=True,text=True)
           if check.returncode:raise RuntimeError('PRIVATE_FAILURE_QA_WRITE_FAILED')
-          print('N2PP_V6_FAILURE_DIAGNOSIS_PRIVATE_ONLY')
+          print('N2PP_V7_FAILURE_DIAGNOSIS_PRIVATE_ONLY')
           PY
           fi
