@@ -1,4 +1,4 @@
-name: IGP81 N2PP v3 official-first source and possession bridge
+name: IGP81 N2PP v4 original companion native coordinate and PBP crosswalk
 # Opaque public controller. Private licensed shots, PBP and row-level output stay private.
 # Stage B/C source reconciliation; source-grade output must never be logged.
 on:
@@ -9,7 +9,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: igp81-n2pp-v3-official-first
+  group: igp81-n2pp-v4-companion-source-first
   cancel-in-progress: false
 jobs:
   private-81-source-audit:
@@ -36,6 +36,7 @@ jobs:
           git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
             'gamepulse/fusion/analysis/igp81_n2pp_official_first_audit_v3.py' \
+            'gamepulse/fusion/analysis/igp81_n2pp_original_companion_v4.py' \
             'gamepulse/fusion/analysis/igp81_threepoint_net_two_possessions_v1.py' \
             'gamepulse/fusion/analysis/igp81_threepoint_methodology_expert_audit_v2.py' \
             'gamepulse/fusion/universal_possession_alignment_2026.py' \
@@ -46,37 +47,40 @@ jobs:
             'gamepulse/fusion/official_pbp_timing/games/*.json' \
             'gamepulse/fusion/official_pbp_timing/pbp_only_oct21_10/games/*.json' \
             'gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all81_v1/index.json' \
-            'data/extensions/nba_blueprint_2026_27/games/*/shot_tracking_32_fields.csv'
+            'data/extensions/nba_blueprint_2026_27/games/*/shot_tracking_32_fields.csv' \
+            'gamepulse/fusion/evidence/companion_sdk_original_*/sdk_observed_original.json'
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH="$PWD/gamepulse/fusion:$PWD/gamepulse/fusion/analysis"
-          python3 -m py_compile gamepulse/fusion/analysis/igp81_n2pp_official_first_audit_v3.py
+          python3 -m py_compile gamepulse/fusion/analysis/igp81_n2pp_official_first_audit_v3.py gamepulse/fusion/analysis/igp81_n2pp_original_companion_v4.py
           python3 gamepulse/fusion/analysis/igp81_n2pp_official_first_audit_v3.py --self-test
-      - name: Execute actual 81-game original-source enumeration and possession bridge
+          python3 gamepulse/fusion/analysis/igp81_n2pp_original_companion_v4.py --self-test
+      - name: Execute 81-game official-three source, companion and provisional-zone crosswalk
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH="$PWD/gamepulse/fusion:$PWD/gamepulse/fusion/analysis"
-          python3 gamepulse/fusion/analysis/igp81_n2pp_official_first_audit_v3.py --root . --output "$RUNNER_TEMP/n2pp_v3.json" > "$RUNNER_TEMP/private_analysis.log" 2>&1 || { echo 'IGP81_N2PP_V3_SOURCE_RUN_FAILED'; exit 41; }
+          python3 gamepulse/fusion/analysis/igp81_n2pp_original_companion_v4.py --root . --output "$RUNNER_TEMP/n2pp_v4.json" > "$RUNNER_TEMP/private_analysis.log" 2>&1 || { echo 'IGP81_N2PP_V3_SOURCE_RUN_FAILED'; exit 41; }
           python3 - <<'PY'
           import json,os
-          p=os.path.join(os.environ["RUNNER_TEMP"],"n2pp_v3.json")
+          p=os.path.join(os.environ["RUNNER_TEMP"],"n2pp_v4.json")
           d=json.load(open(p))
-          assert d["games"]==81 and d["team_games"]==162
+          assert d["games"]==81
           assert d["official3_registry_rows"]==6094
-          assert d["headline"]["official_3pa"]==6094
-          assert d["headline"]["first_three"]==5727
-          assert d["headline"]["first_three_is_first_fga"]==5461
+          assert d["official_first_v3_headline"]["official_3pa"]==6094
+          assert d["official_first_v3_headline"]["first_three"]==5727
+          assert d["official_first_v3_headline"]["first_three_is_first_fga"]==5461
           assert d["poss_reference"]["certified_statistical_possessions"] is False
-          assert d["shot_creation_opportunity_denominator_complete"] is False
-          print("N2PP_V3_ORIGINAL81_SOURCE_AND_POSS_REFERENCE_AUDIT_PASS",
-                json.dumps({"games":d["games"],"team_games":d["team_games"],
-                            "official_3pa":d["headline"]["official_3pa"],
-                            "official_first_fga_three":d["headline"]["first_three_is_first_fga"],
-                            "located_first_fga_three":d["headline"].get("located_primary"),
-                            "paired_located_first_fga_three":d["headline"].get("paired_located_primary"),
-                            "poss_absolute_residual":d["poss_reference"]["absolute_residual"],
-                            "poss_exact_team_games":d["poss_reference"]["exact_team_games"]},sort_keys=True))
+          assert d["physical_shot_release_time_validated"] is False
+          assert d["summary"]["source_verified_game"]>=70
+          print("N2PP_V4_COMPANION_AND_ORIGINAL_81_SOURCE_AUDIT_PASS",json.dumps({
+            "games":d["games"],"official_3pa":d["official3_registry_rows"],
+            "source_games":d["summary"]["source_verified_game"],
+            "companion_zoned":d["summary"].get("native_zoned",0),
+            "blueprint_zoned":d["summary"].get("blueprint_zoned",0),
+            "union_zoned":d["summary"].get("fallback_or_companion_zoned",0),
+            "disagreements":d["summary"].get("companion_blueprint_zone_disagree",0),
+            "poss_exact_team_games":d["poss_reference"]["exact_team_games"]},sort_keys=True))
           PY
       - name: Save private row-level audit, no public artifacts
         shell: bash
@@ -85,19 +89,19 @@ jobs:
           python3 - <<'PY'
           import base64,json,os,pathlib,subprocess
           repo="timeedmonds-maker/104"
-          dest="gamepulse/fusion/qa/analysis/igp81_n2pp_official_first_audit_v3.json"
-          path=pathlib.Path(os.environ["RUNNER_TEMP"])/"n2pp_v3.json"
+          dest="gamepulse/fusion/qa/analysis/igp81_n2pp_original_companion_v4.json"
+          path=pathlib.Path(os.environ["RUNNER_TEMP"])/"n2pp_v4.json"
           body={"branch":os.environ["PRIVATE_BRANCH"],
-                "message":"qa(private): execute 81-game official-first N2PP source/possession audit [skip ci]",
+                "message":"qa(private): execute 81-game N2PP original companion native-location research [skip ci]",
                 "content":base64.b64encode(path.read_bytes()).decode()}
           prev=subprocess.run(["gh","api",f"repos/{repo}/contents/{dest}?ref={os.environ['PRIVATE_BRANCH']}"],capture_output=True,text=True)
           if prev.returncode==0:
-              raise SystemExit("PRIVATE_V3_AUDIT_EXISTS_DO_NOT_OVERWRITE")
+              raise SystemExit("PRIVATE_V4_AUDIT_EXISTS_DO_NOT_OVERWRITE")
           result=subprocess.run(["gh","api","-X","PUT",f"repos/{repo}/contents/{dest}","--input","-"],
                 input=json.dumps(body),capture_output=True,text=True)
           if result.returncode:
               raise RuntimeError("PRIVATE_WRITE_FAILED")
-          print("N2PP_V3_PRIVATE_QA_COMMIT",json.loads(result.stdout)["commit"]["sha"])
+          print("N2PP_V4_PRIVATE_QA_COMMIT",json.loads(result.stdout)["commit"]["sha"])
           PY
       - name: Private-only failed audit diagnosis
         if: failure()
@@ -107,15 +111,15 @@ jobs:
           if [ -f "$RUNNER_TEMP/private_analysis.log" ]; then
             python3 - <<'PY'
           import base64,json,os,pathlib,subprocess
-          data={"stage":"official_first_81","status":"FAILURE",
+          data={"stage":"original_companion_native_81","status":"FAILURE",
                 "private_trace":(pathlib.Path(os.environ["RUNNER_TEMP"])/"private_analysis.log").read_text()[-6000:]}
-          dest="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_n2pp_v3_execution_failure.json"
-          body={"branch":os.environ["PRIVATE_BRANCH"],"message":"qa(private): N2PP v3 execution failure diagnosis [skip ci]",
+          dest="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_n2pp_v4_execution_failure.json"
+          body={"branch":os.environ["PRIVATE_BRANCH"],"message":"qa(private): N2PP v4 companion execution failure diagnosis [skip ci]",
                 "content":base64.b64encode(json.dumps(data).encode()).decode()}
           p=subprocess.run(["gh","api",dest+"?ref="+os.environ["PRIVATE_BRANCH"]],capture_output=True,text=True)
           if p.returncode==0:body["sha"]=json.loads(p.stdout)["sha"]
           r=subprocess.run(["gh","api","-X","PUT",dest,"--input","-"],input=json.dumps(body),capture_output=True,text=True)
           if r.returncode:raise RuntimeError("PRIVATE_FAILURE_DIAGNOSIS_WRITE_FAILED")
-          print("N2PP_V3_PRIVATE_FAILURE_DIAGNOSIS_COMMITTED")
+          print("N2PP_V4_PRIVATE_FAILURE_DIAGNOSIS_COMMITTED")
           PY
           fi
