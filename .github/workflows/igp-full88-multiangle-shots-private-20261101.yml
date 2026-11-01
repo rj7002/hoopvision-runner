@@ -1,0 +1,81 @@
+name: IGP FULL88 four-source shot and clips multiangle link private QA
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/igp-full88-multiangle-shots-private-20261101.yml
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  full88-multiangle-unified-index:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify opaque public/private bridge
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Read all 88 original native/biomechanical sources only inside private checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          git sparse-checkout set --no-cone             /gamepulse/fusion/igp_full88_unified_shot_event_multiview_v1.py             /gamepulse/fusion/qa/igp_progress_20261029/igp_all56_advanced_companion_biomechanics_v2.json             /gamepulse/fusion/qa/igp_fullx/shot_original_join_full88_v1.json             /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all56_v2             /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_original_join_full88_v1             /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json             /gamepulse/fusion/materialized/igp_all_original_xyz             /gamepulse/fusion/evidence/companion_sdk_original_             /gamepulse/fusion/official_pbp_timing/games             /data/extensions/nba_blueprint_2026_27/games
+          # Noncone patterns matching directory prefixes do not include all
+          # private evidence by themselves; explicitly add selected actual
+          # companion source game directories to the sparse definition.
+          python3 - <<'PY'
+          import json,subprocess
+          from pathlib import Path
+          p=Path("gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json")
+          games=json.loads(p.read_bytes())["games"]
+          paths=["/gamepulse/fusion/evidence/companion_sdk_original_"+g for g in games]
+          subprocess.run(["git","sparse-checkout","add",*paths],check=True)
+          PY
+          python3 -m py_compile gamepulse/fusion/igp_full88_unified_shot_event_multiview_v1.py
+          python3 gamepulse/fusion/igp_full88_unified_shot_event_multiview_v1.py             --root . --clips-game-key gameId             --clips-schema GAME_ID_QUERY_UNVERIFIED_EVENT_NUM_PROBED
+          python3 - <<'PY'
+          import json,hashlib,gzip
+          from pathlib import Path
+          qa=Path("gamepulse/fusion/qa/igp_fullx/shot_event_multiview_full88_v1.json")
+          d=json.loads(qa.read_bytes())
+          assert d["game_count"]==88 and len(d["games"])==88
+          assert d["counts"]["official_fga"]>=15584
+          assert d["counts"]["shot_clips_nba_deep_link"]==d["counts"]["official_fga"]
+          assert d["counts"]["event_clips_nba_deep_link"]==d["counts"]["official_actions"]
+          for gid,v in d["games"].items():
+              for kind in ("shot","event"):
+                  file=Path(v[kind+"s_path"])
+                  raw=file.read_bytes()
+                  assert hashlib.sha256(raw).hexdigest()==v[kind+"_sha256"]
+                  rows=[json.loads(l) for l in gzip.decompress(raw).splitlines() if l]
+                  assert len(rows)==v["counts"]["official_fga" if kind=="shot" else "official_actions"]
+                  assert len({r["official_action_number"] for r in rows})==len(rows)
+                  assert all(r["clips_nba_multiangle_url"].startswith("https://")
+                             and r["nba_event_key"]["gameId"]==gid for r in rows)
+          print("IGP_FULL88_MULTIVIEW_PRIVATE_SHA_READBACK_OK",d["game_count"],d["counts"])
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_event_multiview_full88_v1 gamepulse/fusion/qa/igp_fullx/shot_event_multiview_full88_v1.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo IGP_FULL88_ALL_EVENTS_ALREADY_SOURCE_GRADED; exit 0; fi
+          git commit -q -m "data(igp): immutable 88-game official events, shots, xFG, biomech, native frames and clips.nba references"
+          for n in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo IGP_FULL88_MULTIVIEW_PRIVATE_ACCEPTED_AND_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 23
