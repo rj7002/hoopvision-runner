@@ -40,6 +40,8 @@ jobs:
           python3 gamepulse/fusion/igp_full88_assist_anchor_alignment_shadow_v1.py
           python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_full88_assist_handoff_compatible_shadow_v1.py' -v
           python3 gamepulse/fusion/igp_full88_assist_handoff_compatible_shadow_v1.py
+          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_sengun37_independent_xyz_endpoints_shadow_v1.py' -v
+          python3 gamepulse/fusion/igp_sengun37_independent_xyz_endpoints_shadow_v1.py
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -74,7 +76,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/qa/igp_fullx/sengun_assist_original_pass_origin_full88_20261102.json gamepulse/fusion/qa/igp_fullx/sengun_assist_explorer_full88_v2.json gamepulse/fusion/qa/igp_fullx/sengun_assist_evidence_audit_v1.json gamepulse/fusion/qa/igp_fullx/sengun_assist_shot_anchor_shadow_v1.json gamepulse/fusion/qa/igp_fullx/sengun_assist_handoff_compatible_shadow_v1.json gamepulse/fusion/qa/igp_fullx/assist_official_raw
+          git add -f gamepulse/fusion/qa/igp_fullx/sengun_assist_original_pass_origin_full88_20261102.json gamepulse/fusion/qa/igp_fullx/sengun_assist_explorer_full88_v2.json gamepulse/fusion/qa/igp_fullx/sengun_assist_evidence_audit_v1.json gamepulse/fusion/qa/igp_fullx/sengun_assist_shot_anchor_shadow_v1.json gamepulse/fusion/qa/igp_fullx/sengun_assist_handoff_compatible_shadow_v1.json gamepulse/fusion/qa/igp_fullx/sengun_assist_independent_xyz_endpoints_shadow_v1.json gamepulse/fusion/qa/igp_fullx/assist_official_raw
           git diff --cached --check
           if git diff --cached --quiet; then echo IGP_FULL88_SENGUN_PRIVATE_RESULT_UNCHANGED; exit 0; fi
           git commit -q -m "qa(igp): private source-only Full88 Sengun credited assist origins"
