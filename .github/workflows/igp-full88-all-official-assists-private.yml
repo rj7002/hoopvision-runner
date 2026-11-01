@@ -250,3 +250,42 @@ jobs:
             sleep "$n"
           done
           exit 24
+
+      - name: Smoke SHA-gated source-anchor research explorer layer
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_assist_explorer_v2.py' -v
+          python3 - <<'PY'
+          import json,sys
+          sys.path.insert(0,'gamepulse/fusion')
+          from igp_full88_assist_query_v1 import query
+          from igp_assist_explorer_app import render,select,summarize
+          original=query('.',physical_layer='frozen')
+          research=query('.',physical_layer='shot_anchor_research')
+          assert original['count']==research['count']==4616
+          assert original['physical_layer']=='frozen'
+          assert research['physical_layer']=='shot_anchor_research'
+          assert len({e['key'] for e in research['events']})==4616
+          def calc(rows):
+              return {
+                'pair':sum(bool(e['pass_origin'] and e['reception']) for e in rows),
+                'shot':sum(bool(e['shot_release']) for e in rows),
+                'three':sum(bool(e['pass_origin'] and e['reception'] and e['shot_release']) for e in rows)
+              }
+          assert calc(original['events'])=={'pair':2223,'shot':2145,'three':1244}
+          assert calc(research['events'])=={'pair':2252,'shot':2164,'three':1279}
+          sengun=[e for e in research['events'] if e['assister_id']==1630578]
+          assert len(sengun)==37
+          assert render(sengun,'geometry',True,'png').startswith(bytes.fromhex('89504e47'))
+          assert summarize(sengun)['event_count']==37
+          limit=select(sengun,{'shotType':['3pt'],'passerMax':['5'],'catchMin':['12'],'includeMissing':['false']})
+          assert all(e.get('passer_speed_kmh') is not None and
+                     e.get('receiver_speed_at_catch_kmh') is not None for e in limit)
+          print('FULL88_RESEARCH_LAYER_PRIVATE_QA_ONLY',
+                json.dumps({'frozen':calc(original['events']),
+                            'anchored':calc(research['events']),
+                            'sengun_official_events':len(sengun),
+                            'strict_known_speed_filter_records':len(limit)},sort_keys=True))
+          PY
