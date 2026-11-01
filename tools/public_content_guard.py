@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/nba-clip-deeplink-10shot-public-probe-20261101.yml",  # public NBA URL status probe only; no private data
     ".github/workflows/igp-full88-jabari-durant-shotmatch-20261101.yml",  # private-only SHA-verified five-pair matching; aggregate public log only
     ".github/workflows/igp-full88-default-promotion-private-20261101.yml",  # reviewed bounded FULL88 private-source SHA default smoke, aggregate-only public output
     ".github/workflows/igp-full88-multiangle-shots-private-20261101.yml",  # private-only 88game source SHA event, biomechanics, original native and NBA clip-ID join; public counts only
