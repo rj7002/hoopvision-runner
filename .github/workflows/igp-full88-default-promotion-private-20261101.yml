@@ -33,6 +33,7 @@ jobs:
             /gamepulse/fusion/igp81_default_team_offrtg.py \
             /gamepulse/fusion/igp_native_scene_season_68_benchmark_v1.py \
             /gamepulse/fusion/igp_native_scene_model_v2.py \
+            /gamepulse/fusion/igp_tracking_model_a_holdout_2026.py \
             /gamepulse/fusion/igp_tracking_model_b_holdout_2026.py \
             /gamepulse/fusion/igp_tracking_model_c0_endpoint_velocity_bridge_2026.py \
             /gamepulse/fusion/tests/test_igp_full88_default_engine_v1.py \
