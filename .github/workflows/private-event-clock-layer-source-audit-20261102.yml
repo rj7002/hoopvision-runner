@@ -138,3 +138,5 @@ jobs:
 # Protected private follow-up: immutable-selector-pinned event-time/nonshot clock QA.
 
 # Source-grade QA schema aligned; rerun protected immutable private analysis.
+
+# Private source-only PBP candidate possession dedup after source-positive event reconciliation.
