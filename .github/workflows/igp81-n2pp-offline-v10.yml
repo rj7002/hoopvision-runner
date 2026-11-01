@@ -1,7 +1,7 @@
 name: IGP81 N2PP source-pinned offline V10
 on:
   push:
-    branches: [main]
+    branches: [main, analysis/n2pp-source-verified-runner-20261101]
     paths: ['.github/workflows/igp81-n2pp-offline-v10.yml']
   workflow_dispatch:
 permissions: {contents: read}
