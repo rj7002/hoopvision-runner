@@ -313,3 +313,5 @@ jobs:
 # R11 replay: read-only source-grade 81-game touch origin diagnostics.
 
 # R12 label-source conservation: authenticated private SHA-pinned FULL81 evaluation.
+
+# R12b SHA-pinned source label inventory residual repaired; private-only 81-game replay.
