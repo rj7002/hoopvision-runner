@@ -1,4 +1,4 @@
-name: IGP81 N2PP source-pinned offline V10
+name: IGP81 N2PP V10 exact source graded baseline
 on:
   push:
     branches: [main, analysis/n2pp-source-verified-runner-20261101]
