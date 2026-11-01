@@ -206,3 +206,5 @@ jobs:
           print("PRIVATE_AGGREGATE_LEAGUE_AND_TEAM_TABLES_READY")
           PY
 
+
+# Protected replay request; source and method remain private.
