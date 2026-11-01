@@ -214,3 +214,5 @@ jobs:
 # Protected replay request using current private selector.
 
 # Protected replay request: verify source-free regression before private processing.
+
+# R6 research replay trigger: source-backed partial-defender negative evidence (private outputs only).
