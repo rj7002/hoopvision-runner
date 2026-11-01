@@ -218,3 +218,5 @@ jobs:
 # R6 research replay trigger: source-backed partial-defender negative evidence (private outputs only).
 
 # R7 trace audit: pressure candidate radii/duration and source touch breaks (private results only).
+
+# R8 protected shadow recovery source-backed research; private-only results.
