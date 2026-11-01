@@ -39,7 +39,7 @@ jobs:
           git clone -q --depth=1 --filter=blob:none --sparse             https://github.com/EasySportsApps/nba_api_25_26_data.git "$RUNNER_TEMP/previous-public"
           git -C "$RUNNER_TEMP/previous-public" fetch -q --depth=1 origin f785bb34415b2bf4c80614dcfa4a305cc9969ee5
           git -C "$RUNNER_TEMP/previous-public" checkout -q f785bb34415b2bf4c80614dcfa4a305cc9969ee5
-          git -C "$RUNNER_TEMP/previous-public" sparse-checkout set nba_players_regular_season_25_26_wide_data.csv
+          git -C "$RUNNER_TEMP/previous-public" sparse-checkout set --no-cone nba_players_regular_season_25_26_wide_data.csv
           test "$(git -C "$RUNNER_TEMP/previous-public" hash-object nba_players_regular_season_25_26_wide_data.csv)" = 2981602d588393a26bdd8f6321a2da91c016283a
           echo FULL81_PREVIOUS_2025_26_SHOOTING_PUBLIC_SOURCE_BLOB_PINNED
       - name: Load full81 original private official PBP and original Blueprint source manifests
