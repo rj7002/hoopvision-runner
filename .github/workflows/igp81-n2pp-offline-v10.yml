@@ -1,4 +1,4 @@
-name: IGP N2PP 2025-26 NBA historical PBP source feasibility
+name: IGP N2PP 2025-26 historical season source-episode validation pilot
 on:
   push:
     branches: [analysis/n2pp-source-verified-runner-20261101]
@@ -6,57 +6,74 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
-  audit:
+  private-historical-source:
     runs-on: ubuntu-24.04
-    timeout-minutes: 6
+    timeout-minutes: 20
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: analysis/igp81-two-possession-three-value-20261101
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: Public confidentiality guard and private GitHub permission
+      - name: Public-private bridge guard
         run: |
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
           test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
           gh auth setup-git
-      - name: Source read and private evidence probe
+      - name: 2025-26 protected official event cohort
         shell: bash
         run: |
           set -euo pipefail
           git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
-            'gamepulse/fusion/analysis/igp2025_26_n2pp_source_feasibility_v1.py'
+            'gamepulse/fusion/analysis/igp2025_26_n2pp_historical_holdout_v1.py' \
+            'gamepulse/fusion/analysis/igp81_n2pp_original_nba_pbp_zone_v8.py' \
+            'gamepulse/fusion/analysis/igp81_n2pp_native_zone_bootstrap_v6.py' \
+            'gamepulse/fusion/universal_possession_alignment_2026.py'
           cd "$RUNNER_TEMP/private"
-          python3 gamepulse/fusion/analysis/igp2025_26_n2pp_source_feasibility_v1.py --out "$RUNNER_TEMP/season2025-source-audit.json" > "$RUNNER_TEMP/private-probe.log" 2>&1
+          PYTHONPATH=gamepulse/fusion:gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/igp2025_26_n2pp_historical_holdout_v1.py --first 1 --last 20 --workers 4 --output "$RUNNER_TEMP/historical25.json" > "$RUNNER_TEMP/private.log" 2>&1 || { echo PRIVATE_2025_PBP_HOLDOUT_FAILED; exit 46; }
           python3 - <<'PY'
           import json,os
-          p=os.path.join(os.environ["RUNNER_TEMP"],"season2025-source-audit.json")
-          data=json.load(open(p))
-          assert data["season"]=="2025-26" and data["totals"]["tested"]==6
-          print("IGP2025_26_HISTORICAL_SOURCE_AVAILABILITY",json.dumps({
-            "totals":data["totals"],
-            "games":[{"gid":x["game_id"],"pbp":x.get("playbyplay_access"),
-                      "box":x.get("boxscore_access"),"3PA":x.get("official_3pa"),
-                      "legacy_xy":x.get("official_3pa_with_legacy_xy")}
-                     for x in data["game_sources"]]},sort_keys=True))
+          d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"historical25.json")))
+          assert d["games_attempted"]==20
+          assert not d["statistical_possessions_certified"]
+          print("IGP25_HISTORICAL_PBP_HOLDOUT_DIAGNOSTIC",json.dumps({
+            "attempted":d["games_attempted"],"eligible":d["eligible_games"],
+            "source_states":d["source_status"],"official_populations":d["official_populations"],
+            "zones":d["zone_N2PP"],"wing_minus_corner":d["wing_minus_corner"],
+            "bootstrap":d["bootstrap"]},sort_keys=True))
           PY
-      - name: Save SHA-backed historical source feasibility privately
-        shell: bash
+      - name: Persist only private reproducibility evidence
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import base64,json,os,pathlib,subprocess
-          raw=(pathlib.Path(os.environ["RUNNER_TEMP"])/"season2025-source-audit.json").read_bytes()
-          route="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp2025_26_n2pp_source_feasibility_v1.json"
           body={"branch":os.environ["PRIVATE_BRANCH"],
-                "message":"qa(private): 2025-26 six-game official NBA PBP source availability probe [skip ci]",
-                "content":base64.b64encode(raw).decode()}
-          cur=subprocess.run(["gh","api",route+"?ref="+os.environ["PRIVATE_BRANCH"]],capture_output=True,text=True)
-          if cur.returncode==0:raise SystemExit("REFUSE_2025_SOURCE_PROBE_QA_OVERWRITE")
-          call=subprocess.run(["gh","api","-X","PUT",route,"--input","-"],input=json.dumps(body),capture_output=True,text=True)
-          if call.returncode:raise RuntimeError("2025_PRIVATE_FEASIBILITY_QA_WRITE_FAILED")
-          print("IGP2025_26_PRIVATE_QA_COMMIT",json.loads(call.stdout)["commit"]["sha"])
+                "message":"qa(private): 2025-26 historical source episode pilot N2PP [skip ci]",
+                "content":base64.b64encode((pathlib.Path(os.environ["RUNNER_TEMP"])/"historical25.json").read_bytes()).decode()}
+          route="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp2025_26_n2pp_historical_20game_pilot_v1.json"
+          check=subprocess.run(["gh","api",route+"?ref="+os.environ["PRIVATE_BRANCH"]],capture_output=True,text=True)
+          if check.returncode==0:raise SystemExit("REFUSE_HISTORICAL_QA_OVERWRITE")
+          r=subprocess.run(["gh","api","-X","PUT",route,"--input","-"],input=json.dumps(body),capture_output=True,text=True)
+          if r.returncode:raise RuntimeError("PRIVATE_HISTORICAL_QA_WRITE_FAILED")
+          print("IGP25_HISTORICAL_QA_PRIVATE_COMMIT",json.loads(r.stdout)["commit"]["sha"])
           PY
+      - name: Private-only error details
+        if: failure()
+        run: |
+          if [ -f "$RUNNER_TEMP/private.log" ]; then
+            python3 - <<'PY'
+          import base64,json,os,pathlib,subprocess
+          route="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp2025_26_n2pp_historical_pilot_failure.json"
+          text=(pathlib.Path(os.environ["RUNNER_TEMP"])/"private.log").read_text()[-4000:]
+          body={"branch":os.environ["PRIVATE_BRANCH"],"message":"qa(private): 2025-26 holdout failure [skip ci]",
+                "content":base64.b64encode(json.dumps({"trace":text}).encode()).decode()}
+          check=subprocess.run(["gh","api",route+"?ref="+os.environ["PRIVATE_BRANCH"]],capture_output=True,text=True)
+          if check.returncode==0:body["sha"]=json.loads(check.stdout)["sha"]
+          r=subprocess.run(["gh","api","-X","PUT",route,"--input","-"],input=json.dumps(body),capture_output=True,text=True)
+          if r.returncode:raise RuntimeError("PRIVATE_HISTORICAL_ERROR_WRITE_FAILED")
+          print("IGP25_HISTORICAL_PRIVATE_DIAG_RECORDED")
+          PY
+          fi
