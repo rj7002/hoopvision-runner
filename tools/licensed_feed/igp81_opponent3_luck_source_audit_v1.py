@@ -43,14 +43,32 @@ def audit(root,replicates=3000):
         for item in bp:
             k=item.get("ngssEventId")
             if isinstance(k,int):bm[k].append(item)
-        prevH=0;prevA=0
-        for a in d["actions"]:
+        # Mirror the previously validated FULL81 official score reader:
+        # order by period/descending clock and ONLY update the scoreboard on
+        # scoring actions, never on rebounds/turnovers carrying stale displays.
+        events=sorted(d["actions"],key=lambda a:(a["period"],-a["game_clock_ms_remaining"],
+            a["order_number"],a["nba_action_number"]))
+        prevH=0;prevA=0;seen=set()
+        score_types={"2pt":2,"3pt":3,"freethrow":1}
+        for a in events:
+            key=(a["period"],a["nba_action_number"])
+            check(key not in seen,"DUPLICATE_OFFICIAL_ACTION:"+gid)
+            seen.add(key)
             h=a["score_home"];aw=a["score_away"]
             check(isinstance(h,int) and isinstance(aw,int),"PBP_SCORE_TYPE:"+gid)
+            dh=da=0
+            if a["action_type"] in score_types:
+                dh=h-prevH;da=aw-prevA
+                npts=score_types[a["action_type"]]
+                check(0<=dh<=npts and 0<=da<=npts and not(dh and da),
+                      "OFFICIAL_SCORING_DELTA_UNRESOLVED:"+gid+":"+str(a["nba_action_number"]))
+                check(not (dh or da) or a["team"]==(home if dh else away),
+                      "OFFICIAL_SCORE_TEAM_MISMATCH:"+gid)
+                prevH=h;prevA=aw
             if a["action_type"]=="3pt":
                 team=a["team"]
                 check(team in (home,away),"SHOT_TEAM_INVALID:"+gid)
-                delta=(h-prevH if team==home else aw-prevA)
+                delta=(dh if team==home else da)
                 check(delta in (0,3),"THREE_SCORE_DELTA_CONFLICT:"+gid+":"+str(a["nba_action_number"])+":"+str(delta))
                 hit=[v for v in bm[a["nba_action_number"]] if
                     v.get("shotType")=="3pt" and v.get("period")==a["period"]
@@ -59,7 +77,6 @@ def audit(root,replicates=3000):
                 if len(hit)>1:mismatches["ambiguous_blueprint"]+=1
                 if item is not None and bool(item.get("success")) != (delta==3):
                     mismatches["blueprint_outcome_disagreements"]+=1
-                    # Do not use incompatible Blueprint likelihood as exact source context.
                     item=None
                 p=item.get("expFieldGoalPct") if item else None
                 if type(p) not in (int,float) or not math.isfinite(p) or not 0<=p<=1:p=None
@@ -68,7 +85,9 @@ def audit(root,replicates=3000):
                               "off":team,"player":a["person_id"],"make":int(delta==3),
                               "xfg":p,"contest":attrs.get("contestDistance"),
                               "dist":attrs.get("shotDistance")})
-            prevH=h;prevA=aw
+        check(prevH==d["official_final"]["home"]["score"] and
+              prevA==d["official_final"]["away"]["score"],
+              "FINAL_OFFICIAL_SCORE_NOT_RECONCILED:"+gid)
     check(len(shots)==6094,"OFFICIAL_3PA_NOT_6094")
     check(sum(game_count.values())==162,"81GAME_TEAM_COUNT_DRIFT")
     check(len(allteams)==30,"TEAM_COUNT_NOT_30")
