@@ -1,0 +1,136 @@
+name: Protected private event-clock source audit
+# Public orchestration only. The immutable private selector owns source revision,
+# code, method, data cohort, destination and all results. No licensed source or
+# detailed private analysis may enter this repository, job logs or artifacts.
+on:
+  push:
+    branches:
+      - research/private-event-clock-layer-source-audit-20261102
+    paths:
+      - .github/workflows/private-event-clock-layer-source-audit-20261102.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: protected-private-event-clock-audit
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce public boundary and authorized private source access
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN" || { echo 'PRIVATE_AUTH_UNAVAILABLE'; exit 3; }
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Run private read-only source audit and save source-graded private QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, json, os, pathlib, subprocess, sys, time
+          from pathlib import Path
+          REPO = "timeedmonds-maker/104"
+          SELECTOR = "analysis_execution/current_full88_shotclock_layer_audit.json"
+          OUT = Path(os.environ["RUNNER_TEMP"])/"private-event-clock-audit"
+          OUT.mkdir(parents=True, exist_ok=True)
+
+          def call(argv, *, capture=False, stdin=None, check=True):
+              p=subprocess.run(argv, input=stdin, text=True,
+                stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
+                stderr=subprocess.PIPE, check=False)
+              if check and p.returncode:
+                  raise RuntimeError("PRIVATE_OPERATION_FAILED")
+              return p
+
+          def get_src(path,ref):
+              rec=json.loads(call(["gh","api",f"repos/{REPO}/contents/{path}?ref={ref}"],
+                capture=True).stdout)
+              if rec.get("encoding")=="base64" and rec.get("content"):
+                  return base64.b64decode(rec["content"])
+              blob=json.loads(call(["gh","api",f"repos/{REPO}/git/blobs/{rec['sha']}"],
+                  capture=True).stdout)
+              assert blob["encoding"]=="base64"
+              return base64.b64decode(blob["content"])
+
+          def put_src(path, ref, data):
+              target=f"repos/{REPO}/contents/{path}"
+              for trial in range(16):
+                  old=call(["gh","api",target+"?ref="+ref],capture=True,check=False)
+                  payload={"branch":ref,"message":"qa(private): source-graded original game/event/clock layer audit",
+                    "content":base64.b64encode(data).decode()}
+                  if old.returncode==0: payload["sha"]=json.loads(old.stdout)["sha"]
+                  write=call(["gh","api","-X","PUT",target,"--input","-"],
+                    capture=True,stdin=json.dumps(payload),check=False)
+                  if write.returncode==0:
+                      stored=get_src(path,ref)
+                      assert hashlib.sha256(stored).digest()==hashlib.sha256(data).digest()
+                      return
+                  time.sleep(2+trial)
+              raise RuntimeError("PRIVATE_QA_WRITE_FAILED")
+
+          try:
+              selector=json.loads(get_src(SELECTOR,"main"))
+              assert selector["expected_games"]==88 and selector["mode"]=="SOURCE_READ_ONLY_ALL_LAYERS"
+              ref=selector["ref"]
+              sha=selector["source_sha"]
+              script=selector["script"]
+              dest=selector["out_path"]
+              assert ref.startswith("analysis/") and ".." not in ref
+              assert len(sha)==40 and all(x in "0123456789abcdef" for x in sha)
+              assert script.startswith("gamepulse/fusion/analysis/") and ".." not in script
+              assert dest.startswith("gamepulse/fusion/qa/analysis/") and ".." not in dest
+              src=OUT/"repo"
+              call(["gh","auth","setup-git"])
+              call(["git","clone","-q","--depth=1","--filter=blob:none","--sparse",
+                    "-b",ref,f"https://github.com/{REPO}.git",str(src)])
+              call(["git","-C",str(src),"sparse-checkout","set",
+                    "gamepulse/fusion/analysis",
+                    "gamepulse/fusion/qa/igp_fullx",
+                    "gamepulse/fusion/qa/igp_progress_20261029",
+                    "gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_event_multiview_full88_v1",
+                    "gamepulse/fusion/evidence",
+                    "gamepulse/fusion/official_pbp_timing/games",
+                    "data/extensions/nba_blueprint_2026_27/games"])
+              call(["git","-C",str(src),"fetch","-q","--depth=1","origin",sha])
+              call(["git","-C",str(src),"checkout","-q","--detach",sha])
+              assert call(["git","-C",str(src),"rev-parse","HEAD"],capture=True).stdout.strip()==sha
+              method=src/script
+              assert method.is_file()
+              run=call([sys.executable,str(method),"--root",str(src),
+                        "--out",str(OUT/"report.json")],capture=True,check=False)
+              if run.returncode:
+                  diag=json.dumps({"state":"PRIVATE_ANALYSIS_SOURCE_EXECUTION_FAILED",
+                    "code_sha":sha,"exit_code":run.returncode,
+                    "stderr_private":run.stderr[-16000:],"stdout_private":run.stdout[-4000:]},
+                     indent=2).encode()
+                  put_src(dest.replace(".json","_private_failure.json"),ref,diag)
+                  print("PRIVATE_AUDIT_FAILED_DETAILS_PRIVATE_ONLY")
+                  sys.exit(1)
+              data=(OUT/"report.json").read_bytes()
+              doc=json.loads(data)
+              assert doc["counts"]["games"]==88
+              assert doc["counts"]["official_ledger_events"]==53541
+              assert doc["counts"]["official_ledger_shots"]==15584
+              assert doc["original_source_modified"] is False
+              assert doc["late_clock_possessions_count"] is None
+              put_src(dest,ref,data)
+              print("PRIVATE_FULL88_ORIGINAL_SOURCE_ALL_LAYER_AUDIT_SAVED_SHA_VERIFIED")
+          except Exception:
+              # No private source names, source stack traces, values or tokens
+              # printed to publicly visible Actions logs.
+              print("PRIVATE_AUDIT_BLOCKED_CHECK_PRIVATE_SOURCE")
+              raise SystemExit(1)
+          PY
+      - name: Public status only
+        if: always()
+        shell: bash
+        run: echo 'No licensed source, code, private branch name, results or evidence saved to the public repository or its artifacts.' >> "$GITHUB_STEP_SUMMARY"
