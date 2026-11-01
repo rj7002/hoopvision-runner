@@ -41,10 +41,10 @@ jobs:
           python3 - <<'PY'
           import json,os
           d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"shooter-v4.json")))
-          assert d["2025_26"]["games"]==1230
-          assert d["2026_27"]["games"]==81
+          assert d["games_attempted"]==1230 and d["eligible_games"]==1230
+          assert d["official_populations"]["paired_zoned"]==81033
           assert d["official_populations"]["official_3pa"]==90968
-          assert d["2026_27"]["official_3PA"]==6094
+          assert len(d["within_shooter_controls"])==3
           assert d["statistical_possessions_certified"] is False
           print("IGP_N2PP_2025_26_SAME_SHOOTER_ZONE_TEST",json.dumps({
             "games":d["eligible_games"],"official3":d["official_populations"]["official_3pa"],
