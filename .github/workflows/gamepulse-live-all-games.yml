@@ -1,4 +1,5 @@
 name: Game Pulse NBA all-game live-first private capture
+# 2026-11-01 NZ / 2026-10-31 US: explicitly re-trigger all seven Saturday NBA fixtures for the FULL81 incremental capture; keep live SDK parts private and SHA-verified, no premature complete-game claim.
 # 2026-10-31 NZ: Rockets @ Mavericks 0022600021 first-half source recovery; trigger existing live discovery/capture, preserve SHA-private originals and QA.
 # 2026-10-25 UTC operator catch-up: run all active/recently-final Oct 24 US fixtures; preserve private original SDK evidence.
 # 2026-10-24 Rockets-Spurs last eligible live-minute catch-up: preserve additional exact SDK slots.
