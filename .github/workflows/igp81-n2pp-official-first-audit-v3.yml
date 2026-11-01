@@ -29,7 +29,7 @@ jobs:
           test -n "$GH_TOKEN"
           test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
           gh auth setup-git
-      - name: Read pinned current 81 PBP, companion and original-native SHA chunks
+      - name: Read pinned current 81 PBP and full-original native chunks (boundary-test corrected)
         shell: bash
         run: |
           set -euo pipefail
