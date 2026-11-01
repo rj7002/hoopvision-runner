@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp81-three-two-possession-private.yml",  # reviewed private 81-game shot-next-possession aggregate-only executor
     ".github/workflows/private-analysis-cpu-shard.yml",  # generic protected ephemeral private-source analytics; only private QA output
     "tools/licensed_feed/igp81_test_default_shot_route.py",  # deterministic source-free private default 81game shot acceptance
     "tools/licensed_feed/igp81_wire_default_shots.py",  # deterministic source-free private default 81game shot acceptance
