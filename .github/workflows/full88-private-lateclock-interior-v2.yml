@@ -60,9 +60,27 @@ jobs:
           print("FULL88_PRIVATE_CLOCK_REPLAY_SUCCEEDED")
           print("HOUSTON_NEW_SOURCE_POSITIVE_COUNT",d['houston']['new_direct_interior_possessions'])
           PY
+          # Separately grade conservative shadow clock extrapolation; source-positive V2 unchanged.
+          PYTHONPATH=gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/full88_lateclock_action_clock_reconstruction_v3.py --self-test
+          PYTHONPATH=gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/full88_lateclock_action_clock_reconstruction_v3.py --root . --out gamepulse/fusion/qa/analysis/full88_lateclock_event_clock_alllayers_20261102/action_clock_reconstruction_shadow_v3.json > "$RUNNER_TEMP/private-v3-execution-log" 2>&1 || {
+            echo "PRIVATE_V3_SHADOW_FAILED_NO_PROMOTION"
+            exit 27
+          }
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          base=Path('gamepulse/fusion/qa/analysis/full88_lateclock_event_clock_alllayers_20261102')
+          v2=json.loads((base/'interevent_clock_source_positive_v2.json').read_bytes())
+          v3=json.loads((base/'action_clock_reconstruction_shadow_v3.json').read_bytes())
+          assert v3['full88_games']==88 and v3['official_actions']==53541
+          assert len(v3['league'])==30 and v3['original_source_modified'] is False
+          assert v3['houston']['v2_source_positive']==v2['houston']['all_direct_source_positive']
+          assert v3['status']=='RESEARCH_ONLY_NOT_DIRECT_OBSERVED'
+          print('FULL88_PRIVATE_V3_RECONSTRUCTION_SHADOW_VALIDATED')
+          PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/qa/analysis/full88_lateclock_event_clock_alllayers_20261102/interevent_clock_source_positive_v2.json
+          git add -f gamepulse/fusion/qa/analysis/full88_lateclock_event_clock_alllayers_20261102/interevent_clock_source_positive_v2.json gamepulse/fusion/qa/analysis/full88_lateclock_event_clock_alllayers_20261102/action_clock_reconstruction_shadow_v3.json
           git diff --cached --check
           if git diff --cached --quiet; then echo "PRIVATE_QA_UNCHANGED"; exit 0; fi
           git commit -qm 'qa(private): Full88 original Time clock strict interevent 88-game evidence'
