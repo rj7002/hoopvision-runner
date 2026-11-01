@@ -1,5 +1,5 @@
 name: FULL88 Sengun original-source assist location evidence
-# Re-run tightened departure and first-reception detector on frozen Full88.
+# Replay instrumented departure/catch stages on frozen Full88.
 # Privacy-reviewed in public_content_guard.py; exact player coordinates remain private.
 on:
   push:
