@@ -47,6 +47,20 @@ jobs:
           python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_sengun37_xfg_shot_join_v1.py' -v
           python3 gamepulse/fusion/igp_sengun37_xfg_shot_join_v1.py
           python3 gamepulse/fusion/igp_sengun37_publication_court_v1.py
+          python3 gamepulse/fusion/igp_sengun37_observed_ball_routes_v1.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('gamepulse/fusion/qa/igp_fullx/sengun37_observed_ball_routes_v1')
+          q=json.loads((p/'sengun37_ball_informed_QA.json').read_bytes())
+          assert q['events']==37 and q['ordered_pairs']==35 and q['unpaired_pairs']==2
+          assert q['counts']['origins']==37 and q['counts']['receivers']==37 and q['counts']['shots']==37
+          assert q['counts']['ordered_endpoint_chords']==35 and q['counts']['unpaired_endpoint_chords']==2
+          assert q['no_interpolated_positions_added']
+          assert (p/'sengun37_ball_informed_assist_geography.png').read_bytes().startswith(bytes.fromhex('89504e47'))
+          assert b'<svg' in (p/'sengun37_ball_informed_assist_geography.svg').read_bytes()[:500]
+          print('SENGUN37_NATIVE_BALL_PUBLIC_LOG_AGGREGATES_ONLY',q['events'],q['coherent_ball_trace_events'])
+          PY
           python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_sengun37_xfg_explorer_http_v1.py' -v
           python3 - <<'PY'
           import json
@@ -120,7 +134,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/qa/igp_fullx/sengun_assist_original_pass_origin_full88_20261102.json gamepulse/fusion/qa/igp_fullx/sengun_assist_explorer_full88_v2.json gamepulse/fusion/qa/igp_fullx/sengun_assist_evidence_audit_v1.json gamepulse/fusion/qa/igp_fullx/sengun_assist_shot_anchor_shadow_v1.json gamepulse/fusion/qa/igp_fullx/sengun_assist_handoff_compatible_shadow_v1.json gamepulse/fusion/qa/igp_fullx/sengun_assist_independent_xyz_endpoints_shadow_v1.json gamepulse/fusion/qa/igp_fullx/sengun37_reconciled_source_and_official_geography_v1.json gamepulse/fusion/qa/igp_fullx/sengun37_reconciled_source_and_official_geography_v1_qa.json gamepulse/fusion/qa/igp_fullx/sengun37_reconciled_figures_v1 gamepulse/fusion/qa/igp_fullx/sengun37_publication_court_v1 gamepulse/fusion/qa/igp_fullx/sengun37_xfg_official_shot_locations_v1.json gamepulse/fusion/qa/igp_fullx/assist_explorer_figures_v1/sengun37_blueprint_xfg_official_shot_geography.png gamepulse/fusion/qa/igp_fullx/assist_explorer_figures_v1/sengun37_blueprint_xfg_official_shot_geography.svg gamepulse/fusion/qa/igp_fullx/assist_official_raw
+          git add -f gamepulse/fusion/qa/igp_fullx/sengun_assist_original_pass_origin_full88_20261102.json gamepulse/fusion/qa/igp_fullx/sengun_assist_explorer_full88_v2.json gamepulse/fusion/qa/igp_fullx/sengun_assist_evidence_audit_v1.json gamepulse/fusion/qa/igp_fullx/sengun_assist_shot_anchor_shadow_v1.json gamepulse/fusion/qa/igp_fullx/sengun_assist_handoff_compatible_shadow_v1.json gamepulse/fusion/qa/igp_fullx/sengun_assist_independent_xyz_endpoints_shadow_v1.json gamepulse/fusion/qa/igp_fullx/sengun37_reconciled_source_and_official_geography_v1.json gamepulse/fusion/qa/igp_fullx/sengun37_reconciled_source_and_official_geography_v1_qa.json gamepulse/fusion/qa/igp_fullx/sengun37_reconciled_figures_v1 gamepulse/fusion/qa/igp_fullx/sengun37_publication_court_v1 gamepulse/fusion/qa/igp_fullx/sengun37_observed_ball_routes_v1 gamepulse/fusion/qa/igp_fullx/sengun37_xfg_official_shot_locations_v1.json gamepulse/fusion/qa/igp_fullx/assist_explorer_figures_v1/sengun37_blueprint_xfg_official_shot_geography.png gamepulse/fusion/qa/igp_fullx/assist_explorer_figures_v1/sengun37_blueprint_xfg_official_shot_geography.svg gamepulse/fusion/qa/igp_fullx/assist_official_raw
           # Matplotlib SVG paths contain harmless trailing spaces; preserve native vector output.
           git -c core.whitespace=-trailing-space diff --cached --check
           if git diff --cached --quiet; then echo IGP_FULL88_SENGUN_PRIVATE_RESULT_UNCHANGED; exit 0; fi
