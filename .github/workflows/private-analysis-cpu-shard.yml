@@ -267,3 +267,5 @@ jobs:
 # R9 protected selector-pinned shadow evaluation; immutable private task across the whole run.
 
 # Source-free failure details are retained only in the private repository.
+
+# R9 corrected private audit regression import, immutable request-pinned rerun.
