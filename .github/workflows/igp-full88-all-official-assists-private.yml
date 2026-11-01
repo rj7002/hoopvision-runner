@@ -157,3 +157,32 @@ jobs:
             sleep "$n"
           done
           exit 24
+      - name: Compute all-game source-graded assist physical candidates privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_full88_all_assist_physical_v1.py' -v
+          python3 gamepulse/fusion/igp_full88_all_assist_physical_v1.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('gamepulse/fusion/qa/igp_fullx/official_assist_physical_full88_v1_qa.json')
+          d=json.loads(p.read_bytes());c=d['counts']
+          assert c['official_assists']==4616
+          assert len(d['games'])==88
+          print('FULL88_ALL_ASSIST_PHYSICAL_AGGREGATE_ONLY',c)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_fullx/official_assist_physical_full88_v1.jsonl gamepulse/fusion/qa/igp_fullx/official_assist_physical_full88_v1_qa.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo FULL88_ASSIST_PHYSICAL_UNCHANGED; exit 0; fi
+          git commit -q -m "qa(igp): source-graded physical candidates for all Full88 official assists"
+          for n in 1 2 3 4 5; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then echo FULL88_ASSIST_PHYSICAL_PRIVATE_ONLY; exit 0; fi
+            sleep "$n"
+          done
+          exit 24
