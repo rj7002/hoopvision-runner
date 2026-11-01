@@ -141,7 +141,7 @@ jobs:
                   (out/('sengun_assist_geometry_'+name+'.'+fmt)).write_bytes(
                       render(rows,'geometry',full,fmt))
           (out/'sengun_assist_summary.json').write_text(
-              json.dumps(summarize(rows),sort_keys=True,indent=2,allow_nan=False)+'\\n')
+              json.dumps(summarize(rows),sort_keys=True,indent=2,allow_nan=False)+chr(10))
           print('FULL88_SENGUN_PRIVATE_PUBLICATION_EXPORT_COUNT',len(rows),5)
           PY
           git config user.name 'github-actions[bot]'
