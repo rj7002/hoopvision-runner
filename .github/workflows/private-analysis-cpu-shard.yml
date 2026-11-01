@@ -307,3 +307,5 @@ jobs:
 # R10 retry: keep reducer failures private and immutable-selector-pinned.
 
 # Guarded profile shards >1 MiB fetched by immutable Git blob SHA during ranking.
+
+# Re-run protected R10 all81 ranker after oversized-shard blob fallback and public boundary restoration.
