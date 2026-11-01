@@ -5,6 +5,7 @@ on:
     paths:
       - .github/workflows/igp81-opponent3-luck-source-audit-v1.yml
       - tools/public_content_guard.py
+      - tools/licensed_feed/igp81_opponent3_luck_source_audit_v1.py
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
