@@ -1,4 +1,4 @@
-name: IGP81 N2PP V15 81game official score source episode ledger
+name: IGP81 N2PP V16 full81 net two-source episode points
 on:
   push:
     branches: [analysis/n2pp-source-verified-runner-20261101]
@@ -32,6 +32,11 @@ jobs:
             'gamepulse/fusion/analysis/igp81_n2pp_episode_classification_v13.py' \
             'gamepulse/fusion/analysis/igp81_n2pp_field_episode_eligibility_v14.py' \
             'gamepulse/fusion/analysis/igp81_n2pp_source_ledger_v15.py' \
+            'gamepulse/fusion/analysis/igp81_n2pp_source_ledger_scoring_v16.py' \
+            'gamepulse/fusion/analysis/igp81_n2pp_native_zone_bootstrap_v6.py' \
+            'gamepulse/fusion/analysis/igp81_n2pp_original_nba_pbp_zone_v8.py' \
+            'gamepulse/fusion/qa/analysis/igp81_n2pp_original_native_v5.json' \
+            'gamepulse/fusion/qa/analysis/igp81_n2pp_original_nba_zone_v8.json' \
             'gamepulse/fusion/analysis/igp81_n2pp_official_first_audit_v3.py' \
             'gamepulse/fusion/analysis/igp81_threepoint_net_two_possessions_v1.py' \
             'gamepulse/fusion/analysis/igp81_threepoint_methodology_expert_audit_v2.py' \
@@ -43,17 +48,17 @@ jobs:
             'gamepulse/fusion/official_pbp_timing/pbp_only_oct21_10/source_receipt.json' \
             'gamepulse/fusion/qa/igp_v32/igp_v32_p2b_nba71_published_team_POSS_bridge_v1.json'
           cd "$RUNNER_TEMP/private"
-          PYTHONPATH=gamepulse/fusion:gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/igp81_n2pp_source_ledger_v15.py --root . --output "$RUNNER_TEMP/v15.json" > "$RUNNER_TEMP/v15.log" 2>&1 || { echo PRIVATE_POSSESSION_V15_FAILED; exit 43; }
+          PYTHONPATH=gamepulse/fusion:gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/igp81_n2pp_source_ledger_scoring_v16.py --root . --output "$RUNNER_TEMP/v16.json" > "$RUNNER_TEMP/v16.log" 2>&1 || { echo PRIVATE_POSSESSION_V16_FAILED; exit 43; }
           python3 - <<'PY'
           import json,os
-          d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"v15.json")))
-          assert len(d["games"])==81 and d["totals"]["team_games"]==162
-          assert d["totals"]["candidate_POSS"]==16528 and d["totals"]["exact_team_games"]==134
-          assert d["statistical_POSS_equivalence_certified"] is False
-          print("N2PP_V15_OFFICIAL_NBA_SCORE_LEDGER",json.dumps({
-            "totals":d["totals"],
-            "all_score_conserved":d["all_official_PBP_scores_conserved"],
-            "official_actions_preserved":all(g["PBP_actions_assigned_exactly_once"] for g in d["games"].values()),
+          d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"v16.json")))
+          assert d["games"]==81 and d["official3"]==6094
+          assert d["NBA_POSS_candidate_ledger"]["candidate_POSS"]==16528
+          assert d["NBA_statistical_possession_certified"] is False
+          print("N2PP_V16_FULL81_FIRST_3PA_N2PP",json.dumps({
+            "official3":d["official3"],
+            "candidate_possession_QA":d["NBA_POSS_candidate_ledger"],
+            "shots":d["counts"],"N2PP":d["N2PP"],
             "certified":False},sort_keys=True))
           PY
       - name: Commit private QA evidence
@@ -61,27 +66,27 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import base64,json,os,pathlib,subprocess
-          file=pathlib.Path(os.environ["RUNNER_TEMP"])/"v15.json"
-          dest="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_n2pp_source_ledger_v15.json"
+          file=pathlib.Path(os.environ["RUNNER_TEMP"])/"v16.json"
+          dest="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_n2pp_source_ledger_scoring_v16.json"
           body={"branch":os.environ["BRANCH"],"message":"qa(private): original NBA 162-team source field boundary probes v12 [skip ci]","content":base64.b64encode(file.read_bytes()).decode()}
           check=subprocess.run(["gh","api",dest+"?ref="+os.environ["BRANCH"]],capture_output=True,text=True)
-          if check.returncode==0:raise RuntimeError("REFUSE_V15_QA_OVERWRITE")
+          if check.returncode==0:raise RuntimeError("REFUSE_V16_QA_OVERWRITE")
           out=subprocess.run(["gh","api","-X","PUT",dest,"--input","-"],input=json.dumps(body),capture_output=True,text=True)
-          if out.returncode:raise RuntimeError("V15_PRIVATE_QA_WRITE_FAILED")
-          print("N2PP_V15_PRIVATE_QA_COMMIT",json.loads(out.stdout)["commit"]["sha"])
+          if out.returncode:raise RuntimeError("V16_PRIVATE_QA_WRITE_FAILED")
+          print("N2PP_V16_PRIVATE_QA_COMMIT",json.loads(out.stdout)["commit"]["sha"])
           PY
       - name: Store private diagnostics
         if: failure()
         run: |
-          if [ -f "$RUNNER_TEMP/v15.log" ]; then
+          if [ -f "$RUNNER_TEMP/v16.log" ]; then
             python3 - <<'PY'
           import base64,json,os,pathlib,subprocess
-          dest="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_n2pp_v15_failure.json"
-          body={"branch":os.environ["BRANCH"],"message":"qa(private): N2PP V15 failure trace [skip ci]","content":base64.b64encode(json.dumps({"trace":(pathlib.Path(os.environ["RUNNER_TEMP"])/"v15.log").read_text()[-5000:]}).encode()).decode()}
+          dest="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_n2pp_v16_failure.json"
+          body={"branch":os.environ["BRANCH"],"message":"qa(private): N2PP V16 failure trace [skip ci]","content":base64.b64encode(json.dumps({"trace":(pathlib.Path(os.environ["RUNNER_TEMP"])/"v16.log").read_text()[-5000:]}).encode()).decode()}
           q=subprocess.run(["gh","api",dest+"?ref="+os.environ["BRANCH"]],capture_output=True,text=True)
           if q.returncode==0:body["sha"]=json.loads(q.stdout)["sha"]
           r=subprocess.run(["gh","api","-X","PUT",dest,"--input","-"],input=json.dumps(body),capture_output=True,text=True)
           if r.returncode:raise RuntimeError("PRIVATE_FAILURE_WRITE_FAILED")
-          print("V15_PRIVATE_DIAGNOSTIC_RECORDED")
+          print("V16_PRIVATE_DIAGNOSTIC_RECORDED")
           PY
           fi
