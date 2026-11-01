@@ -484,9 +484,16 @@ jobs:
                 "original_XYZ",x["original_xyz_currently_indexed_for_slate"],
                 "app",x["original_companion_advanced_shot_games"])
           PY
+          # Separately verify the versioned FULLXX view; never block raw source ingestion on release-level QA.
+          if python3 gamepulse/fusion/igp_fullx_incremental_release_manifest_v1.py --root .; then
+            echo IGP_FULLX_SOURCE_GRADED_AUDIT_PASSED
+          else
+            echo IGP_FULLX_SOURCE_GRADED_AUDIT_PENDING_NO_PROMOTION
+          fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f gamepulse/fusion/official_pbp_timing gamepulse/fusion/evidence             gamepulse/fusion/qa/igp_progress_20261030             gamepulse/fusion/materialized/igp_2026_27_unified_season_v3             data/extensions/nba_blueprint_2026_27
+          if test -d gamepulse/fusion/qa/igp_fullx; then git add -f gamepulse/fusion/qa/igp_fullx; fi
           git diff --cached --check
           if git diff --cached --quiet; then echo IGP_AUTOMATIC_ALREADY_CURRENT; exit 0; fi
           git commit -q -m 'data(igp): automatically extend one NBA season with all original source layers'
