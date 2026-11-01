@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full88-jabari-durant-shotmatch-20261101.yml",  # private-only SHA-verified five-pair matching; aggregate public log only
     ".github/workflows/igp-full88-default-promotion-private-20261101.yml",  # reviewed bounded FULL88 private-source SHA default smoke, aggregate-only public output
     ".github/workflows/igp-full88-multiangle-shots-private-20261101.yml",  # private-only 88game source SHA event, biomechanics, original native and NBA clip-ID join; public counts only
     ".github/workflows/gamepulse-full88-0153-verified-original-backfill.yml",  # reviewed official-final NBA 0153 bounded SDK 13part capture, SHA private release + companion source and FULL88 index
