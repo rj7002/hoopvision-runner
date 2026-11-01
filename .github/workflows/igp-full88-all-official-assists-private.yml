@@ -121,3 +121,39 @@ jobs:
           finally:
               server.shutdown()
           PY
+      - name: Save deterministic Sengun publication exports privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          import json,sys
+          from pathlib import Path
+          sys.path.insert(0,'gamepulse/fusion')
+          from igp_full88_assist_query_v1 import query
+          from igp_assist_explorer_app import render,summarize
+          rows=query('.',assister_id=1630578)['events']
+          assert len(rows)==37
+          out=Path('gamepulse/fusion/qa/igp_fullx/assist_explorer_figures_v1')
+          out.mkdir(parents=True,exist_ok=True)
+          for full,name in ((False,'halfcourt'),(True,'fullcourt')):
+              for fmt in ('png','svg'):
+                  (out/('sengun_assist_geometry_'+name+'.'+fmt)).write_bytes(
+                      render(rows,'geometry',full,fmt))
+          (out/'sengun_assist_summary.json').write_text(
+              json.dumps(summarize(rows),sort_keys=True,indent=2,allow_nan=False)+'\\n')
+          print('FULL88_SENGUN_PRIVATE_PUBLICATION_EXPORT_COUNT',len(rows),5)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_fullx/assist_explorer_figures_v1
+          git diff --cached --check
+          if git diff --cached --quiet; then echo FULL88_ASSIST_FIGURES_UNCHANGED; exit 0; fi
+          git commit -q -m "qa(igp): private deterministic Sengun full and half court exports"
+          for n in 1 2 3 4 5; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then echo FULL88_ASSIST_FIGURES_PRIVATE_ONLY; exit 0; fi
+            sleep "$n"
+          done
+          exit 24
