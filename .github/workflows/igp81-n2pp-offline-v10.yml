@@ -1,4 +1,4 @@
-name: IGP N2PP historical early81 versus current early81 matched-phase test
+name: IGP N2PP historical first81 versus current first81 phase-match retry
 on:
   push:
     branches: [analysis/n2pp-cross-season-validation-20261102]
