@@ -80,7 +80,7 @@ jobs:
           payload={'branch':ref,
                    'message':'data(private): complete source-graded 81-game 3PA two-possession net analysis',
                    'content':base64.b64encode(path.read_bytes()).decode()}
-          cmd=['gh','api',f'repos/{repo}/contents/{dest}']
+          cmd=['gh','api',f'repos/{repo}/contents/{dest}?ref={ref}']
           for attempt in range(8):
               before=subprocess.run(cmd,capture_output=True,text=True)
               body=dict(payload)
@@ -111,7 +111,7 @@ jobs:
           payload={'branch':os.environ['PRIVATE_BRANCH'],
                    'message':'qa(private): diagnose 81-game shot continuation analysis',
                    'content':base64.b64encode(data.encode()).decode()}
-          prev=subprocess.run(['gh','api',target],capture_output=True,text=True)
+          prev=subprocess.run(['gh','api',target+'?ref='+os.environ['PRIVATE_BRANCH']],capture_output=True,text=True)
           if prev.returncode==0:payload['sha']=json.loads(prev.stdout)['sha']
           r=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],
                         input=json.dumps(payload),capture_output=True,text=True)
