@@ -1,5 +1,5 @@
 name: FULL88 Sengun original-source assist location evidence
-# Inspect source-distance timelines and source shot-anchor drift on frozen Full88.
+# Source-distance and corrected first-contact handoff research on frozen Full88.
 # Privacy-reviewed in public_content_guard.py; exact player coordinates remain private.
 on:
   push:
