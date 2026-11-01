@@ -1,82 +1,86 @@
-name: IGP N2PP 2025-26 historical full 1230-game N2PP offense-opponent decomposition
+name: IGP N2PP 2025-26 versus 2026-27 source-backed season comparison
 on:
   push:
-    branches: [analysis/n2pp-source-verified-runner-20261101]
+    branches: [analysis/n2pp-cross-season-validation-20261102]
     paths: ['.github/workflows/igp81-n2pp-offline-v10.yml']
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
-  private-historical-source:
+  compare:
     runs-on: ubuntu-24.04
-    timeout-minutes: 38
+    timeout-minutes: 25
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: analysis/igp81-two-possession-three-value-20261101
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: Public-private bridge guard
+      - name: Public bridge and private ownership verification
         run: |
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
           test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
           gh auth setup-git
-      - name: 2025-26 protected official event cohort
+      - name: Read original source model and official NBA PBP comparison privately
         shell: bash
         run: |
           set -euo pipefail
           git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
-            'gamepulse/fusion/analysis/igp2025_26_n2pp_historical_decomposition_v2.py' \
+            'gamepulse/fusion/analysis/igp2025_26_n2pp_historical_holdout_v1.py' \
+            'gamepulse/fusion/analysis/igp2025_26_n2pp_heldout_block_sensitivity_v2.py' \
+            'gamepulse/fusion/analysis/igp2025_26_n2pp_cross_season_generalization_v3.py' \
             'gamepulse/fusion/analysis/igp81_n2pp_original_nba_pbp_zone_v8.py' \
             'gamepulse/fusion/analysis/igp81_n2pp_native_zone_bootstrap_v6.py' \
-            'gamepulse/fusion/universal_possession_alignment_2026.py'
+            'gamepulse/fusion/universal_possession_alignment_2026.py' \
+            'gamepulse/fusion/qa/analysis/igp81_n2pp_source_ledger_scoring_v16.json'
           cd "$RUNNER_TEMP/private"
-          PYTHONPATH=gamepulse/fusion:gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/igp2025_26_n2pp_historical_decomposition_v2.py --first 1 --last 1230 --workers 8 --output "$RUNNER_TEMP/historical25.json" > "$RUNNER_TEMP/private.log" 2>&1 || { echo PRIVATE_2025_PBP_HOLDOUT_FAILED; exit 46; }
+          PYTHONPATH=gamepulse/fusion:gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/igp2025_26_n2pp_cross_season_generalization_v3.py --root . --output "$RUNNER_TEMP/holdout-v3.json" > "$RUNNER_TEMP/holdout-v3.log" 2>&1 || { echo N2PP_CROSS_SEASON_RESEARCH_VALIDATION_FAILED; exit 57; }
           python3 - <<'PY'
           import json,os
-          d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"historical25.json")))
-          assert d["games_attempted"]==1230 and d["eligible_games"]==1230
-          assert d["official_populations"]["official_3pa"]==90968
-          assert d["zone_N2PP"]["wing_above_break"]["N2PP"]==0.159768
-          assert d["zone_N2PP"]["corner"]["N2PP"]==0.245801
-          assert not d["statistical_possessions_certified"]
-          print("IGP25_FULL1230_HISTORICAL_DECOMPOSITION",json.dumps({
-            "attempted":d["games_attempted"],"eligible":d["eligible_games"],
-            "source_states":d["source_status"],"official_populations":d["official_populations"],
-            "zones":d["zone_N2PP"],"wing_minus_corner":d["wing_minus_corner"],
-            "bootstrap":d["bootstrap"]},sort_keys=True))
+          d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"holdout-v3.json")))
+          assert d["2025_26"]["games"]==1230
+          assert d["2026_27"]["games"]==81
+          assert d["2025_26"]["official_3PA"]==90968
+          assert d["2026_27"]["official_3PA"]==6094
+          assert d["statistical_possessions_certified"] is False
+          print("IGP_N2PP_2025_VS_2026_GENERALIZATION",json.dumps({
+            "2025":{k:d["2025_26"][k] for k in ["games","official_3PA","wing_minus_corner","bootstrap95"]},
+            "2025_first615":d["2025_26"]["chronological_splits"]["first615"],
+            "2025_last615":d["2025_26"]["chronological_splits"]["last615"],
+            "2025_disjoint81blocks":d["2025_26"]["historical_disjoint_81game_blocks"],
+            "2026":{k:d["2026_27"][k] for k in ["games","official_3PA","wing_minus_corner","bootstrap95"]},
+            "contrast":d["season_contrast"],"certified":False},sort_keys=True))
           PY
-      - name: Persist only private reproducibility evidence
+      - name: Record verified historical and current-season data in private repository
+        shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import base64,json,os,pathlib,subprocess
-          body={"branch":os.environ["PRIVATE_BRANCH"],
-                "message":"qa(private): 2025-26 full 1230-game N2PP offense and next-opponent decomposition [skip ci]",
-                "content":base64.b64encode((pathlib.Path(os.environ["RUNNER_TEMP"])/"historical25.json").read_bytes()).decode()}
-          route="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp2025_26_n2pp_historical_full1230_decomposition_v2.json"
-          check=subprocess.run(["gh","api",route+"?ref="+os.environ["PRIVATE_BRANCH"]],capture_output=True,text=True)
-          if check.returncode==0:raise SystemExit("REFUSE_HISTORICAL_QA_OVERWRITE")
+          raw=(pathlib.Path(os.environ["RUNNER_TEMP"])/"holdout-v3.json").read_bytes()
+          route="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp2025_26_n2pp_cross_season_generalization_v3.json"
+          body={"branch":os.environ["PRIVATE_BRANCH"],"message":"qa(private): historical vs early current NBA event N2PP game-resampled cross-season V3 [skip ci]","content":base64.b64encode(raw).decode()}
+          chk=subprocess.run(["gh","api",route+"?ref="+os.environ["PRIVATE_BRANCH"]],capture_output=True,text=True)
+          if chk.returncode==0:raise RuntimeError("PRIVATE_CROSS_SEASON_QA_ALREADY_EXISTS")
           r=subprocess.run(["gh","api","-X","PUT",route,"--input","-"],input=json.dumps(body),capture_output=True,text=True)
-          if r.returncode:raise RuntimeError("PRIVATE_HISTORICAL_QA_WRITE_FAILED")
-          print("IGP25_HISTORICAL_QA_PRIVATE_COMMIT",json.loads(r.stdout)["commit"]["sha"])
+          if r.returncode:raise RuntimeError("PRIVATE_CROSS_SEASON_QA_WRITE_FAILED")
+          print("IGP_N2PP_CROSS_SEASON_PRIVATE_QA_COMMIT",json.loads(r.stdout)["commit"]["sha"])
           PY
-      - name: Private-only error details
+      - name: Privately save execution failure cause
         if: failure()
         run: |
-          if [ -f "$RUNNER_TEMP/private.log" ]; then
+          if [ -f "$RUNNER_TEMP/holdout-v3.log" ]; then
             python3 - <<'PY'
           import base64,json,os,pathlib,subprocess
-          route="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp2025_26_n2pp_historical_v2_failure.json"
-          text=(pathlib.Path(os.environ["RUNNER_TEMP"])/"private.log").read_text()[-4000:]
-          body={"branch":os.environ["PRIVATE_BRANCH"],"message":"qa(private): 2025-26 holdout failure [skip ci]",
-                "content":base64.b64encode(json.dumps({"trace":text}).encode()).decode()}
-          check=subprocess.run(["gh","api",route+"?ref="+os.environ["PRIVATE_BRANCH"]],capture_output=True,text=True)
-          if check.returncode==0:body["sha"]=json.loads(check.stdout)["sha"]
+          raw=(pathlib.Path(os.environ["RUNNER_TEMP"])/"holdout-v3.log").read_text()[-5000:]
+          route="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp2025_26_n2pp_cross_season_v3_failure.json"
+          body={"branch":os.environ["PRIVATE_BRANCH"],"message":"qa(private): historical/current NBA N2PP validation failure [skip ci]","content":base64.b64encode(json.dumps({"trace":raw}).encode()).decode()}
+          chk=subprocess.run(["gh","api",route+"?ref="+os.environ["PRIVATE_BRANCH"]],capture_output=True,text=True)
+          if chk.returncode==0:body["sha"]=json.loads(chk.stdout)["sha"]
           r=subprocess.run(["gh","api","-X","PUT",route,"--input","-"],input=json.dumps(body),capture_output=True,text=True)
-          if r.returncode:raise RuntimeError("PRIVATE_HISTORICAL_ERROR_WRITE_FAILED")
-          print("IGP25_HISTORICAL_PRIVATE_DIAG_RECORDED")
+          if r.returncode:raise RuntimeError("PRIVATE_CROSS_SEASON_ERROR_WRITE_FAILED")
+          print("PRIVATE_N2PP_V3_FAILURE_EVIDENCE_COMMITTED")
           PY
           fi
