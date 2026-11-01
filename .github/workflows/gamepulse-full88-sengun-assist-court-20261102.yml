@@ -103,7 +103,8 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f gamepulse/fusion/qa/igp_fullx/sengun_assist_original_pass_origin_full88_20261102.json gamepulse/fusion/qa/igp_fullx/sengun_assist_explorer_full88_v2.json gamepulse/fusion/qa/igp_fullx/sengun_assist_evidence_audit_v1.json gamepulse/fusion/qa/igp_fullx/sengun_assist_shot_anchor_shadow_v1.json gamepulse/fusion/qa/igp_fullx/sengun_assist_handoff_compatible_shadow_v1.json gamepulse/fusion/qa/igp_fullx/sengun_assist_independent_xyz_endpoints_shadow_v1.json gamepulse/fusion/qa/igp_fullx/sengun37_reconciled_source_and_official_geography_v1.json gamepulse/fusion/qa/igp_fullx/sengun37_reconciled_source_and_official_geography_v1_qa.json gamepulse/fusion/qa/igp_fullx/sengun37_reconciled_figures_v1 gamepulse/fusion/qa/igp_fullx/assist_official_raw
-          git diff --cached --check
+          # Matplotlib SVG paths contain harmless trailing spaces; preserve native vector output.
+          git -c core.whitespace=-trailing-space diff --cached --check
           if git diff --cached --quiet; then echo IGP_FULL88_SENGUN_PRIVATE_RESULT_UNCHANGED; exit 0; fi
           git commit -q -m "qa(igp): private source-only Full88 Sengun credited assist origins"
           for n in 1 2 3 4 5; do
