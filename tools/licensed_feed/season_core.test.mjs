@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {planGame,parseSchedule,selectDue,summarize,priorityId,diagnoseTrackingCoverage} from './season_core.mjs';
-import {assertContext} from './season_private_release.mjs';
+import {assertContext,shouldProbeGswPhoenix} from './season_private_release.mjs';
 
 const id='0022600002';
 const start=Date.parse('2026-10-20T23:00:00Z');
@@ -130,4 +130,18 @@ test('do not mistake natural postgame empty slots for missing gameplay',()=>{
  assert.equal(finding.state,'NO_SEVERE_MIDDLE_PART_GAPS_DETECTED');
  assert.deepEqual(finding.suspicious_parts,[]);
  assert.throws(()=>diagnoseTrackingCoverage(plan.parts,manifest.slice(1)));
+});
+
+test('expired historical NBA source recheck never blocks live FULL88 jobs',()=>{
+ const live={GITHUB_EVENT_NAME:'push',GAMEPULSE_PRODUCTION_ENABLED:'true'};
+ assert.equal(shouldProbeGswPhoenix(live),false);
+ assert.equal(shouldProbeGswPhoenix({...live,GAMEPULSE_PRIORITY_FINALIZE:'true'}),false);
+ assert.equal(shouldProbeGswPhoenix({...live,GAMEPULSE_PRIORITY_FANOUT:'true'}),false);
+ assert.equal(shouldProbeGswPhoenix({...live,GAMEPULSE_GSW_PHOENIX_RECHECK:'true',
+  GAMEPULSE_PRIORITY_FINALIZE:'true'}),false);
+ assert.equal(shouldProbeGswPhoenix({...live,GAMEPULSE_GSW_PHOENIX_RECHECK:'true',
+  GAMEPULSE_PRIORITY_FANOUT:'true'}),false);
+ assert.equal(shouldProbeGswPhoenix({...live,GAMEPULSE_GSW_PHOENIX_RECHECK:'true'}),true);
+ assert.equal(shouldProbeGswPhoenix({...live,GAMEPULSE_GSW_PHOENIX_RECHECK:'true',
+  GITHUB_EVENT_NAME:'schedule'}),false);
 });
