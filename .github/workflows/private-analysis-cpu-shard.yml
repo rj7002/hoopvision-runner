@@ -309,3 +309,5 @@ jobs:
 # Guarded profile shards >1 MiB fetched by immutable Git blob SHA during ranking.
 
 # Re-run protected R10 all81 ranker after oversized-shard blob fallback and public boundary restoration.
+
+# R11 replay: read-only source-grade 81-game touch origin diagnostics.
