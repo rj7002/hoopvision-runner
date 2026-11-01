@@ -97,6 +97,25 @@ jobs:
                                env={**os.environ,
                                     "PYTHONPATH":str(root/"gamepulse/fusion/analysis")})
           if probe.returncode:
+              # Never disclose private test names or traces in public logs.
+              # Persist the diagnostic only to the authenticated private repo.
+              shard=int(os.environ["SHARD"])
+              rel=f'{item["out_dir"]}/shard_{shard}_source_free_failure.json'
+              dest=f"repos/{repo}/contents/{rel}"
+              rec={"state":"PRIVATE_SOURCE_FREE_REGRESSION_FAILED",
+                   "shard":shard,"source_sha":expected,
+                   "stderr_tail_private":probe.stderr[-10000:],
+                   "stdout_tail_private":probe.stdout[-3000:]}
+              payload={"branch":ref,"message":f"qa(private): R9 source-free shard {shard} test failure",
+                       "content":base64.b64encode(json.dumps(rec).encode()).decode()}
+              for retry in range(5):
+                  previous=subprocess.run(["gh","api",dest+"?ref="+ref],capture_output=True,text=True)
+                  req=dict(payload)
+                  if previous.returncode==0:req["sha"]=json.loads(previous.stdout)["sha"]
+                  saved=subprocess.run(["gh","api","-X","PUT",dest,"--input","-"],
+                                       input=json.dumps(req),capture_output=True,text=True)
+                  if saved.returncode==0:break
+                  time.sleep(1+retry)
               print("PRIVATE_ANALYSIS_SOURCE_FREE_REGRESSION_FAILED")
               sys.exit(1)
           shard=int(os.environ["SHARD"])
@@ -246,3 +265,5 @@ jobs:
 # R8: deterministic private source native UTC/PBP event-review shortlist, unchanged R6 score.
 
 # R9 protected selector-pinned shadow evaluation; immutable private task across the whole run.
+
+# Source-free failure details are retained only in the private repository.
