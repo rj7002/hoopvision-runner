@@ -138,7 +138,7 @@ jobs:
               previous=subprocess.run(["gh","api",target+"?ref="+ref],capture_output=True,text=True)
               if previous.returncode==0:payload["sha"]=json.loads(previous.stdout)["sha"]
               subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
-                             input=json.dumps(payload),capture_output=True)
+                             input=json.dumps(payload),capture_output=True,text=True)
               print("PRIVATE_ANALYSIS_SOURCE_EXECUTION_FAILED")
               sys.exit(1)
           data=output.read_bytes()
