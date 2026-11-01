@@ -1,6 +1,7 @@
 // NBA-only schedule/control metadata. No licensed player XYZ or raw app records leave private 104.
 import {appendFileSync,readFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
 const TOKEN=process.env.GH_TOKEN;
 const NOW=Date.now();
 const MAX=10; // Bounded full Oct 30 NBA ten-game slate fanout; do not exceed 10.
@@ -138,6 +139,35 @@ const index=await privateFile('gamepulse/fusion/materialized/igp_2026_27_unified
 if(index.official_games!==56||Object.keys(index.per_game_model).length!==56)
   throw Error('FROZEN_56_CHANGED');
 const add=await privateFile(index.post56_additive_oct28.index);
+// Repair a lagging official schedule snapshot with the exact private SHA-locked
+// original NBA final box already admitted to the canonical 88-game dataset.
+// This verifies the documented source rather than trusting a guessed game date.
+if(!fixtures.some(g=>g.id==='0022600153')){
+  try{
+    const row=add.games['0022600153'];
+    if(!row)throw Error('NO_CANONICAL_OFFICIAL_BOX');
+    const path=row.official_pbp_original_paths?.[1];
+    if(!path?.startsWith('gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600153/'))
+      throw Error('BOX_PATH_NOT_SOURCE_SCOPED');
+    const r=await get('https://api.github.com/repos/timeedmonds-maker/104/contents/'+path+
+      '?ref=research/gamepulse-clock-boundary-integrity-20261025',true);
+    const raw=Buffer.from(r?.content||'','base64');
+    if(createHash('sha256').update(raw).digest('hex')!==row.original_nba_boxscore_sha256)
+      throw Error('ORIGINAL_BOX_SHA_MISMATCH');
+    const game=JSON.parse(raw.toString('utf8')).game;
+    const start=Date.parse(game?.gameTimeUTC||'');
+    if(String(game?.gameId)!=='0022600153'||Number(game?.gameStatus)!==3||
+       !Number.isFinite(start)||start+315*60000>NOW)
+      throw Error('NBA_ORIGINAL_BOX_NOT_FINAL_AND_ELAPSED');
+    fixtures.push({id:'0022600153',tipoff:new Date(start).toISOString(),start});
+    fixtures.sort((a,b)=>a.start-b.start);
+    console.log('IGP_SHA_PINNED_ORIGINAL_NBA_FINAL_BOX_0153_DISCOVERED');
+  }catch(err){
+    console.log('IGP_ORIGINAL_FINAL_0153_SOURCE_FALLBACK_PENDING',
+      String(err?.message||'unavailable').slice(0,60));
+  }
+}
+
 if(add.base_unified_season_games_frozen!==56)throw Error('ADDITIVE_BASELINE_DRIFT');
 const pending=fixtures.filter(g=>!(g.id in index.per_game_model)).filter(g=>{
  const grades=add.games[g.id]?.source_capture_grades||{};
