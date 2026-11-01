@@ -1,4 +1,4 @@
-name: IGP81 N2PP V10 exact source graded baseline
+name: IGP81 N2PP V9 NBA original 81-game SHA adjudication
 on:
   push:
     branches: [main, analysis/n2pp-source-verified-runner-20261101]
@@ -26,17 +26,28 @@ jobs:
           set -euo pipefail
           git clone -q --depth=1 --filter=blob:none --sparse -b analysis/igp81-two-possession-three-value-20261101 https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
-            'gamepulse/fusion/analysis/igp81_n2pp_official45_blueprint36_v10.py' \
+            'gamepulse/fusion/analysis/igp81_n2pp_original_nba_pbp_zone_v8.py' \
+            'gamepulse/fusion/analysis/igp81_n2pp_nba_event_geometry_v9.py' \
+            'gamepulse/fusion/analysis/igp81_n2pp_nba_event_geometry_v9_readback.py' \
             'gamepulse/fusion/analysis/igp81_n2pp_native_zone_bootstrap_v6.py' \
             'gamepulse/fusion/qa/analysis/igp81_n2pp_original_native_v5.json' \
-            'gamepulse/fusion/qa/analysis/igp81_n2pp_original_nba_zone_v8.json'
+            'gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all81_v1/index.json' \
+            'gamepulse/fusion/official_pbp_timing/games/*.json' \
+            'gamepulse/fusion/official_pbp_timing/original_nba_20261029/*/playbyplay.json'
           cd "$RUNNER_TEMP/private"
-          PYTHONPATH=gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/igp81_n2pp_official45_blueprint36_v10.py --root . --output "$RUNNER_TEMP/official-v10.json" > "$RUNNER_TEMP/private.log"
+          PYTHONPATH=gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/igp81_n2pp_nba_event_geometry_v9_readback.py --root . --output "$RUNNER_TEMP/official-v9.json" > "$RUNNER_TEMP/private.log"
           python3 - <<'PY'
           import json,os
-          d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"official-v10.json")))
+          d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"official-v9.json")))
           assert d["games"]==81 and d["official3"]==6094
-          assert d["first_fga_candidates"]==5461
+          assert d["totals"].get("NBA_official_source_zone",0)>3300
           assert not d["statistical_possessions_certified"]
-          print("N2PP_V10_PROVENANCE_GRADED_81",json.dumps(d,sort_keys=True))
+          print("N2PP_V9_ORIGINAL_NBA_81_SOURCE_GRADED",json.dumps({
+              "games":d["games"],"official3":d["official3"],
+              "official_zoned":d["totals"].get("NBA_official_source_zone",0),
+              "official_vs_blueprint_exact":d["totals"].get("nba_blueprint_xy_exact",0),
+              "official_vs_blueprint_tested":d["totals"].get("nba_blueprint_xy_both",0),
+              "source_grades":{k:v for k,v in d["totals"].items() if k.startswith("source_game_")},
+              "original_zones":d["NBA_original_first_fga"],
+              "native_zones":d["native_first_fga"]},sort_keys=True))
           PY
