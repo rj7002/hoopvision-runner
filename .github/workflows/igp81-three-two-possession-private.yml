@@ -95,3 +95,27 @@ jobs:
           PY
 
 # rerun with current allowlisted public guard
+
+
+      - name: Store private failure diagnosis
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f "$RUNNER_TEMP/private_analysis.log" ]; then
+            python3 - <<'PY'
+          import base64,json,os,pathlib,subprocess
+          tail=(pathlib.Path(os.environ['RUNNER_TEMP'])/'private_analysis.log').read_text()[-6000:]
+          target='repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_two_possession_three_value_failed_v1.json'
+          data=json.dumps({'status':'FAILED_PRIVATE_RUN','trace_private':tail})
+          payload={'branch':os.environ['PRIVATE_BRANCH'],
+                   'message':'qa(private): diagnose 81-game shot continuation analysis',
+                   'content':base64.b64encode(data.encode()).decode()}
+          prev=subprocess.run(['gh','api',target],capture_output=True,text=True)
+          if prev.returncode==0:payload['sha']=json.loads(prev.stdout)['sha']
+          r=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],
+                        input=json.dumps(payload),capture_output=True,text=True)
+          if r.returncode: raise RuntimeError('PRIVATE_DIAGNOSTIC_WRITE_FAILED')
+          print('PRIVATE_ANALYSIS_DIAGNOSTIC_COMMITTED')
+          PY
+          fi
