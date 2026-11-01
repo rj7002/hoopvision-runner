@@ -69,3 +69,5 @@ jobs:
             sleep "$n"
           done
           exit 32
+
+# SHA verify fixed source ledger path key after first readback.
