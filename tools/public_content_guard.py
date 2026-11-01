@@ -24,6 +24,7 @@ ALLOWED_STATIC = {
     ".github/workflows/igp81-n2pp-official-first-audit-v3.yml",  # reviewed opaque N2PP private 81-game official-first census; no licensed data in public
     ".github/workflows/igp81-three-two-possession-private.yml",  # reviewed private 81-game shot-next-possession aggregate-only executor
     ".github/workflows/private-analysis-cpu-shard.yml",  # generic protected ephemeral private-source analytics; only private QA output
+    ".github/workflows/private-analysis-reduce-only.yml",  # pinned R10 retry; SHA-verifies >1MiB Git blobs; no source/model bytes or private results in public logs
     "tools/licensed_feed/igp81_test_default_shot_route.py",  # deterministic source-free private default 81game shot acceptance
     "tools/licensed_feed/igp81_wire_default_shots.py",  # deterministic source-free private default 81game shot acceptance
     ".github/workflows/igp81-default-shot-detail-integration.yml",  # private-only QA-validated 81game default shot route
