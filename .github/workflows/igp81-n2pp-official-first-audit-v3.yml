@@ -1,4 +1,4 @@
-name: IGP81 N2PP V8 original NBA shot-coordinate source audit
+name: IGP81 N2PP V9 81game NBA original shot geometry source audit
 on:
   push:
     branches: [main]
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
-  group: igp81-n2pp-v8-original-nba
+  group: igp81-n2pp-v9-nba-original
   cancel-in-progress: false
 jobs:
   private-81-source-audit:
@@ -32,35 +32,42 @@ jobs:
           git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
             'gamepulse/fusion/analysis/igp81_n2pp_original_nba_pbp_zone_v8.py' \
+            'gamepulse/fusion/analysis/igp81_n2pp_nba_event_geometry_v9.py' \
             'gamepulse/fusion/analysis/igp81_n2pp_native_zone_bootstrap_v6.py' \
             'gamepulse/fusion/qa/analysis/igp81_n2pp_original_native_v5.json' \
             'gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all81_v1/index.json' \
             'gamepulse/fusion/official_pbp_timing/games/*.json' \
             'gamepulse/fusion/official_pbp_timing/original_nba_20261029/*/playbyplay.json'
           cd "$RUNNER_TEMP/private"
-          PYTHONPATH=gamepulse/fusion/analysis python3 -m py_compile gamepulse/fusion/analysis/igp81_n2pp_original_nba_pbp_zone_v8.py
-      - name: Execute SHA-pinned independent NBA original shot location comparison
+          PYTHONPATH=gamepulse/fusion/analysis python3 -m py_compile gamepulse/fusion/analysis/igp81_n2pp_original_nba_pbp_zone_v8.py gamepulse/fusion/analysis/igp81_n2pp_nba_event_geometry_v9.py
+      - name: Run original NBA 81-game shot source recovery and location reconciliation
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          PYTHONPATH=gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/igp81_n2pp_original_nba_pbp_zone_v8.py --root . --output "$RUNNER_TEMP/v8-private.json" > "$RUNNER_TEMP/v8-private.log" 2>&1 || { echo N2PP_V8_PRIVATE_SOURCE_AUDIT_FAILED; exit 32; }
+          PYTHONPATH=gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/igp81_n2pp_nba_event_geometry_v9.py --root . --output "$RUNNER_TEMP/v9-private.json" > "$RUNNER_TEMP/v9-private.log" 2>&1 || { echo N2PP_V9_PRIVATE_SOURCE_AUDIT_FAILED; exit 32; }
           python3 - <<'PY'
           import json,os
-          d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"v8-private.json")))
+          d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"v9-private.json")))
           a=d["totals"]
-          assert d["original_raw_games"]==45
-          assert a["official_3pa"]>2000
-          assert a["xy_both"]>2000
-          print("N2PP_V8_PRIVATE_ORIGINAL_NBA_SHA_VERIFIED",json.dumps({
-              "games":d["original_raw_games"],"official_3pa":a["official_3pa"],
-              "original_zoned":a["official_zoned"],
-              "official_blueprint_both":a["both_blueprint"],
-              "official_blueprint_zone_agree":a["zone_same_blueprint"],
-              "official_blueprint_XY_same":a["xy_same_blueprint"],
-              "official_blueprint_XY_tested":a["xy_both"],
-              "native_both":a["both_native"],
-              "native_agree":a["zone_same_native"]},sort_keys=True))
+          assert d["games"]==81 and d["official3"]==6094
+          assert d["statistical_possessions_certified"] is False
+          s=d["totals"]
+          print("N2PP_V9_OFFICIAL_NBA_81_REPORT",json.dumps({
+             "official3":d["official3"],
+             "official_nba_zoned":s.get("NBA_official_source_zone",0),
+             "NBA_Blueprint_xy_exact":s.get("nba_blueprint_xy_exact",0),
+             "NBA_Blueprint_xy_tested":s.get("nba_blueprint_xy_both",0),
+             "NBA_Blueprint_zone_equal":s.get("nba_blueprint_equal_zone",0),
+             "NBA_Blueprint_zone_tested":s.get("nba_blueprint_both",0),
+             "NBA_native_equal":s.get("nba_native_equal_zone",0),
+             "NBA_native_tested":s.get("nba_native_both",0),
+             "source_archived":s.get("source_game_ARCHIVED_EXACT_SHA",0),
+             "source_reacquired_exact":s.get("source_game_REACQUIRED_EXACT_SHA",0),
+             "source_reacquired_revised":s.get("source_game_REACQUIRED_REVISED_SHA_REQUIRES_SEMANTIC_EQUIVALENCE",0),
+             "source_quarantined":s.get("source_game_QUARANTINED_SEMANTIC_MISMATCH",0),
+             "original_N2PP":d["NBA_original_first_fga"],
+             "same_shot_original_N2PP":d["matched_original_zones"]},sort_keys=True))
           PY
       - name: Write private only QA evidence
         shell: bash
@@ -68,32 +75,32 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import base64,json,os,pathlib,subprocess
-          dest="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_n2pp_original_nba_zone_v8.json"
+          dest="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_n2pp_nba_event_geometry_v9.json"
           body={"branch":os.environ["PRIVATE_BRANCH"],
-                "message":"qa(private): SHA-verifiable original NBA shot zone crosswalk V8 [skip ci]",
-                "content":base64.b64encode((pathlib.Path(os.environ["RUNNER_TEMP"])/"v8-private.json").read_bytes()).decode()}
+                "message":"qa(private): 81game NBA original shot geometry and source integrity V9 [skip ci]",
+                "content":base64.b64encode((pathlib.Path(os.environ["RUNNER_TEMP"])/"v9-private.json").read_bytes()).decode()}
           p=subprocess.run(["gh","api",dest+"?ref="+os.environ["PRIVATE_BRANCH"]],capture_output=True,text=True)
-          if p.returncode==0:raise SystemExit("PRIVATE_V8_QA_EXISTS_REFUSE_OVERWRITE")
+          if p.returncode==0:raise SystemExit("PRIVATE_V9_QA_EXISTS_REFUSE_OVERWRITE")
           r=subprocess.run(["gh","api","-X","PUT",dest,"--input","-"],input=json.dumps(body),capture_output=True,text=True)
           if r.returncode:raise RuntimeError("PRIVATE_V8_WRITE_FAILURE")
-          print("N2PP_V8_PRIVATE_QA_COMMIT",json.loads(r.stdout)["commit"]["sha"])
+          print("N2PP_V9_PRIVATE_QA_COMMIT",json.loads(r.stdout)["commit"]["sha"])
           PY
       - name: Private failure diagnosis
         if: failure()
         shell: bash
         run: |
-          if [ -f "$RUNNER_TEMP/v8-private.log" ]; then
+          if [ -f "$RUNNER_TEMP/v9-private.log" ]; then
             python3 - <<'PY'
           import base64,json,os,pathlib,subprocess
-          dest="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_n2pp_v8_failure.json"
-          log=(pathlib.Path(os.environ["RUNNER_TEMP"])/"v8-private.log").read_text()[-6000:]
+          dest="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_n2pp_v9_failure.json"
+          log=(pathlib.Path(os.environ["RUNNER_TEMP"])/"v9-private.log").read_text()[-6000:]
           body={"branch":os.environ["PRIVATE_BRANCH"],
-                "message":"qa(private): N2PP v8 failure evidence [skip ci]",
+                "message":"qa(private): N2PP v9 failure evidence [skip ci]",
                 "content":base64.b64encode(json.dumps({"trace":log}).encode()).decode()}
           p=subprocess.run(["gh","api",dest+"?ref="+os.environ["PRIVATE_BRANCH"]],capture_output=True,text=True)
           if p.returncode==0:body["sha"]=json.loads(p.stdout)["sha"]
           r=subprocess.run(["gh","api","-X","PUT",dest,"--input","-"],input=json.dumps(body),capture_output=True,text=True)
           if r.returncode:raise RuntimeError("PRIVATE_FAILURE_RECORD_WRITE")
-          print("N2PP_V8_PRIVATE_DIAGNOSIS_COMMITTED")
+          print("N2PP_V9_PRIVATE_DIAGNOSIS_COMMITTED")
           PY
           fi
