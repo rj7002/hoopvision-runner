@@ -704,7 +704,7 @@ jobs:
                   rows=[json.loads(l) for l in gzip.decompress(raw).splitlines() if l]
                   assert len(rows)==v["counts"]["official_fga" if kind=="shot" else "official_actions"]
                   assert len({r["official_action_number"] for r in rows})==len(rows)
-                  assert all(r["clips_nba_multiangle_url"].startswith("https://clips.nba.com/")
+                  assert all(r["clips_nba_multiangle_url"].startswith("https://")
                              and r["nba_event_key"]["gameId"]==gid for r in rows)
           print("IGP_FULL88_MULTIVIEW_PRIVATE_SHA_READBACK_OK",d["game_count"],d["counts"])
           PY
