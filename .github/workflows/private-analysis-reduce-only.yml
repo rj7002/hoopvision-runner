@@ -44,7 +44,7 @@ jobs:
               return json.loads(subprocess.check_output(
                   ["gh","api",url],stderr=subprocess.DEVNULL))
           def git_sha(raw):
-              pre=b"blob "+str(len(raw)).encode()+b"\\0"
+              pre=b"blob "+str(len(raw)).encode()+bytes([0])
               return hashlib.sha1(pre+raw).hexdigest()
           def fetch(path,ref):
               meta=api(f"repos/{repo}/contents/{path}?ref={ref}")
@@ -113,7 +113,7 @@ jobs:
                "prior_review_development_metrics","benchmark_comparison",
                "credibility_status","independent_event_accuracy","recovery_status")}
           outputs["profile_scorecard.json"]=root/"profile_scorecard.json"
-          outputs["profile_scorecard.json"].write_text(json.dumps(card,indent=2,sort_keys=True)+"\\n")
+          outputs["profile_scorecard.json"].write_text(json.dumps(card,indent=2,sort_keys=True)+chr(10))
           for name,file in outputs.items():
               target=f'repos/{repo}/contents/{task["out_dir"]}/{name}'
               data=file.read_bytes()
