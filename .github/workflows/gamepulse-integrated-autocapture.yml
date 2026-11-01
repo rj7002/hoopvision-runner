@@ -627,6 +627,17 @@ jobs:
             ("GameID_EventNumber","?GameID=0022600153&EventNumber=12"),
             ("GameId_EventId","?GameId=0022600153&EventId=12"),
           ]
+          for key in ("game","gameID","gameid","gid","Game","gameCode","id",
+                      "GameId","GameID","g","gameNumber","nbaGameId","game_id",
+                      "gameName","gameId","GameNumber"):
+            candidates.append(("scan_"+key,"?"+key+"=0022600153&eventNum=12"))
+          basebody=subprocess.run(["curl","-LsS","--max-time","8",base],text=True,
+                                   stdout=subprocess.PIPE,stderr=subprocess.DEVNULL).stdout
+          for word in ("gameId","gameID","game_id","gameNum","eventNum","searchParams",
+                       "location.search","getParameterByName","No video clip available"):
+            idx=basebody.find(word)
+            if idx>=0:print("CLIPS_NBA_HTML_TOKEN",word,
+                             repr(basebody[max(0,idx-130):idx+185]))
           for label,q in candidates:
             try:
               v=subprocess.run(["curl","-LsS","--max-time","8","-A","Mozilla/5.0",base+q],
