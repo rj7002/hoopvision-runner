@@ -44,6 +44,7 @@ jobs:
           python3 gamepulse/fusion/igp_sengun37_independent_xyz_endpoints_shadow_v1.py
           python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_sengun37_reconciled_geography_v1.py' -v
           python3 gamepulse/fusion/igp_sengun37_reconciled_geography_v1.py
+          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_sengun37_reconciled_app_http_v1.py' -v
           python3 - <<'PY'
           import json,sys
           from pathlib import Path
