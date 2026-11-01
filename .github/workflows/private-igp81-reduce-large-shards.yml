@@ -1,0 +1,126 @@
+name: Protected IGP81 private large-shard reduce
+# Public control plane only. Private NBA source, event data, model and results
+# never appear in the public repository, artifacts, or logs.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/private-igp81-reduce-large-shards.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: protected-private-analytics-2026
+  cancel-in-progress: false
+jobs:
+  reduce-private-r10:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      # Pinned immutable private task from completed nine-shard R10 run.
+      TASK_SELECTOR_REF: 4f4240f249ab2ed1f27bc1aec745e6701ae84df1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify safe public control and private execution boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Verify and reduce private source shard blobs, keeping evidence private
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,hashlib,json,os,pathlib,subprocess,sys,time
+          repo='timeedmonds-maker/104'
+          def gh(url):
+              return json.loads(subprocess.check_output(
+                  ['gh','api',url],stderr=subprocess.DEVNULL))
+          def fetch(path,ref):
+              meta=gh(f'repos/{repo}/contents/{path}?ref={ref}')
+              assert meta['type']=='file' and len(meta['sha'])==40
+              if meta.get('encoding')=='base64' and meta.get('content'):
+                  payload=meta['content']
+              else:
+                  blob=gh(f'repos/{repo}/git/blobs/{meta["sha"]}')
+                  assert blob['encoding']=='base64'
+                  payload=blob['content']
+              data=base64.b64decode(payload,validate=False)
+              header=b'blob '+str(len(data)).encode()+b'\0'
+              assert hashlib.sha1(header+data).hexdigest()==meta['sha'], 'PRIVATE_BLOB_SHA'
+              return data
+          def put(path,data,ref,message):
+              target=f'repos/{repo}/contents/{path}'
+              payload={'branch':ref,'message':message,'content':base64.b64encode(data).decode()}
+              for attempt in range(8):
+                  old=subprocess.run(['gh','api',target+'?ref='+ref],
+                                     capture_output=True,text=True)
+                  req=dict(payload)
+                  if old.returncode==0:req['sha']=json.loads(old.stdout)['sha']
+                  result=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],
+                                        input=json.dumps(req),capture_output=True,text=True)
+                  if result.returncode==0:return
+                  time.sleep(1+attempt)
+              raise RuntimeError('PRIVATE_WRITE_FAILED')
+          task=json.loads(fetch('analysis_execution/current_igp_task.json',
+                               os.environ['TASK_SELECTOR_REF']))
+          assert task['shards']==9 and task['ref'].startswith('analysis/')
+          assert task['out_dir'].endswith('igp81_double_team_reboot_r10_secondary_gate_20261101')
+          ref=task['ref']
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'private_r10_reduce'
+          root.mkdir()
+          try:
+              for i in range(9):
+                  name=f'shard_{i}.json'
+                  data=fetch(f'{task["out_dir"]}/{name}',ref)
+                  parsed=json.loads(data)
+                  assert parsed['shard']==i and parsed['shards']==9
+                  (root/name).write_bytes(data)
+              script=root/'rank.py'
+              script.write_bytes(fetch(task['reduce_script'],task['source_sha']))
+              outputs={k:root/k for k in
+                 ('top20.json','all_league_players.json',
+                  'all_league_players.csv','all_player_team_splits.csv')}
+              proc=subprocess.run([sys.executable,str(script),'--dir',str(root),
+                 '--out',str(outputs['top20.json']),
+                 '--league-json',str(outputs['all_league_players.json']),
+                 '--league-csv',str(outputs['all_league_players.csv']),
+                 '--team-csv',str(outputs['all_player_team_splits.csv'])],
+                 capture_output=True,text=True)
+              if proc.returncode:
+                  raise RuntimeError('PRIVATE_REDUCER_ERROR '+proc.stderr[-6000:])
+              result=json.loads(outputs['all_league_players.json'].read_bytes())
+              assert result['games_processed']==81
+              assert result['original_source_modified'] is False
+              assert len(result['excluded_games'])==7
+              for name,out in outputs.items():
+                  put(f'{task["out_dir"]}/{name}',out.read_bytes(),ref,
+                      'qa(private): R10 verified original-source 81-game reduction')
+              receipt={'status':'REDUCER_SUCCESS','games':81,
+                       'source_sha':task['source_sha'],
+                       'analysis_code_sha256':result['analysis_code_sha256'],
+                       'profile_totals':result['profile_totals'],
+                       'development_review':result['prior_review_development_metrics'],
+                       'independent_event_accuracy':result['independent_event_accuracy'],
+                       'private_outputs_only':True}
+              put(f'{task["out_dir"]}/private_reduction_receipt.json',
+                  json.dumps(receipt,sort_keys=True).encode(),ref,
+                  'qa(private): R10 reduction verified receipt')
+              print('PRIVATE_R10_ALL81_REDUCTION_VERIFIED')
+          except Exception as exc:
+              # Failure diagnostics are written ONLY to the private repository.
+              info={'status':'R10_PRIVATE_REDUCER_ERROR',
+                    'error_type':type(exc).__name__,
+                    'error':str(exc)[-5000:]}
+              try:
+                  put(f'{task["out_dir"]}/private_reduction_failure.json',
+                      json.dumps(info).encode(),ref,
+                      'qa(private): masked R10 reduce diagnostic')
+              finally:
+                  print('PRIVATE_R10_REDUCTION_FAILED')
+                  sys.exit(1)
+          PY
