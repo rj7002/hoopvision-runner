@@ -189,10 +189,22 @@ jobs:
           import base64,json,os,pathlib,subprocess,sys,time
           repo="timeedmonds-maker/104"
           def fetch(path,ref):
-              raw=subprocess.check_output(
-                  ["gh","api",f"repos/{repo}/contents/{path}?ref={ref}",
-                   "--jq",".content"])
-              return base64.b64decode(raw)
+              # GitHub contents API omits inline content when a source shard
+              # exceeds 1 MiB (encoding="none"). Fetch the immutable blob SHA
+              # instead. Do not assume a successful HTTP response means bytes.
+              item=json.loads(subprocess.check_output(
+                  ["gh","api",f"repos/{repo}/contents/{path}?ref={ref}"]))
+              raw=item.get("content") or ""
+              if item.get("encoding")=="base64" and raw:
+                  return base64.b64decode(raw)
+              sha=item.get("sha")
+              assert isinstance(sha,str) and len(sha)==40
+              blob=json.loads(subprocess.check_output(
+                  ["gh","api",f"repos/{repo}/git/blobs/{sha}"]))
+              assert blob.get("encoding")=="base64" and blob.get("content")
+              data=base64.b64decode(blob["content"])
+              assert len(data)>0
+              return data
           task=json.loads(fetch("analysis_execution/current_igp_task.json",os.environ["TASK_SELECTOR_REF"]))
           assert task["shards"]==9
           ref=task["ref"]
@@ -293,3 +305,5 @@ jobs:
 # Run request: R10 source-graded 81-game research audit.
 
 # R10 retry: keep reducer failures private and immutable-selector-pinned.
+
+# Guarded profile shards >1 MiB fetched by immutable Git blob SHA during ranking.
