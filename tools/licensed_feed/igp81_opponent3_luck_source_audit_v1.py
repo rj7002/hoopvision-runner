@@ -21,7 +21,7 @@ def q(x,f):
     if not s:return None
     return round(s[min(len(s)-1,max(0,int((len(s)-1)*f)))],4)
 
-def audit(root,replicates=3000):
+def audit(root,replicates=3000,include_shots=False):
     ix=json.loads((root/INDEX).read_text())
     check(ix.get("official_games")==81 and len(ix["games"])==81,"NOT_FULL81")
     shots=[]; allteams=set(); game_count=collections.Counter()
@@ -141,7 +141,7 @@ def audit(root,replicates=3000):
     check(sum(t["opp_3pa"] for t in teams.values())==6094,"TEAM_SHOTS_NOT_RECONCILED")
     shortlist=sorted(({"team":team,**t} for team,t in teams.items() if t["under_30"]),
                      key=lambda d:d["opp_3pct"])
-    return {"schema":"igp81.opponent3.exploratory.source-verified.v1",
+    report={"schema":"igp81.opponent3.exploratory.source-verified.v1",
       "status":"RESEARCH_ONLY_NOT_CAUSAL_DEFENSIVE_IMPACT",
       "games":81,"official_3pa":len(shots),"official_3pm":sum(r["make"] for r in shots),
       "league_in_81_3pct":pct(league),"team_count":len(teams),
@@ -153,6 +153,7 @@ def audit(root,replicates=3000):
        "published contestDistance raw units/meaning require provider and video validation",
        "some 3PA lack exact Blueprint joins; matched-subset inference is selection-sensitive",
        "not independently calibrated on held-out games","not a causal measure of team defense"]}
+    return (report,shots) if include_shots else report
 
 def selftest():
     assert pct(.298)==29.8
