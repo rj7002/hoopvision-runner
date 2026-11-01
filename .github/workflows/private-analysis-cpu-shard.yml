@@ -217,6 +217,22 @@ jobs:
                                "--team-csv",str(outputs["all_player_team_splits.csv"])],
                               capture_output=True,text=True)
           if proc.returncode:
+              # Keep private traceback/exception strictly in the private repo.
+              # Never put player identities, algorithms or file contents into
+              # this public workflow's visible logs.
+              dest=f'repos/{repo}/contents/{task["out_dir"]}/private_reducer_failure.json'
+              evidence={"status":"PRIVATE_REDUCER_FAILED",
+                        "selector_revision":os.environ["TASK_SELECTOR_REF"],
+                        "source_sha":task.get("source_sha"),
+                        "returncode":proc.returncode,
+                        "stderr_tail_private":proc.stderr[-12000:],
+                        "stdout_tail_private":proc.stdout[-2500:]}
+              payload={"branch":ref,"message":"qa(private): masked reducer diagnostic",
+                       "content":base64.b64encode(json.dumps(evidence).encode()).decode()}
+              old=subprocess.run(["gh","api",dest+"?ref="+ref],capture_output=True,text=True)
+              if old.returncode==0:payload["sha"]=json.loads(old.stdout)["sha"]
+              subprocess.run(["gh","api","-X","PUT",dest,"--input","-"],
+                             input=json.dumps(payload),capture_output=True,text=True)
               print("PRIVATE_RANKING_VALIDATION_FAILED")
               sys.exit(1)
           top=json.loads(outputs["top20.json"].read_bytes())
@@ -275,3 +291,5 @@ jobs:
 # R9 test-fix-2 replay trigger: protected private-native audit and secondary-convergence verification.
 
 # Run request: R10 source-graded 81-game research audit.
+
+# R10 retry: keep reducer failures private and immutable-selector-pinned.
