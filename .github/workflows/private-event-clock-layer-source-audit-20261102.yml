@@ -134,3 +134,5 @@ jobs:
         if: always()
         shell: bash
         run: echo 'No licensed source, code, private branch name, results or evidence saved to the public repository or its artifacts.' >> "$GITHUB_STEP_SUMMARY"
+
+# Protected private follow-up: immutable-selector-pinned event-time/nonshot clock QA.
