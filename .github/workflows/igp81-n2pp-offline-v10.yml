@@ -1,4 +1,4 @@
-name: IGP81 N2PP V16 full81 net two-source episode points
+name: IGP81 N2PP V17 81game residual and scoring action audit
 on:
   push:
     branches: [analysis/n2pp-source-verified-runner-20261101]
@@ -33,6 +33,7 @@ jobs:
             'gamepulse/fusion/analysis/igp81_n2pp_field_episode_eligibility_v14.py' \
             'gamepulse/fusion/analysis/igp81_n2pp_source_ledger_v15.py' \
             'gamepulse/fusion/analysis/igp81_n2pp_source_ledger_scoring_v16.py' \
+            'gamepulse/fusion/analysis/igp81_n2pp_residual_score_audit_v17.py' \
             'gamepulse/fusion/analysis/igp81_n2pp_native_zone_bootstrap_v6.py' \
             'gamepulse/fusion/analysis/igp81_n2pp_original_nba_pbp_zone_v8.py' \
             'gamepulse/fusion/qa/analysis/igp81_n2pp_original_native_v5.json' \
@@ -48,17 +49,17 @@ jobs:
             'gamepulse/fusion/official_pbp_timing/pbp_only_oct21_10/source_receipt.json' \
             'gamepulse/fusion/qa/igp_v32/igp_v32_p2b_nba71_published_team_POSS_bridge_v1.json'
           cd "$RUNNER_TEMP/private"
-          PYTHONPATH=gamepulse/fusion:gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/igp81_n2pp_source_ledger_scoring_v16.py --root . --output "$RUNNER_TEMP/v16.json" > "$RUNNER_TEMP/v16.log" 2>&1 || { echo PRIVATE_POSSESSION_V16_FAILED; exit 43; }
+          PYTHONPATH=gamepulse/fusion:gamepulse/fusion/analysis python3 gamepulse/fusion/analysis/igp81_n2pp_residual_score_audit_v17.py --root . --output "$RUNNER_TEMP/v17.json" > "$RUNNER_TEMP/v17.log" 2>&1 || { echo PRIVATE_POSSESSION_V17_FAILED; exit 43; }
           python3 - <<'PY'
           import json,os
-          d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"v16.json")))
-          assert d["games"]==81 and d["official3"]==6094
-          assert d["NBA_POSS_candidate_ledger"]["candidate_POSS"]==16528
-          assert d["NBA_statistical_possession_certified"] is False
-          print("N2PP_V16_FULL81_FIRST_3PA_N2PP",json.dumps({
-            "official3":d["official3"],
-            "candidate_possession_QA":d["NBA_POSS_candidate_ledger"],
-            "shots":d["counts"],"N2PP":d["N2PP"],
+          d=json.load(open(os.path.join(os.environ["RUNNER_TEMP"],"v17.json")))
+          assert d["game_count"]==81 and d["unmatched_team_games"]==28
+          assert d["counts"]["out_of_credited_own_episode_points"]==20
+          assert d["statistical_possessions_certified"] is False
+          print("N2PP_V17_NBA_TEAM_RESIDUAL_ADMIN_SCORE_AUDIT",json.dumps({
+            "team_games_unmatched":d["unmatched_team_games"],
+            "score_and_residual_counts":d["counts"],
+            "official_score_conserved":d["source_score_conservation_verified"],
             "certified":False},sort_keys=True))
           PY
       - name: Commit private QA evidence
@@ -66,27 +67,27 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import base64,json,os,pathlib,subprocess
-          file=pathlib.Path(os.environ["RUNNER_TEMP"])/"v16.json"
-          dest="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_n2pp_source_ledger_scoring_v16.json"
+          file=pathlib.Path(os.environ["RUNNER_TEMP"])/"v17.json"
+          dest="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_n2pp_residual_score_audit_v17.json"
           body={"branch":os.environ["BRANCH"],"message":"qa(private): original NBA 162-team source field boundary probes v12 [skip ci]","content":base64.b64encode(file.read_bytes()).decode()}
           check=subprocess.run(["gh","api",dest+"?ref="+os.environ["BRANCH"]],capture_output=True,text=True)
-          if check.returncode==0:raise RuntimeError("REFUSE_V16_QA_OVERWRITE")
+          if check.returncode==0:raise RuntimeError("REFUSE_V17_QA_OVERWRITE")
           out=subprocess.run(["gh","api","-X","PUT",dest,"--input","-"],input=json.dumps(body),capture_output=True,text=True)
-          if out.returncode:raise RuntimeError("V16_PRIVATE_QA_WRITE_FAILED")
-          print("N2PP_V16_PRIVATE_QA_COMMIT",json.loads(out.stdout)["commit"]["sha"])
+          if out.returncode:raise RuntimeError("V17_PRIVATE_QA_WRITE_FAILED")
+          print("N2PP_V17_PRIVATE_QA_COMMIT",json.loads(out.stdout)["commit"]["sha"])
           PY
       - name: Store private diagnostics
         if: failure()
         run: |
-          if [ -f "$RUNNER_TEMP/v16.log" ]; then
+          if [ -f "$RUNNER_TEMP/v17.log" ]; then
             python3 - <<'PY'
           import base64,json,os,pathlib,subprocess
-          dest="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_n2pp_v16_failure.json"
-          body={"branch":os.environ["BRANCH"],"message":"qa(private): N2PP V16 failure trace [skip ci]","content":base64.b64encode(json.dumps({"trace":(pathlib.Path(os.environ["RUNNER_TEMP"])/"v16.log").read_text()[-5000:]}).encode()).decode()}
+          dest="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/igp81_n2pp_v17_failure.json"
+          body={"branch":os.environ["BRANCH"],"message":"qa(private): N2PP V17 failure trace [skip ci]","content":base64.b64encode(json.dumps({"trace":(pathlib.Path(os.environ["RUNNER_TEMP"])/"v17.log").read_text()[-5000:]}).encode()).decode()}
           q=subprocess.run(["gh","api",dest+"?ref="+os.environ["BRANCH"]],capture_output=True,text=True)
           if q.returncode==0:body["sha"]=json.loads(q.stdout)["sha"]
           r=subprocess.run(["gh","api","-X","PUT",dest,"--input","-"],input=json.dumps(body),capture_output=True,text=True)
           if r.returncode:raise RuntimeError("PRIVATE_FAILURE_WRITE_FAILED")
-          print("V16_PRIVATE_DIAGNOSTIC_RECORDED")
+          print("V17_PRIVATE_DIAGNOSTIC_RECORDED")
           PY
           fi
