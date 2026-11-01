@@ -13,7 +13,27 @@ concurrency:
   group: protected-private-analytics-2026
   cancel-in-progress: false
 jobs:
+  # Freeze an opaque main-commit selector for this one workflow run.
+  # Otherwise a concurrent private request can retarget its reducer midway.
+  pin-task:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    outputs:
+      selector_commit: ${{ steps.pin.outputs.selector_commit }}
+    steps:
+      - name: Pin private selector revision without reading private methods into logs
+        id: pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          ref="$(gh api repos/timeedmonds-maker/104/commits/main --jq .sha)"
+          [[ "$ref" =~ ^[0-9a-f]{40}$ ]]
+          echo "selector_commit=$ref" >> "$GITHUB_OUTPUT"
   private-shard:
+    needs: [pin-task]
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -23,6 +43,7 @@ jobs:
     timeout-minutes: 90
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      TASK_SELECTOR_REF: ${{ needs.pin-task.outputs.selector_commit }}
       SHARD: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v4
@@ -46,7 +67,7 @@ jobs:
               return subprocess.run(argv,check=True,**kw)
           repo="timeedmonds-maker/104"
           item=json.loads(base64.b64decode(subprocess.check_output(
-              ["gh","api",f"repos/{repo}/contents/analysis_execution/current_igp_task.json?ref=main",
+              ["gh","api",f"repos/{repo}/contents/analysis_execution/current_igp_task.json?ref={os.environ['TASK_SELECTOR_REF']}",
                "--jq",".content"])))
           assert type(item["shards"]) is int and item["shards"]==9
           assert item["script"].startswith("gamepulse/fusion/analysis/")
@@ -124,12 +145,13 @@ jobs:
           PY
 
   private-ranking:
-    needs: [private-shard]
+    needs: [pin-task, private-shard]
     if: success()
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      TASK_SELECTOR_REF: ${{ needs.pin-task.outputs.selector_commit }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -152,7 +174,7 @@ jobs:
                   ["gh","api",f"repos/{repo}/contents/{path}?ref={ref}",
                    "--jq",".content"])
               return base64.b64decode(raw)
-          task=json.loads(fetch("analysis_execution/current_igp_task.json","main"))
+          task=json.loads(fetch("analysis_execution/current_igp_task.json",os.environ["TASK_SELECTOR_REF"]))
           assert task["shards"]==9
           ref=task["ref"]
           root=pathlib.Path(os.environ["RUNNER_TEMP"])/"source-shard-summary"
@@ -222,3 +244,5 @@ jobs:
 # R8 protected shadow recovery source-backed research; private-only results.
 
 # R8: deterministic private source native UTC/PBP event-review shortlist, unchanged R6 score.
+
+# R9 protected selector-pinned shadow evaluation; immutable private task across the whole run.
