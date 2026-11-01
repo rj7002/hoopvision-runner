@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp81-n2pp-offline-v10.yml",  # reviewed opaque 81game NBA-original and Blueprint-only fallback, output aggregate privately
     ".github/workflows/igp81-n2pp-official-first-audit-v3.yml",  # reviewed opaque N2PP private 81-game official-first census; no licensed data in public
     ".github/workflows/igp81-three-two-possession-private.yml",  # reviewed private 81-game shot-next-possession aggregate-only executor
     ".github/workflows/private-analysis-cpu-shard.yml",  # generic protected ephemeral private-source analytics; only private QA output
