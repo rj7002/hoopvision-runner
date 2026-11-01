@@ -1,4 +1,4 @@
-name: IGP81 N2PP V9 81game NBA original shot geometry source audit
+name: IGP81 N2PP V9 81game NBA shot location verification
 on:
   push:
     branches: [main]
