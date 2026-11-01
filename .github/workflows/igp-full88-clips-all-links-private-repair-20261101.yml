@@ -1,0 +1,71 @@
+name: FULL88 repair all NBA clips deep links in private database
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/igp-full88-clips-all-links-private-repair-20261101.yml
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  private-full88-clips-all:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: release/igp-full88-sourcegraded-default-20261101
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Enforce opaque private bridge
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Private 88-game original-sourced clip URL migration and SHA audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          git sparse-checkout set --no-cone \
+            /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_event_multiview_full88_v1 \
+            /gamepulse/fusion/qa/igp_fullx \
+            /gamepulse/fusion/igp_full88_relink_all_20261101.py \
+            /gamepulse/fusion/igp_full88_default_engine_v1.py \
+            /gamepulse/fusion/igp_full88_jabari_durant_top5_20261101.py \
+            /gamepulse/fusion/igp_full88_unified_shot_event_multiview_v1.py
+          python3 -m py_compile gamepulse/fusion/igp_full88_relink_all_20261101.py
+          python3 gamepulse/fusion/igp_full88_relink_all_20261101.py
+          PYTHONPATH=gamepulse/fusion python3 - <<'PY'
+          from pathlib import Path
+          from igp_full88_default_engine_v1 import _load_index, _read_rows
+          idx = _load_index(Path('.'))
+          assert idx['game_count'] == 88
+          assert idx['counts']['official_actions'] == 53541
+          assert idx['counts']['official_fga'] == 15584
+          for gid, a in idx['games'].items():
+              for kind in ('shots','events'):
+                  rows = _read_rows('.',gid,a,kind,0,1)
+                  assert rows['sha256_verified']
+                  record=rows['records'][0]
+                  assert '?gameNo='+gid in record['clips_nba_multiangle_url']
+                  assert '&source=grs' in record['clips_nba_multiangle_url']
+          print('FULL88_LINK_QUERY_READBACK_ACCEPTED games=88 events=53541 shots=15584')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_event_multiview_full88_v1 gamepulse/fusion/qa/igp_fullx gamepulse/fusion/igp_full88_default_engine_v1.py gamepulse/fusion/igp_full88_jabari_durant_top5_20261101.py gamepulse/fusion/igp_full88_unified_shot_event_multiview_v1.py
+          git diff --cached --check
+          git diff --cached --quiet && { echo FULL88_ALL_LINKS_ALREADY_CORRECT; exit 0; }
+          git commit -q -m 'data(igp): correct clips.nba gameNo source grs for every FULL88 event'
+          for n in 1 2 3 4 5 6 7 8 9 10; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo FULL88_LINK_REPAIR_PRIVATE_COMMITTED_ALL_88
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 32
