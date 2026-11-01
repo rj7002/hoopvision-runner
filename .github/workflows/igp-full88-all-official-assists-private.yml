@@ -85,3 +85,39 @@ jobs:
           assert all(e['pass_origin'] is None or e['pass_origin']['source_pointer'] for e in all_rows['events'])
           print('FULL88_ASSIST_QUERY_AGGREGATE_ONLY', all_rows['all_games'],all_rows['count'],sengun['count'])
           PY
+      - name: Exercise private linked app filters and exports
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -m pip install --quiet matplotlib==3.10.8
+          python3 - <<'PY'
+          import csv,io,json,sys,threading,urllib.request
+          from http.server import ThreadingHTTPServer
+          sys.path.insert(0,'gamepulse/fusion')
+          from igp_full88_assist_query_v1 import query
+          from igp_assist_explorer_app import app,select,summarize
+          data=query('.')
+          server=ThreadingHTTPServer(('127.0.0.1',0),app(data))
+          threading.Thread(target=server.serve_forever,daemon=True).start()
+          base='http://127.0.0.1:'+str(server.server_port)
+          def get(path):
+              with urllib.request.urlopen(base+path,timeout=60) as response:return response.read()
+          try:
+              opts=json.loads(get('/api/options'))
+              assert len(opts['assisters'])>1 and any(k=='1630578' for k,v in opts['assisters'])
+              uri='assister=1630578&shotType=3pt&passerMin=0&passerMax=5&catchMin=12&catchMax=50&includeMissing=false'
+              rows=select(data['events'],{k:[v] for k,v in [p.split('=') for p in uri.split('&')]})
+              api=json.loads(get('/api/events?'+uri))
+              assert api['count']==len(rows)==api['analysis']['event_count']
+              assert len(list(csv.DictReader(io.StringIO(get('/api/export?format=csv&'+uri).decode()))))==len(rows)
+              assert json.loads(get('/api/export?format=json&'+uri))['count']==len(rows)
+              assert get('/api/export?format=png&'+uri).startswith(b'\\x89PNG')
+              svg=get('/api/chart?format=svg&assister=1630578').decode()
+              assert '<svg' in svg and 'id="assist_' in svg
+              assert json.loads(get('/api/events?assister=1630578'))['count']==37
+              assert json.loads(get('/api/events'))['count']==4616
+              print('FULL88_ASSIST_APP_LINKED_PRIVATE_SMOKE_OK',api['count'],37,4616)
+          finally:
+              server.shutdown()
+          PY
