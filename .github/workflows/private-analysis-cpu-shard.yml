@@ -269,3 +269,5 @@ jobs:
 # Source-free failure details are retained only in the private repository.
 
 # R9 corrected private audit regression import, immutable request-pinned rerun.
+
+# R9 source-free review-fixture correction; audit period now explicit.
