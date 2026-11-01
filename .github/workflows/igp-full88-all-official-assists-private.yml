@@ -112,7 +112,7 @@ jobs:
               assert api['count']==len(rows)==api['analysis']['event_count']
               assert len(list(csv.DictReader(io.StringIO(get('/api/export?format=csv&'+uri).decode()))))==len(rows)
               assert json.loads(get('/api/export?format=json&'+uri))['count']==len(rows)
-              assert get('/api/export?format=png&'+uri).startswith(b'\\x89PNG')
+              assert get('/api/export?format=png&'+uri).startswith(bytes.fromhex('89504e47'))
               svg=get('/api/chart?format=svg&assister=1630578').decode()
               assert '<svg' in svg and 'id="assist_' in svg
               assert json.loads(get('/api/events?assister=1630578'))['count']==37
