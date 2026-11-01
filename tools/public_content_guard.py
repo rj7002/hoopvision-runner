@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp81-opponent3-prior-shooters-v2.yml",  # SHA-locked public 2025-26 prior plus private original NBA FULL81; aggregate public
+    "tools/licensed_feed/igp81_opponent3_prior_shooters_v2.py",  # historical shooter priors, no licensed source rows in public output
     ".github/workflows/igp81-opponent3-luck-source-audit-v1.yml",  # private full81 SHA PBP and Blueprint exploratory output, public aggregate only
     "tools/licensed_feed/igp81_opponent3_luck_source_audit_v1.py",  # deterministic Python reads original privately, emits only aggregate source checks
     ".github/workflows/nba-eason-0022600153-replay-access-probe.yml",  # reviewed public official NBA replay URL response-only tester; no private data
