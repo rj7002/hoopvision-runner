@@ -32,6 +32,7 @@ jobs:
             /gamepulse/fusion/igp_full88_shot_motion_extract_20261101.py \
             /gamepulse/fusion/igp_native_scene_season_68_benchmark_v1.py \
             /gamepulse/fusion/igp_native_scene_model_v2.py \
+            /gamepulse/fusion/igp_tracking_model_a_holdout_2026.py \
             /gamepulse/fusion/igp_tracking_model_b_holdout_2026.py \
             /gamepulse/fusion/igp_tracking_model_c0_endpoint_velocity_bridge_2026.py \
             /gamepulse/fusion/qa/igp_fullx/shot_event_multiview_full88_v1.json \
