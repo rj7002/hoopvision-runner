@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-full88-0153-verified-original-backfill.yml",  # reviewed official-final NBA 0153 bounded SDK 13part capture, SHA private release + companion source and FULL88 index
     ".github/workflows/gamepulse-full88-ready13-certify-20261101.yml",  # source-private existing 13-part SDK readback for verified 31 Oct games; no original XYZ public
     ".github/workflows/igp81-opponent3-prior-shooters-v2.yml",  # SHA-locked public 2025-26 prior plus private original NBA FULL81; aggregate public
     "tools/licensed_feed/igp81_opponent3_prior_shooters_v2.py",  # historical shooter priors, no licensed source rows in public output
