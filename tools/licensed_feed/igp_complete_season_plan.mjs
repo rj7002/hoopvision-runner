@@ -128,7 +128,7 @@ if(!fixtures.some(g=>g.id==='0022600153')){
     const g=box?.game;
     const start=Date.parse(g?.gameTimeUTC||'');
     if(String(g?.gameId)==='0022600153'&&Number(g?.gameStatus)===3&&
-       Number.isFinite(start)&&start+315*60000<=NOW){
+       Number.isFinite(start)&&start<=NOW){
       fixtures.push({id:'0022600153',tipoff:new Date(start).toISOString(),start});
       fixtures.sort((a,b)=>a.start-b.start);
       console.log('IGP_OFFICIAL_FINAL_BOX_0153_DISCOVERED');
@@ -157,7 +157,7 @@ if(!fixtures.some(g=>g.id==='0022600153')){
     const game=JSON.parse(raw.toString('utf8')).game;
     const start=Date.parse(game?.gameTimeUTC||'');
     if(String(game?.gameId)!=='0022600153'||Number(game?.gameStatus)!==3||
-       !Number.isFinite(start)||start+315*60000>NOW)
+       !Number.isFinite(start)||start>NOW)
       throw Error('NBA_ORIGINAL_BOX_NOT_FINAL_AND_ELAPSED');
     fixtures.push({id:'0022600153',tipoff:new Date(start).toISOString(),start});
     fixtures.sort((a,b)=>a.start-b.start);
