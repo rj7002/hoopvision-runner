@@ -1,0 +1,67 @@
+name: Full88 official assist source census private
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full88-all-official-assists-private.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full88-all-official-assists-private
+  cancel-in-progress: false
+jobs:
+  census:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 85
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: analysis/full88-sengun-deterministic-assist-origins-20261102
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify public content boundary
+        run: python3 tools/public_content_guard.py
+      - name: Capture original NBA PBP and box privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          cd "$RUNNER_TEMP/private"
+          python3 gamepulse/fusion/igp_full88_official_assist_census_v1.py
+      - name: Commit raw source and event QA only to private 104
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_fullx/official_assist_source_full88_v1 gamepulse/fusion/qa/igp_fullx/official_assist_census_full88_v1.json gamepulse/fusion/qa/igp_fullx/official_assist_events_full88_v1.jsonl
+          git diff --cached --check
+          if git diff --cached --quiet; then echo FULL88_ASSIST_SOURCE_RESULT_UNCHANGED; exit 0; fi
+          git commit -q -m "qa(igp): pin original official assist sources and reconcile all Full88 games"
+          for n in 1 2 3 4 5; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then echo FULL88_ASSIST_SOURCE_QA_PRIVATE_ONLY; exit 0; fi
+            sleep "$n"
+          done
+          exit 24
+      - name: Require complete official assist reconciliation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('gamepulse/fusion/qa/igp_fullx/official_assist_census_full88_v1.json').read_bytes())
+          c=d['counts']
+          print('IGP_FULL88_ASSIST_CENSUS_FINAL_AGGREGATE_ONLY',c)
+          assert c['games_in_release']==88
+          assert c['games_reconciled']==88
+          assert c['player_box_mismatches']==0
+          assert c['all88_assist_census_reconciled']==1
+          assert c['unique_event_rows']==c['assists_with_raw_identity']
+          PY
