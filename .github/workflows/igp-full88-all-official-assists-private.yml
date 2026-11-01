@@ -222,7 +222,7 @@ jobs:
           done
           exit 24
 
-      - name: Audit exact matching event positions before promotion
+      - name: Audit original-source court-edge tolerance and exact matching event positions
         shell: bash
         run: |
           set -euo pipefail
