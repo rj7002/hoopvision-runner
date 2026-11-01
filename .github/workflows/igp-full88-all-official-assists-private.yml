@@ -30,6 +30,7 @@ jobs:
           git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
           cd "$RUNNER_TEMP/private"
+          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_full88_official_assist_census_v1.py' -v
           python3 gamepulse/fusion/igp_full88_official_assist_census_v1.py
       - name: Commit raw source and event QA only to private 104
         shell: bash
