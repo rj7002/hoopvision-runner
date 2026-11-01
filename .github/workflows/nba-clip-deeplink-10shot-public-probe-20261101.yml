@@ -51,3 +51,5 @@ jobs:
               url='https://stats.nba.com/stats/videoeventsasset?'+urllib.parse.urlencode({'GameID':gid,'GameEventID':act})
               print('VIDEOEVENTS_ASSET',name,json.dumps(probe(url),sort_keys=True))
           PY
+
+# Probe initiated after exact guard allowlist approval.
