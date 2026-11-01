@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 45
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      BRANCH: release/igp-full88-sourcegraded-default-20261101
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
