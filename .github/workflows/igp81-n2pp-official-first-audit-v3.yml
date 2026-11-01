@@ -1,5 +1,6 @@
 name: IGP81 N2PP v3 official-first source and possession bridge
 # Opaque public controller. Private licensed shots, PBP and row-level output stay private.
+# Stage B/C source reconciliation; source-grade output must never be logged.
 on:
   push:
     branches: [main]
