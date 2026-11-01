@@ -436,6 +436,15 @@ async function probeGswPhoenixGap(capture){
  }
 }
 
+/** The historical Oct 25 retry must never hijack a current-slate job. */
+export function shouldProbeGswPhoenix(env){
+ return env.GITHUB_EVENT_NAME==='push'&&
+  env.GAMEPULSE_PRODUCTION_ENABLED==='true'&&
+  env.GAMEPULSE_GSW_PHOENIX_RECHECK==='true'&&
+  env.GAMEPULSE_PRIORITY_FANOUT!=='true'&&
+  env.GAMEPULSE_PRIORITY_FINALIZE!=='true';
+}
+
 export async function run(){
  assertContext({...process.env,GH_TOKEN:TOKEN});
  delete process.env.GH_TOKEN;
@@ -490,10 +499,7 @@ export async function run(){
  // The Oct 25 GSW-PHX one-off source recheck is not a prerequisite for
  // current slate capture/finalization. Opt in explicitly, never from normal
  // push-triggered production jobs; preserve its original seven-day expiry.
- if(process.env.GITHUB_EVENT_NAME==='push'&&process.env.GAMEPULSE_PRODUCTION_ENABLED==='true'&&
-    process.env.GAMEPULSE_GSW_PHOENIX_RECHECK==='true'&&
-    process.env.GAMEPULSE_PRIORITY_FANOUT!=='true'&&
-    process.env.GAMEPULSE_PRIORITY_FINALIZE!=='true')await probeGswPhoenixGap(capture);
+ if(shouldProbeGswPhoenix(process.env))await probeGswPhoenixGap(capture);
  if(process.env.GAMEPULSE_PRIORITY_FANOUT==='true'){
   if(PILOT||!['push','schedule'].includes(process.env.GITHUB_EVENT_NAME))throw Error('priority_context_invalid');
   const game={id:process.env.GAMEPULSE_PRIORITY_ID,start:Date.parse(process.env.GAMEPULSE_PRIORITY_TIPOFF||'')};
