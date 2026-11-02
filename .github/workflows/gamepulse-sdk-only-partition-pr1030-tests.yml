@@ -98,3 +98,47 @@ jobs:
           print("PRIVATE_RELEASE_METADATA_PIN_PARITY_12_OF_12")
           print("NOT_DOWNLOADED_ARCHIVE_BYTE_QA_NOT_GAMEPLAY_CERTIFICATION")
           PY
+
+      - name: Pilot actual downloaded-byte SDK QA for game 0022600119 (no public source output)
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          work="$RUNNER_TEMP/sdk-only-pr1030"
+          mkdir -p "$work/sdk-0022600119"
+          gh release download gamepulse-sdk-0022600119 -R timeedmonds-maker/104 \
+            -D "$work/sdk-0022600119" \
+            -p 'sdk-part-*.tar.gz' -p 'sdk-COMPLETE.json'
+          cd "$work"
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          from sdk_only_native_label_partition_2026 import (
+              PINNED_GAME_RELEASE_MANIFEST_SHA256, PARTS,
+              verify_release_manifest, verify_archives,
+          )
+          from gamepulse_ball_dynamics import native_touches
+          game = "0022600119"
+          raw = Path(f"{game}.json").read_bytes()
+          manifest = json.loads(raw)
+          expected = verify_release_manifest(
+              game, raw, PINNED_GAME_RELEASE_MANIFEST_SHA256[game])
+          sdk = Path(f"sdk-{game}")
+          actual = verify_archives(sdk, expected)
+          assert len(actual) == 13
+          complete_bytes = (sdk / "sdk-COMPLETE.json").read_bytes()
+          assert hashlib.sha256(complete_bytes).hexdigest() == (
+              manifest["release_metadata_provenance"]["sdk_complete_reported_sha256"])
+          complete = json.loads(complete_bytes)
+          assert isinstance(complete, dict)
+          print("SDK_0119_DOWNLOADED_BYTE_SHA_VERIFIED_13_OF_13")
+          print("SDK_0119_COMPLETE_REPORT_SHA_VERIFIED")
+          print("SDK_0119_COMPLETE_TOP_LEVEL_KEYS", sorted(complete.keys()))
+          native, diagnostics, spans = native_touches(
+              [sdk / name for name in PARTS], with_frame_diagnostics=True)
+          assert native and spans, "SDK_0119_NO_NATIVE_TOUCH_OR_FRAME_EVIDENCE"
+          print("SDK_0119_SOURCE_NATIVE_LABELS", len(native))
+          print("SDK_0119_SOURCE_NATIVE_FRAME_SPANS", len(spans))
+          print("NOT_LIVE_GAMEPLAY_NOT_PHYSICAL_POSSESSION_CERTIFICATION")
+          PY
