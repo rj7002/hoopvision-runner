@@ -97,6 +97,18 @@ jobs:
                     echo "COURTCODER_OWNER40_CASE_OK $case"
                   else
                     echo "COURTCODER_OWNER40_CASE_FAILED $case"
+                    if [ "$case" = test_p1_reads_real_shapinned_original_arm_not_h1_score_projection ]; then
+                      # This is entirely synthetic source-free fixture data.
+                      # Print only a short Python exception class / symbolic code.
+                      python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          raw=(Path(os.environ["RUNNER_TEMP"])/"courtcoder-private-case.log").read_text(errors="replace")
+          matches=re.findall(r"(?m)^([A-Za-z]+Error): ([A-Z0-9_]+)$",raw)
+          print("COURTCODER_OWNER40_SYNTHETIC_FIXTURE_ERROR",
+                *(matches[-1] if matches else ("UNCLASSIFIED","NO_SYMBOLIC_CODE")))
+          PY
+                    fi
                   fi
                 done
               fi
