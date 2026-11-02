@@ -746,3 +746,45 @@ jobs:
             sleep "$n"
           done
           exit 44
+
+
+  private-top15-chat-webp:
+    name: Build 1600px exact official-headshot image for ChatGPT file attachment
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/full92-all-event-rebound-tracking-20261103
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Protected private checkout
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: Export exact verified 15-headshot PNG as small WebP
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -m pip install --quiet Pillow
+          python3 gamepulse/fusion/export_top15_chat_small.py
+      - name: Private artifact commit
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_fullx/highest_release_on_jump_shots_full92_top15_chat.webp
+          git diff --cached --check
+          git commit -qm 'graphic: 15-headshot full92 1600px shareable image'
+          for n in 1 2 3 4 5 6; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then exit 0; fi
+            sleep "$n"
+          done
+          exit 44
