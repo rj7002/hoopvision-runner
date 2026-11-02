@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full88-exact-unguarded-marginal88-private-20261102.yml",  # SHA-pinned private NBA Full88 exact 10Hz guarded-versus-unguarded scene overlap; safe counts only
     ".github/workflows/igp-full88-new17-p2b-shortgap-private-20261102.yml",  # private 17-game masked-original new-cohort P2B guard evaluation; aggregates only public
     ".github/workflows/igp-full88-unguarded-p2b-marginal-private-20261102.yml",  # PINNED private 88-game research option and 63-unseen masked-source QA; no licensed rows in public
     ".github/workflows/igp-full88-v3-guarded88-private-gate-20261102.yml",  # audited: licensed SHA-native 7-game 10Hz P2B source acceptance; private-only real scenes, aggregate log
