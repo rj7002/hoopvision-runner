@@ -36,14 +36,17 @@ jobs:
           git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
             /gamepulse/fusion/igp_full88_default_engine_v1.py \
             /gamepulse/fusion/igp_full88_foundation_audit_v1.py \
+            /gamepulse/fusion/igp_full88_event_spine_integrity_v1.py \
             /gamepulse/fusion/igp81_default_team_offrtg.py \
             /gamepulse/fusion/tests/test_igp_full88_foundation_audit_v1.py \
             /gamepulse/fusion/qa/igp_fullx/shot_event_multiview_full88_v1.json \
             /gamepulse/fusion/qa/igp81_nba_team_offrtg_reporting_default_v1.json \
-            /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_event_multiview_full88_v1/shots/
+            /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_event_multiview_full88_v1/shots/ \
+            /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_event_multiview_full88_v1/events/
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
-          python3 -m py_compile gamepulse/fusion/igp_full88_foundation_audit_v1.py
+          python3 -m py_compile gamepulse/fusion/igp_full88_foundation_audit_v1.py gamepulse/fusion/igp_full88_event_spine_integrity_v1.py
+          python3 gamepulse/fusion/igp_full88_event_spine_integrity_v1.py --self-test
           python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_full88_foundation_audit_v1.py' -v
       - name: Run SHA-original full88 event recoverability and official81 score/poss
         shell: bash
@@ -51,6 +54,7 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           PYTHONPATH=gamepulse/fusion python3 gamepulse/fusion/igp_full88_foundation_audit_v1.py
+          PYTHONPATH=gamepulse/fusion python3 gamepulse/fusion/igp_full88_event_spine_integrity_v1.py
           python3 - <<'PY'
           import json
           p='gamepulse/fusion/qa/igp_fullx/full88_foundation_audit_20261102.json'
@@ -60,6 +64,12 @@ jobs:
           assert d['new7_team_games_missing_published_advanced_acceptance']==14
           c=d['frozen81_team_possession']['totals']
           assert (c['published_poss'],c['candidate_sequences'],c['absolute_difference'],c['exact_team_games'])==(16508,16484,156,54)
+          e=json.load(open('gamepulse/fusion/qa/igp_fullx/full88_event_spine_integrity_20261102.json'))
+          assert e['game_count']==88 and e['totals']['official_actions']==53541
+          assert e['totals']['exact_action_shot_joins']==15584
+          assert e['totals']['without_shot_analytics']==1168
+          assert e['modelled_shot_or_pass_events_added']==0
+          print('FULL88_EVENT_SPINE_SHA_GRADE_ACCEPTED',e['game_count'],e['totals']['exact_action_shot_joins'])
           print('FULL88_RECOVERABILITY_PRIVATE_AGGREGATE_ONLY',json.dumps({
             'shot_fga':shot['official_fga'],
             'matched':shot['any_source_exact'],
@@ -77,7 +87,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add --sparse -f gamepulse/fusion/qa/igp_fullx/full88_foundation_audit_20261102.json
+          git add --sparse -f gamepulse/fusion/qa/igp_fullx/full88_foundation_audit_20261102.json gamepulse/fusion/qa/igp_fullx/full88_event_spine_integrity_20261102.json
           git diff --cached --check
           if git diff --cached --quiet; then echo PRIVATE_FULL88_FOUNDATION_QA_UNCHANGED; exit 0; fi
           git commit -q -m "qa(igp): freeze Full88 exact shot missingness and possession residuals [skip ci]"
