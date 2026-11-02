@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_HEAD_SHA: b1879caace0ff4c2cdeda5285813554bd69bd06b
+      PRIVATE_HEAD_SHA: dfa34d076432283c901640624bfc38e6b179010e
       PRIVATE_SOURCE_BRANCH: research/courtcoder-v30-original-odd-frame-physical-shadow-20261102
     steps:
       - uses: actions/checkout@v4
