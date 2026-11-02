@@ -155,11 +155,11 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          git switch -c research/igp-full92-runtime-full-replay-qa-20261103
+          git switch -c research/igp-full92-runtime-release-qa-${GITHUB_RUN_ID}
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f gamepulse/fusion/igp_full92_tracking_source_census_v1.py gamepulse/fusion/igp_full88_p2b_natural_gap_tier_v1.py gamepulse/fusion/tests/test_igp_full92_tracking_source_census_v1.py gamepulse/fusion/tests/test_igp_full88_p2b_natural_gap_tier_v1.py gamepulse/fusion/qa/igp_fullx/full92_runtime_full_replay_20261103.json
           git diff --cached --check
           git commit -qm 'qa(private): SHA original Full92 native tracking census [skip ci]'
-          git push -q origin HEAD:refs/heads/research/igp-full92-runtime-full-replay-qa-20261103
+          git push -q origin HEAD:refs/heads/research/igp-full92-runtime-release-qa-${GITHUB_RUN_ID}
           echo IGP_FULL92_PRIVATE_CENSUS_EVIDENCE_COMMITTED
