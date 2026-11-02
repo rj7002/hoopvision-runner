@@ -19,6 +19,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: release/igp-full88-v3-guarded-evidence-20261102
+      PRIVATE_SHA: 34da161285c709bd6ab92e84a59d6b7cdde81318
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -35,8 +36,11 @@ jobs:
           set -euo pipefail
           git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           cd "$RUNNER_TEMP/private"
+          test "$(git rev-parse HEAD)" = "$PRIVATE_SHA" || { echo "FULL88_V3_PRIVATE_SOURCE_HEAD_MOVED_FAIL_CLOSED"; exit 17; }
           git sparse-checkout set --no-cone \
             '/gamepulse/fusion/*.py' \
+            /gamepulse/fusion/tests/test_igp_full88_default_engine_v1.py \
+            /gamepulse/fusion/tests/test_igp_full88_default_engine_v2.py \
             /gamepulse/fusion/tests/test_igp_full88_default_engine_v3.py \
             /gamepulse/fusion/qa/igp_fullx/shot_event_multiview_full88_v1.json \
             /gamepulse/fusion/qa/igp_fullx/full88_new7_guarded_p2b_shadow_20261102.json \
@@ -48,6 +52,7 @@ jobs:
             /gamepulse/fusion/qa/igp_fullx/ncea_full88_multi_event_shadow_v3.json \
             /gamepulse/fusion/qa/igp_fullx/ncea_full88_multi_event_shadow_v3.jsonl \
             /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_event_multiview_full88_v1/events/ \
+            /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_event_multiview_full88_v1/shots/0022600153.jsonl.gz \
             /gamepulse/fusion/tests/test_igp_full88_v3_event_evidence.py \
             /gamepulse/fusion/tests/test_igp_full88_default_engine_v1.py \
             /gamepulse/fusion/tests/test_igp_full88_default_engine_v2.py \
@@ -79,6 +84,8 @@ jobs:
           for suite in test_igp_full88_default_engine_v1.py test_igp_full88_default_engine_v2.py; do
             python3 -m unittest discover -s gamepulse/fusion/tests -p "$suite" -q > "$RUNNER_TEMP/$suite.private.log" 2>&1 || { echo "FULL88_V3_LEGACY_RELEASE_REGRESSION_FAILED"; exit 1; }
           done
+          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_full88_default_engine_v1.py' -q > "$RUNNER_TEMP/v1compat.private.log" 2>&1 || { echo "FULL88_V3_V1_ROLLBACK_REGRESSION_FAILURE"; exit 1; }
+          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_full88_default_engine_v2.py' -q > "$RUNNER_TEMP/v2compat.private.log" 2>&1 || { echo "FULL88_V3_V2_ROLLBACK_REGRESSION_FAILURE"; exit 1; }
           python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_full88_v3_event_evidence.py' -q > "$RUNNER_TEMP/v3events.private.log" 2>&1 || {
             echo "FULL88_V3_PRIVATE_EVENT_SOURCE_CROSSWALK_TEST_FAILURE"
             exit 1
@@ -112,6 +119,21 @@ jobs:
           assert s["guarded_source_grade_admitted"] is True and len(s["rows"])>=1
           assert s["physical_possession_boundaries_certified"]==0
           print("FULL88_V3_PRIVATE_PASS",r["tracking_games"],r["full88_complete"],r["full88_total"])
+          PY
+          python3 gamepulse/fusion/igp_default_engine.py --root . --evidence-family assists --player-id 1630578 --limit 1 > "$RUNNER_TEMP/assists-query.private.json"
+          python3 gamepulse/fusion/igp_default_engine.py --root . --evidence-family ncea --event-type REBOUND --limit 1 > "$RUNNER_TEMP/ncea-query.private.json"
+          python3 - <<'PY' > "$RUNNER_TEMP/v3-cli.private.log"
+          import json,os
+          from pathlib import Path
+          p=Path(os.environ["RUNNER_TEMP"])
+          a=json.loads((p/"assists-query.private.json").read_text())
+          b=json.loads((p/"ncea-query.private.json").read_text())
+          assert a["reporting_engine_id"]=="IGP_FULL88_V3_GUARDED_88_AND_OFFICIAL_EVENTS_20261102"
+          assert a["total_matches"]==37
+          assert len(a["rows"])==1 and a["rows"][0]["physical_pass_endpoints_certified"] is False
+          assert b["total_matches"]==9523
+          assert len(b["rows"])==1 and b["rows"][0]["certified_physical_contact"] is False
+          print("FULL88_V3_PRIVATE_CLI_EVIDENCE_QUERY_OK")
           PY
           if grep -q FULL88_V3_PRIVATE_PASS "$RUNNER_TEMP/v3source.private.log"; then
             echo FULL88_V3_PRIVATE_SOURCE_AND_SCENE_RELEASE_GATE_PASS
