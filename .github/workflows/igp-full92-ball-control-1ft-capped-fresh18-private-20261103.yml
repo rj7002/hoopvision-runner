@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 150
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      BRANCH: research/full92-ball-control-persistence-shadow-20261103
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
