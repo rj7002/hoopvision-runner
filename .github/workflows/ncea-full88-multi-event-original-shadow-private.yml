@@ -17,7 +17,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       SOURCE_REF: research/ncea-all88-custody-shadow-20261102
-      SOURCE_SHA: 0d8009056dea992e961adc560ca907abf9796f5e
+      SOURCE_SHA: 7d5157aab2095d9496559f2c9f7f4637ef25fc9e
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -41,9 +41,9 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          python3 -m py_compile gamepulse/fusion/analysis/ncea_full88_multi_event_shadow_v1.py
-          python3 gamepulse/fusion/analysis/ncea_full88_multi_event_shadow_v1.py --self-test
-          python3 gamepulse/fusion/analysis/ncea_full88_multi_event_shadow_v1.py --root .
+          python3 -m py_compile gamepulse/fusion/analysis/ncea_full88_multi_event_shadow_v2.py
+          python3 gamepulse/fusion/analysis/ncea_full88_multi_event_shadow_v2.py --self-test
+          python3 gamepulse/fusion/analysis/ncea_full88_multi_event_shadow_v2.py --root .
       - name: Validate event conservation and research boundaries
         shell: bash
         run: |
@@ -52,13 +52,15 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-          a=Path("gamepulse/fusion/qa/igp_fullx/ncea_full88_multi_event_shadow_v1.json")
-          b=Path("gamepulse/fusion/qa/igp_fullx/ncea_full88_multi_event_shadow_v1.jsonl")
+          a=Path("gamepulse/fusion/qa/igp_fullx/ncea_full88_multi_event_shadow_v2.json")
+          b=Path("gamepulse/fusion/qa/igp_fullx/ncea_full88_multi_event_shadow_v2.jsonl")
           j=json.loads(a.read_text());c=j["counts"]
           assert j["games"]==88 and j["events_count"]==sum(v for k,v in c.items() if k.endswith("_official"))
           assert j["mode"]=="OPT_IN_SHADOW_NOT_DEFAULT" and j["promoted"] is False
           assert j["method"]["certified_physical_touch_count"]==0
           assert j["method"]["official_steals_counted_as_turnover_facet"]
+          assert "boxscore_reconciliation" in j
+          assert c["REBOUND_candidate_mask_trials"]>0 and c["STEAL_TURNOVER_candidate_mask_trials"]>0
           assert sum(1 for _ in b.open())==j["events_count"]
           for k in ("REBOUND","STEAL_TURNOVER","NONSTEAL_TURNOVER","BLOCK"):
               assert c[k+"_official"]>0
@@ -72,7 +74,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/qa/igp_fullx/ncea_full88_multi_event_shadow_v1.json gamepulse/fusion/qa/igp_fullx/ncea_full88_multi_event_shadow_v1.jsonl
+          git add -f gamepulse/fusion/qa/igp_fullx/ncea_full88_multi_event_shadow_v2.json gamepulse/fusion/qa/igp_fullx/ncea_full88_multi_event_shadow_v2.jsonl
           git diff --cached --check
           if git diff --cached --quiet; then echo NCEA_PRIVATE_IDENTICAL; exit 0; fi
           git commit -q -m "qa(private): source-grounded 88-game multi-event NCEA research"
