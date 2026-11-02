@@ -1,0 +1,84 @@
+# Opaque public-to-private bridge. Original NBA XYZ, event rows, and QA remain private.
+name: Full88 multi-event NCEA original-source shadow
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/ncea-full88-multi-event-original-shadow-private.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: ncea-full88-multi-event-shadow-v1
+  cancel-in-progress: false
+jobs:
+  private-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 85
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      SOURCE_REF: research/ncea-all88-custody-shadow-20261102
+      SOURCE_SHA: 0d8009056dea992e961adc560ca907abf9796f5e
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Confirm protected boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Original pinned private code and source
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$SOURCE_REF" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$SOURCE_SHA"
+      - name: Execute 88 games and source-free tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/analysis/ncea_full88_multi_event_shadow_v1.py
+          python3 gamepulse/fusion/analysis/ncea_full88_multi_event_shadow_v1.py --self-test
+          python3 gamepulse/fusion/analysis/ncea_full88_multi_event_shadow_v1.py --root .
+      - name: Validate event conservation and research boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          a=Path("gamepulse/fusion/qa/igp_fullx/ncea_full88_multi_event_shadow_v1.json")
+          b=Path("gamepulse/fusion/qa/igp_fullx/ncea_full88_multi_event_shadow_v1.jsonl")
+          j=json.loads(a.read_text());c=j["counts"]
+          assert j["games"]==88 and j["events_count"]==sum(v for k,v in c.items() if k.endswith("_official"))
+          assert j["mode"]=="OPT_IN_SHADOW_NOT_DEFAULT" and j["promoted"] is False
+          assert j["method"]["certified_physical_touch_count"]==0
+          assert j["method"]["official_steals_counted_as_turnover_facet"]
+          assert sum(1 for _ in b.open())==j["events_count"]
+          for k in ("REBOUND","STEAL_TURNOVER","NONSTEAL_TURNOVER","BLOCK"):
+              assert c[k+"_official"]>0
+              assert c[k+"_mask_trials"]>0
+          print("NCEA_MULTI_EVENT_PRIVATE_GATES_PASS",j["games"],"games",j["events_count"],"events")
+          PY
+      - name: Store per-event evidence inside private GitHub only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_fullx/ncea_full88_multi_event_shadow_v1.json gamepulse/fusion/qa/igp_fullx/ncea_full88_multi_event_shadow_v1.jsonl
+          git diff --cached --check
+          if git diff --cached --quiet; then echo NCEA_PRIVATE_IDENTICAL; exit 0; fi
+          git commit -q -m "qa(private): source-grounded 88-game multi-event NCEA research"
+          for i in 1 2 3 4; do
+            git fetch -q origin "$SOURCE_REF"
+            git rebase -q "origin/$SOURCE_REF"
+            if git push -q origin "HEAD:refs/heads/$SOURCE_REF"; then echo NCEA_MULTI_EVENT_PRIVATE_COMMITTED; exit 0; fi
+            sleep "$i"
+          done
+          exit 17
