@@ -2,11 +2,6 @@
 # Private source, video, labels, model outputs and diagnostics stay private.
 name: CourtCoder protected P1 CPU source-free controls
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - .github/workflows/courtcoder-p1-protected-control-tests.yml
   push:
     branches:
       - research/courtcoder-p1-public-safe-controls-20261102
