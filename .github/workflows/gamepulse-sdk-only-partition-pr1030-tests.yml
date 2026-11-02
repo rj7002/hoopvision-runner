@@ -176,3 +176,92 @@ jobs:
           done
           echo 'ALL_12_ORIGINAL_SDK_RELEASES_BYTE_SHA_AND_NATIVE_LABELS_VERIFIED'
           echo 'ALL_12_SOURCE_ONLY_PARTITIONS_BUILT_RESEARCH_ONLY_NOT_PUBLISHED'
+
+      - name: Publish 12 original SDK-only research partitions to private draft branch with SHA readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          cd "$RUNNER_TEMP/sdk-only-pr1030"
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          import json
+          import subprocess
+          from pathlib import Path
+          repo = "timeedmonds-maker/104"
+          branch = "research/gamepulse-sdk-only-source-quarantine-20261103"
+          def gh(*args, input=None, check=True):
+              p = subprocess.run(["gh", "api", *args], input=input,
+                                 text=True, capture_output=True)
+              if check and p.returncode:
+                  raise RuntimeError("PRIVATE_GITHUB_API_ACTION_FAILED " + str(args[:2]))
+              return p
+          ref = json.loads(gh("repos/" + repo + "/git/ref/heads/" + branch).stdout)
+          assert ref["object"]["sha"] == "f6e422fa6c5ce2e01959826fbcaaaf678b73ee00", (
+              "PRIVATE_RESEARCH_BRANCH_MOVED_BEFORE_SOURCE_PUBLICATION")
+          entries = {}
+          for n in range(119, 131):
+              game = f"002260{n:04d}"
+              raw = Path(f"source-only-{game}.json").read_bytes()
+              doc = json.loads(raw)
+              assert doc["game_id"] == game
+              assert doc["physical_possessions_certified"] == 0
+              assert doc["nba_pbp_action_tracking_utc_joins_certified"] == 0
+              assert doc["native_source_unique_touch_labels"] == len(doc["touches"]) > 0
+              path = f"gamepulse/fusion/index/quarantined_native_labels/{game}.json"
+              endpoint = "repos/" + repo + "/contents/" + path
+              prior = gh(endpoint + "?ref=" + branch, check=False)
+              if prior.returncode == 0:
+                  old = json.loads(prior.stdout)
+                  assert base64.b64decode(old["content"]) == raw, (
+                      "PRIVATE_SOURCE_ONLY_EXISTING_FILE_CONFLICT")
+              else:
+                  assert "404" in prior.stderr or "Not Found" in prior.stderr, (
+                      "PRIVATE_SOURCE_ONLY_READ_FAILED")
+                  payload = {
+                      "branch": branch,
+                      "message": "Research: preserve original SDK-only native labels for " + game,
+                      "content": base64.b64encode(raw).decode("ascii"),
+                  }
+                  response = json.loads(gh("-X", "PUT", endpoint, "--input", "-",
+                                           input=json.dumps(payload)).stdout)
+                  blob = json.loads(gh("repos/" + repo + "/git/blobs/" +
+                                       response["content"]["sha"]).stdout)
+                  assert base64.b64decode(blob["content"]) == raw, (
+                      "PRIVATE_SOURCE_ONLY_BLOB_SHA_READBACK_MISMATCH")
+              entries[game] = {
+                  "native_labels": doc["native_source_unique_touch_labels"],
+                  "official_actions": 0,
+                  "path": path,
+                  "sha256": hashlib.sha256(raw).hexdigest(),
+              }
+              print("PRIVATE_DRAFT_SOURCE_ONLY_SHA_VERIFIED", game,
+                    doc["native_source_unique_touch_labels"])
+          manifest_path = "gamepulse/fusion/index/quarantined_native_labels/index-2026-27.json"
+          endpoint = "repos/" + repo + "/contents/" + manifest_path
+          current = json.loads(gh(endpoint + "?ref=" + branch).stdout)
+          original = json.loads(base64.b64decode(current["content"]))
+          assert original["schema"] == "gamepulse.quarantined-native-touch-season-index.v1"
+          assert set(original["games"]) == {"0022600009", "0022600101"}, (
+              "RESEARCH_QUARANTINE_MANIFEST_UNEXPECTED_PREEXISTING_GAMES")
+          assert original["physical_possessions_certified"] == 0
+          original["games"].update(entries)
+          original["game_count"] = len(original["games"])
+          assert original["game_count"] == 14
+          new_bytes = (json.dumps(original, sort_keys=True, indent=2) + "\n").encode()
+          payload = {
+              "branch": branch,
+              "message": "Research: index 12 SHA-verified original SDK-only quarantine partitions",
+              "sha": current["sha"],
+              "content": base64.b64encode(new_bytes).decode("ascii"),
+          }
+          response = json.loads(gh("-X", "PUT", endpoint, "--input", "-",
+                                   input=json.dumps(payload)).stdout)
+          blob = json.loads(gh("repos/" + repo + "/git/blobs/" +
+                               response["content"]["sha"]).stdout)
+          assert base64.b64decode(blob["content"]) == new_bytes, (
+              "PRIVATE_RESEARCH_14_GAME_QUARANTINE_MANIFEST_READBACK_MISMATCH")
+          print("PRIVATE_DRAFT_14_GAME_QUARANTINE_MANIFEST_SHA_VERIFIED")
+          print("SOURCE_ONLY_12_GAMES_NOT_PRODUCTION_NOT_PHYSICAL_CERTIFICATION")
+          PY
