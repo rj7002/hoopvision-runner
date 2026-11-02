@@ -91,3 +91,82 @@ jobs:
           done
           echo FULL88_RECHECK_PRIVATE_QA_PUSH_FAILED
           exit 24
+
+  published-team-poss:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      SOURCE_BRANCH: analysis/igp-full88-two-game-original-source-recheck-20261102
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Confirm private-only advanced source execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+      - name: Checkout frozen FULL88 source and provider-only Team POSS probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$SOURCE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          git sparse-checkout set --no-cone \
+            /gamepulse/fusion/igp_full88_default_engine_v1.py \
+            /gamepulse/fusion/igp_full88_new7_official_team_poss_probe_v1.py \
+            /gamepulse/fusion/official_nba_advanced_source_2026.py \
+            /gamepulse/fusion/official_nba_advanced_ratings_2026.py \
+            /gamepulse/fusion/qa/igp_fullx/shot_event_multiview_full88_v1.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600147.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600148.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600149.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600150.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600151.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600152.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600153.json
+          python3 -m py_compile gamepulse/fusion/igp_full88_new7_official_team_poss_probe_v1.py
+          python3 gamepulse/fusion/igp_full88_new7_official_team_poss_probe_v1.py --self-test
+      - name: Fetch independently published NBA Team POSS, never infer from PBP
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 gamepulse/fusion/igp_full88_new7_official_team_poss_probe_v1.py --root . > "$RUNNER_TEMP/private-possession-log" 2>&1 || {
+            echo "FULL88_TEAM_POSS_SOURCE_VALIDATION_FAILED"
+            exit 1
+          }
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('gamepulse/fusion/qa/igp_fullx/new7_nba_team_advanced_poss_probe_20261102/summary.json').read_bytes())
+          assert d['games_tested']==7 and d['team_games_expected']==14
+          assert 0<=d['games_with_eligible_provider_poss']<=7
+          assert d['full88_source_default_not_promoted'] and d['official81_existing_POSS']==16508
+          print('PRIVATE_OFFICIAL_NBA_TEAM_POSS_SOURCE_ONLY_ACCEPTED_GAMES',d['games_with_eligible_provider_poss'])
+          PY
+      - name: Retain any new official raw responses and source-grade QA privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f gamepulse/fusion/qa/igp_fullx/new7_nba_team_advanced_poss_probe_20261102
+          git diff --cached --check
+          if git diff --cached --quiet; then echo PRIVATE_TEAM_POSS_QA_UNCHANGED; exit 0; fi
+          git commit -qm "qa(igp): 7-game original NBA Team POSS provider-only admission evidence"
+          for i in 1 2 3 4 5; do
+            git fetch -q origin "$SOURCE_BRANCH"
+            git rebase -q "origin/$SOURCE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$SOURCE_BRANCH"; then
+              echo PRIVATE_NBA_TEAM_POSS_SOURCE_QA_COMMITTED
+              exit 0
+            fi
+            sleep "$i"
+          done
+          echo TEAM_POSS_QA_PRIVATE_PUSH_FAILED
+          exit 24
