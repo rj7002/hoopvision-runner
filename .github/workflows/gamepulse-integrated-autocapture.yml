@@ -317,7 +317,9 @@ jobs:
           done
           exit 23
   integrate-unified:
-    needs: [preflight, capture, companion, materialize]
+    # Official PBP/box, Blueprint, companion and logical-chain indexing must not wait
+    # for separately graded SDK archives. Unavailable XYZ remains null and retryable.
+    needs: [preflight, companion]
     if: always() && needs.preflight.result == 'success' && needs.preflight.outputs.count != '0'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
