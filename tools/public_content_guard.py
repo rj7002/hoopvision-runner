@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full92-ball-tail-v10-private-20261103.yml",  # opaque protected native-ball tail source-masked evaluator (dedicated ref)
     ".github/workflows/igp-full92-controlled-ball-query-private-smoke-20261103.yml",  # private original observed-first Full92 ball query, no licensed XYZ public logs
     ".github/workflows/igp-full92-ball-control-1ft-capped-fresh18-private-20261103.yml",  # private fresh18 capped causal player-ball source-masked QA; aggregate public only
     ".github/workflows/igp-full92-controlled-ball-minimal-shrinkage-fresh12-20261103.yml",  # private frozen player/ball 25pct shadow on 12 NEW games, per-game SHA only
