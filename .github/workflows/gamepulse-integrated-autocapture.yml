@@ -109,7 +109,9 @@ jobs:
           node season_private_release.mjs
           echo IGP_OCT28_NATIVE_13PART_FINALIZE_ATTEMPTED
   materialize:
-    needs: [preflight,capture,certify]
+    # Independently materialize any already-complete, SHA-verified private
+    # game Release. New SDK capture failure must not block existing archives.
+    needs: preflight
     if: always() && needs.preflight.result == 'success' && needs.preflight.outputs.count != '0'
     runs-on: ubuntu-24.04
     timeout-minutes: 150
