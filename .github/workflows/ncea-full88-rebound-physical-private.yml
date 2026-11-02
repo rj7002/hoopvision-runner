@@ -1,0 +1,86 @@
+# Reviewed public opaque bridge: all event and original XYZ evidence remain in private 104.
+name: Full88 NCEA rebound source-native physical-candidate research
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/ncea-full88-rebound-physical-private.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: ncea-full88-rebound-physical-20261102
+  cancel-in-progress: false
+jobs:
+  rebound-private-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 85
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      SOURCE_REF: research/ncea-full88-rebound-physical-shadow-20261102
+      SOURCE_SHA: 9e89871d99efc89bf9d5ac9133900b62898633d6
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Confirm confidential boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Check out pinned private original NBA source
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$SOURCE_REF" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$SOURCE_SHA"
+      - name: Execute 88 original-native rebound windows and source-free regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/analysis/ncea_full88_rebounds_physical_shadow_v1.py
+          python3 gamepulse/fusion/analysis/ncea_full88_rebounds_physical_shadow_v1.py --self-test
+          python3 gamepulse/fusion/analysis/ncea_full88_rebounds_physical_shadow_v1.py --root .
+      - name: Validate original official totals and physical abstention
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          a=Path("gamepulse/fusion/qa/igp_fullx/ncea_full88_rebounds_physical_shadow_v1.json")
+          b=Path("gamepulse/fusion/qa/igp_fullx/ncea_full88_rebounds_physical_shadow_v1.jsonl")
+          d=json.loads(a.read_text());c=d["counts"]
+          assert d["games"]==88 and d["official_rebound_records"]==9523
+          assert d["physical_eligible_rebounds"]==7809
+          assert c["official"]==9523 and c["eligible"]==7809
+          assert sum(1 for _ in b.open())==9523
+          assert d["promoted_to_default"] is False
+          assert d["source_evidence_notes"]["physical_first_touch_verified"] is False
+          assert c["masked_10_trials"]>0 and c["official_oreb"]>0
+          assert c["candidate"]>0 and d["negative_control"]["trial"]>0
+          print("NCEA_REBOUND_PRIVATE_SOURCE_QA_ACCEPTED",88,"games",9523,"rebounds",c["candidate"],"source_candidates")
+          PY
+      - name: Store all original event evidence ONLY in private GitHub
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_fullx/ncea_full88_rebounds_physical_shadow_v1.json gamepulse/fusion/qa/igp_fullx/ncea_full88_rebounds_physical_shadow_v1.jsonl
+          git diff --cached --check
+          if git diff --cached --quiet; then echo NCEA_REBOUND_QA_IDENTICAL; exit 0; fi
+          git commit -q -m "qa(private): source-preserved full88 rebound shadow and masked candidate evidence"
+          for i in 1 2 3 4; do
+            git fetch -q origin "$SOURCE_REF"
+            git rebase -q "origin/$SOURCE_REF"
+            if git push -q origin "HEAD:refs/heads/$SOURCE_REF"; then
+              echo NCEA_REBOUND_PRIVATE_QA_COMMITTED; exit 0
+            fi
+            sleep "$i"
+          done
+          exit 17
