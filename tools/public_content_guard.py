@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full88-boxscore-176-private-20261102.yml",  # opaque 88 game, 176 team original NBA PBP/boxscore, team OREB/FTA audit
     ".github/workflows/igp-full88-new7-guarded-10hz-private-20261102.yml",  # protected original NBA full88 last7 official-ten P2B 10hz masked source shadow, aggregate public
     ".github/workflows/igp-full81-boxscore-all-source-private-20261102.yml",  # private 81-game NBA original PBP/official boxscore FT+OREB provenance, no original rows public
     ".github/workflows/igp-full81-nba-poss-definition-private-20261102.yml",  # private-only NBA PBP vs published team POSS formula sensitivity, no provider claims/logs
