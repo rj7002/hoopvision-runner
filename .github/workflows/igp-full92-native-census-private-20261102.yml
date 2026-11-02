@@ -86,12 +86,12 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
-          target=gamepulse/fusion/qa/igp_fullx/full92_native_v4_source_proxy_research_20261102.json
+          target=gamepulse/fusion/qa/igp_fullx/full92_runtime_recheck_20261103.json
           python3 gamepulse/fusion/igp_full92_tracking_source_census_v1.py --root . --out "$target" > "$RUNNER_TEMP/private-census.log" 2>&1 || { echo IGP_FULL92_PRIVATE_CENSUS_FAILED; exit 24; }
           python3 - <<'PY'
           import json
           from pathlib import Path
-          q=json.loads(Path('gamepulse/fusion/qa/igp_fullx/full92_native_v4_source_proxy_research_20261102.json').read_text())
+          q=json.loads(Path('gamepulse/fusion/qa/igp_fullx/full92_runtime_recheck_20261103.json').read_text())
           assert q['games']==92 and q['old88_event_hashes_unchanged'] is True
           assert q['new4_original_native_benchmarked']==4
           assert q['full92_strict_grid_if_complete'] is not None
@@ -107,11 +107,11 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          git switch -c research/igp-full92-native-v4-research-qa-20261102
+          git switch -c research/igp-full92-runtime-recheck-qa-20261103
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/igp_full92_tracking_source_census_v1.py gamepulse/fusion/igp_full88_p2b_natural_gap_tier_v1.py gamepulse/fusion/tests/test_igp_full92_tracking_source_census_v1.py gamepulse/fusion/tests/test_igp_full88_p2b_natural_gap_tier_v1.py gamepulse/fusion/qa/igp_fullx/full92_native_v4_source_proxy_research_20261102.json
+          git add -f gamepulse/fusion/igp_full92_tracking_source_census_v1.py gamepulse/fusion/igp_full88_p2b_natural_gap_tier_v1.py gamepulse/fusion/tests/test_igp_full92_tracking_source_census_v1.py gamepulse/fusion/tests/test_igp_full88_p2b_natural_gap_tier_v1.py gamepulse/fusion/qa/igp_fullx/full92_runtime_recheck_20261103.json
           git diff --cached --check
           git commit -qm 'qa(private): SHA original Full92 native tracking census [skip ci]'
-          git push -q origin HEAD:refs/heads/research/igp-full92-native-v4-research-qa-20261102
+          git push -q origin HEAD:refs/heads/research/igp-full92-runtime-recheck-qa-20261103
           echo IGP_FULL92_PRIVATE_CENSUS_EVIDENCE_COMMITTED
