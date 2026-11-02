@@ -1,0 +1,103 @@
+# Only opaque job code is public. Entire NBA PBP, original boxscore, fresh
+# first-party responses and team QA remain in private 104; print aggregates only.
+name: FULL81 original NBA boxscore FT OREB source reconciliation
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full81-boxscore-all-source-private-20261102.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full81-source-boxscore-fta-oreb-audit-20261102
+  cancel-in-progress: false
+jobs:
+  private-original-boxsource:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: analysis/igp-full81-boxscore-all-provider-source-20261102
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Check opaque public/private guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: SHA-verify original private PBP and archived NBA boxscores
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          git sparse-checkout set --no-cone \
+            /gamepulse/fusion/igp_full81_boxscore_ft_oreb_all_source_v1.py \
+            /gamepulse/fusion/igp81_default_team_offrtg.py \
+            /gamepulse/fusion/igp_full88_default_engine_v1.py \
+            /gamepulse/fusion/universal_possession_alignment_2026.py \
+            /gamepulse/fusion/qa/igp81_nba_team_offrtg_reporting_default_v1.json \
+            /gamepulse/fusion/qa/igp_fullx/shot_event_multiview_full88_v1.json \
+            /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json \
+            /gamepulse/fusion/official_pbp_timing/games/ \
+            /gamepulse/fusion/official_pbp_timing/original_nba_20261029/
+          python3 -m py_compile gamepulse/fusion/igp_full81_boxscore_ft_oreb_all_source_v1.py
+          python3 gamepulse/fusion/igp_full81_boxscore_ft_oreb_all_source_v1.py --self-test
+      - name: Reconcile all archived and attempt first-party provider source for remaining games
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 gamepulse/fusion/igp_full81_boxscore_ft_oreb_all_source_v1.py --fetch-unarchived > "$RUNNER_TEMP/private-original-boxscore-result" 2>&1 || {
+            python3 - <<'PY'
+          import os,json
+          from pathlib import Path
+          p=Path("gamepulse/fusion/qa/igp_fullx/full81_nba_boxsource_ft_oreb_audit_20261102/private_error.json")
+          p.parent.mkdir(parents=True,exist_ok=True)
+          error=(Path(os.environ['RUNNER_TEMP'])/"private-original-boxscore-result").read_text()
+          p.write_text(json.dumps({"status":"FAILED","private_exception":error[-14000:]},sort_keys=True,indent=2)+"\n")
+          PY
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add --sparse -f gamepulse/fusion/qa/igp_fullx/full81_nba_boxsource_ft_oreb_audit_20261102/private_error.json
+            git commit -qm 'qa(private): preserve full81 first-party boxsource validation failure [skip ci]'
+            git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH" || true
+            echo "FULL81_ORIGINAL_NBA_BOX_PBP_FAILED_PRIVATE_RECEIPT_ONLY"
+            exit 1
+          }
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          f=Path("gamepulse/fusion/qa/igp_fullx/full81_nba_boxsource_ft_oreb_audit_20261102/summary.json")
+          d=json.loads(f.read_bytes())
+          assert d["games"]==81 and d["team_games"]==162
+          assert d["PBP_event_totals"]["pbp_FGA"]==14375
+          assert d["PBP_event_totals"]["pbp_oreb_combined"]==3094
+          assert d["does_not_modify_any_original_or_production_default"]
+          print("FULL81_BOX_PBP_ARCHIVED_SOURCE_CHECK",d["original_archived_games"],d["fresh_source_games"],d["boxscore_source_verified_team_games"])
+          print("FULL81_BOX_PBP_FIELD_CHECK",json.dumps(d["NBA_BOX_PBP_FIELD_COMPARISON"],sort_keys=True))
+          print("FULL81_BOX_PBP_ALTERNATIVE_OREB_HEURISTICS",json.dumps(d["alternatives"],sort_keys=True))
+          PY
+      - name: Commit detailed official-source QA and raw first-party revision only in private 104
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f gamepulse/fusion/qa/igp_fullx/full81_nba_boxsource_ft_oreb_audit_20261102/
+          git diff --cached --check
+          if git diff --cached --quiet; then echo SOURCE_QA_UNCHANGED; exit 0; fi
+          git commit -qm 'qa(private): freeze NBA box PBP FT OREB original source comparison [skip ci]'
+          for i in 1 2 3 4 5; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo PRIVATE_NBA_BOXSCORE_SOURCE_QA_COMMITTED
+              exit 0
+            fi
+            sleep "$i"
+          done
+          exit 26
