@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_HEAD_SHA: e84fd149572215ebe052db2c2eecb14f95ef0ffc
+      PRIVATE_HEAD_SHA: 8f7ae268a50a7d4be0546cf38c5a1bdf9d9425a5
       PRIVATE_SOURCE_BRANCH: research/courtcoder-v26-strict-fourpath-eval-20261102
     steps:
       - uses: actions/checkout@v4
