@@ -272,7 +272,9 @@ jobs:
           done
           exit 23
   private-season:
-    if: (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'
+    # Existing 15-minute schedule remains active; code pushes only run the
+    # bounded source-index QA jobs and must not flood private Release API.
+    if: (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'
     needs: preflight
     strategy:
       fail-fast: false
