@@ -203,12 +203,39 @@ jobs:
           previous,_=read("gamepulse/fusion/index/unassigned_native_labels/index-2026-27.json")
           assert previous["game_count"]==36,"ORIGINAL_36_UNASSIGNED_MANIFEST_COUNT_CHANGED"
           assert set(previous["games"]).issubset(records),"ORIGINAL_36_UNASSIGNED_MANIFEST_MISSING"
-          assert all(records[gid]==v for gid,v in previous["games"].items()), "ORIGINAL_36_UNASSIGNED_SHA_MUTATED"
+          # One previously indexed game was rehashed after a private view refresh.
+          # Verify that the ORIGINAL source labels are unchanged, not merely counts.
+          migrations={}
+          for gid,prior in sorted(previous["games"].items()):
+              if records[gid]==prior:continue
+              assert gid=="0022600109","ORIGINAL_36_UNASSIGNED_SHA_MUTATED"
+              assert prior["sha256"]=="338ab3775d5dcdc1360dc58155260641ef1d30d9960d181e3ba875be31536111","SOURCE_VIEW_OLD_SHA_CHANGED"
+              old_blob=json.loads(gh("repos/"+repo+"/git/blobs/c74a2ef3d3cd57d7c6ce3148f1a691af9d7f8758").stdout)
+              old_bytes=base64.b64decode(old_blob["content"])
+              assert hashlib.sha256(old_bytes).hexdigest()==prior["sha256"],"SOURCE_VIEW_OLD_BYTES_MISMATCH"
+              old_doc=json.loads(old_bytes)
+              current_doc,_=read(records[gid]["path"])
+              old_view=old_doc["input_sha256"]["tracking_view_json"]
+              new_view=current_doc["input_sha256"]["tracking_view_json"]
+              assert old_view=="40553586f8a35bde8db2c82aa122fda362983ea6c0cd2ffc4464ac4ba0caf160","SOURCE_VIEW_OLD_INPUT_CHANGED"
+              assert new_view=="a1e31d7fc021c1e8e30ec9e60d5209306792b9c92cbbc83b9a51a0337cb35a02","SOURCE_VIEW_NEW_INPUT_CHANGED"
+              old_doc["input_sha256"]["tracking_view_json"]=new_view
+              assert old_doc==current_doc,"SOURCE_VIEW_SOURCE_LABELS_MUTATED"
+              _,view_bytes=read("gamepulse/fusion/index/games/"+gid+".json")
+              assert hashlib.sha256(view_bytes).hexdigest()==new_view,"SOURCE_VIEW_CURRENT_BYTES_MISMATCH"
+              assert current_doc["input_sha256"]["interaction_index_json"]==manifest["games"][gid]["sha256"],"SOURCE_VIEW_INTERACTION_CHANGED"
+              migrations[gid]={"prior_unassigned_sha256":prior["sha256"],
+                               "current_unassigned_sha256":records[gid]["sha256"],
+                               "prior_tracking_view_sha256":old_view,
+                               "current_tracking_view_sha256":new_view,
+                               "changed_source_label_fields":0}
+          assert set(migrations)=={"0022600109"},"SOURCE_VIEW_MIGRATION_UNEXPECTED_COHORT"
           result={"schema":"gamepulse.unassigned-original-native-season-index.v1",
                   "season":"2026-27","game_count":len(records),"games":records,
                   "unassigned_source_native_labels":total,
                   "all_original_source_labels_in_joined_games":observed,
                   "physical_possessions_certified":0,
+                  "source_view_lineage_migrations":migrations,
                   "state":"UNASSIGNED_NATIVE_LABELS_AVAILABLE_WITHOUT_UNVERIFIED_PBP_JOIN"}
           data=(json.dumps(result,sort_keys=True,indent=2)+"\n").encode()
           endpoint="repos/"+repo+"/contents/gamepulse/fusion/index/unassigned_native_labels/index-2026-27.json"
