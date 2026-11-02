@@ -435,3 +435,65 @@ jobs:
             sleep "$n"
           done
           exit 44
+
+
+  private-distance-recovery-shadow:
+    name: Full92 measured original shooter-to-rim geometry source validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/full92-all-event-rebound-tracking-20261103
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Authenticate private and protect source boundary
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: Evaluate original player XYZ hoop-distance vs supplied shot distance
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full92_shot_distance_native_shadow_v1.py
+          python3 gamepulse/fusion/igp_full92_shot_distance_native_shadow_v1.py > "$RUNNER_TEMP/source-distance-private.log" 2>&1 || {
+            echo FULL92_SHOT_DISTANCE_SHADOW_FAILED
+            exit 42
+          }
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          d=json.loads(Path('gamepulse/fusion/qa/igp_fullx/full92_shot_distance_native_shadow_v1.json').read_bytes())
+          assert d['all_games']==92 and len(d['per_game'])==92
+          assert d['auto_fill_missing_distance'] is False
+          print('FULL92_NATIVE_DISTANCE_SHADOW_PRIVATE',json.dumps({
+            'n_reference':{k:v['n'] for k,v in d['reference_abs_error_ft'].items()},
+            'p95_abs_error_ft':{k:v.get('p95') for k,v in d['reference_abs_error_ft'].items()},
+            'missing_distance_candidates':d['missing_distance_candidates_by_source'],
+            'no_auto_fill':not d['auto_fill_missing_distance']},sort_keys=True))
+          PY
+      - name: Preserve QA in private project only
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_fullx/full92_shot_distance_native_shadow_v1.json
+          git diff --cached --check
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -qm 'qa(igp): full92 shooter XY hoop distance missing-shot source validation'
+          for n in 1 2 3 4 5 6 7; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo FULL92_DISTANCE_SOURCE_QA_PRIVATE_ACCEPTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 44
