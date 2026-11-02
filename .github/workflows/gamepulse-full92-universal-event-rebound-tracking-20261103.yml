@@ -1,5 +1,6 @@
 name: Full92 original NBA action-to-XYZ and rebound alignment
 # PUBLIC ORCHESTRATION ONLY. Native NBA coordinates and PBP stay private in 104.
+# Explicitly reviewed and listed in the public_content_guard allowlist.
 on:
   push:
     branches: [main]
