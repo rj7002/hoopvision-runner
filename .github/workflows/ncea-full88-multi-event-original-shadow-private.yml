@@ -1,3 +1,4 @@
+# Security allowlist reviewed; original per-event data remains private.
 # Opaque public-to-private bridge. Original NBA XYZ, event rows, and QA remain private.
 name: Full88 multi-event NCEA original-source shadow
 on:
