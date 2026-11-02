@@ -497,3 +497,63 @@ jobs:
             sleep "$n"
           done
           exit 44
+
+
+  private-shot-jump-physical-z-sanity:
+    name: Full92 original shooter reference Z vs verticalJump physical shadow
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/full92-all-event-rebound-tracking-20261103
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify opaque boundary and original source
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: Test verticalJump against original shooter Z pre-release
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full92_jump_vs_player_z_shadow_v1.py
+          python3 gamepulse/fusion/igp_full92_jump_vs_player_z_shadow_v1.py > "$RUNNER_TEMP/private-jump-Z.log" 2>&1 || {
+            echo FULL92_JUMP_Z_SHADOW_FAILED
+            exit 42
+          }
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('gamepulse/fusion/qa/igp_fullx/full92_jump_vs_player_z_shadow_v1.json').read_bytes())
+          assert d['games']==92 and d['counts']['eligible']==8055
+          assert not d['may_decompose_release_height_from_these_values']
+          print('FULL92_JUMP_NATIVE_PLAYER_Z_SHADOW',json.dumps({
+            'paired':d['counts']['paired_source_center'],
+            'pearson':d['paired_source_pearson_r'],
+            'mean_jump_native':d['source_jump_native'].get('mean'),
+            'mean_refZ_displacement_native':d['player_z_release_minus_pre_median_native'].get('mean'),
+            'no_video_validated_release':not d['provider_verticalJump_at_release_semantics_independently_certified']},sort_keys=True))
+          PY
+      - name: Store private only raw source comparison QA aggregate
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_fullx/full92_jump_vs_player_z_shadow_v1.json
+          git diff --cached --check
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -qm 'qa(igp): Full92 shadow original shooter Z vs verticalJump source measurement'
+          for n in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then exit 0; fi
+            sleep "$n"
+          done
+          exit 44
