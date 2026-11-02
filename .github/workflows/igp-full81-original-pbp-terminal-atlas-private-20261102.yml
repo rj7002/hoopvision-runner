@@ -34,6 +34,8 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git sparse-checkout set --no-cone \
             /gamepulse/fusion/igp81_default_team_offrtg.py \
+            /gamepulse/fusion/igp_full88_default_engine_v1.py \
+            /gamepulse/fusion/qa/igp_fullx/shot_event_multiview_full88_v1.json \
             /gamepulse/fusion/universal_possession_alignment_2026.py \
             /gamepulse/fusion/igp_full81_possession_terminal_rootcause_v1.py \
             /gamepulse/fusion/qa/igp81_nba_team_offrtg_reporting_default_v1.json \
@@ -71,6 +73,9 @@ jobs:
           assert x['games']==81 and x['team_games']==162
           assert x['totals']['nba']==16508 and x['totals']['candidate']==16484
           assert x['totals']['abs']==156 and x['totals']['exact']==54
+          assert x['frozen81_original_sha_exact_game_count']==71
+          assert x['new_full88_source_version_shadow_game_count']==10
+          assert x['source_version_shadow_not_frozen81_reproduction']
           assert x['not_certified_physical_possessions']
           print('FULL81_P2_PRIVATE_TERMINAL_SOURCE_AUDIT',x['games'],
                 x['source_replay_games_succeeded'],
