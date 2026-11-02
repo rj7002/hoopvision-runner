@@ -858,3 +858,60 @@ jobs:
             sleep "$n"
           done
           exit 44
+
+
+  private-rockets-original-nba-headshots:
+    name: Source original NBA Rockets transparent portrait strip
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/full92-all-event-rebound-tracking-20261103
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Guard public-private boundary then private clone
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: Download 9 real NBA CDN PNGs and create deterministic alpha portrait strip
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -m pip install -q Pillow
+          python3 gamepulse/fusion/export_full92_rockets_nba_headshot_strip_v1.py > "$RUNNER_TEMP/private-nba-cutout.log" 2>&1 || {
+            echo ROCKETS_NBA_CDN_PORTRAIT_SHADOW_FAILED
+            exit 42
+          }
+          python3 - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          p=Path('gamepulse/fusion/qa/igp_fullx')
+          d=json.loads((p/'houston_rockets_full92_9_original_nba_cutouts_manifest.json').read_bytes())
+          blob=(p/'houston_rockets_full92_9_original_nba_cutouts.webp').read_bytes()
+          assert len(d['players'])==9 and d['no_generations']
+          assert hashlib.sha256(blob).hexdigest()==d['image_sha256']
+          print('ORIGINAL_NBA_PORTRAIT_STRIP_PASS',len(blob),len(d['players']))
+          PY
+      - name: Preserve authentic NBA image and source receipts in private repo only
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_fullx/houston_rockets_full92_9_original_nba_cutouts.webp
+          git add -f gamepulse/fusion/qa/igp_fullx/houston_rockets_full92_9_original_nba_cutouts_manifest.json
+          git diff --cached --check
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -qm 'graphic(igp): nine real NBA Rockets transparent portraits for Full92 graphic'
+          for n in 1 2 3 4 5 6 7; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then exit 0; fi
+            sleep "$n"
+          done
+          exit 44
