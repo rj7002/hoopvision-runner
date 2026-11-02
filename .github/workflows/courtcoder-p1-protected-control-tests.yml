@@ -8,6 +8,7 @@ on:
       - research/courtcoder-p1-dual-gate-controls-20261102
       - research/courtcoder-p1-strict-protected-controls-20261102
       - research/courtcoder-v28-tier99-guarded-tests-20261102
+      - research/courtcoder-v29-blocked-selfconsistency-20261102
       - main
     paths:
       - .github/workflows/courtcoder-p1-protected-control-tests.yml
@@ -20,8 +21,8 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_HEAD_SHA: 3996d1f6b26b1aea71bcaae4e3b2bafc0c63367e
-      PRIVATE_SOURCE_BRANCH: research/courtcoder-v28-tier99-research-h1-envelope-20261102
+      PRIVATE_HEAD_SHA: 0e308c88f846fcecea6ef7ce471f83362c8a4221
+      PRIVATE_SOURCE_BRANCH: research/courtcoder-v29-blocked-model-label-risk-20261102
     steps:
       - uses: actions/checkout@v4
         with:
@@ -47,6 +48,7 @@ jobs:
             tools/diagnostics/cc_full81_p1_strict_h1_private_score.py \
             tools/diagnostics/cc_full81_p1_tiered_original_offline.py \
             tools/diagnostics/cc_full81_p1_h1_subset_envelope.py \
+            tools/diagnostics/cc_full81_p1_blocked_incumbent_self_consistency.py \
             > "$RUNNER_TEMP/courtcoder-private-compile.log" 2>&1 || { echo "COURTCODER_PRIVATE_COMPILE_FAILED"; exit 3; }
           failed=0
           for module in \
@@ -57,7 +59,8 @@ jobs:
             hoopvision.tests.test_p1_certified_worker_path \
             hoopvision.tests.test_p1_strict_evidence_gate \
             hoopvision.tests.test_p1_tiered_identity_shadow \
-            hoopvision.tests.test_p1_h1_subset_envelope; do
+            hoopvision.tests.test_p1_h1_subset_envelope \
+            hoopvision.tests.test_p1_blocked_model_label_holdout; do
             if python3 -m unittest "$module" > "$RUNNER_TEMP/courtcoder-private-tests.log" 2>&1; then
               echo "COURTCODER_SUITE_OK ${module##*.}"
             else
