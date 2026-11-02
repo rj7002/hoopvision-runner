@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full92-controlled-ball-minimal-shrinkage-fresh12-20261103.yml",  # private frozen player/ball 25pct shadow on 12 NEW games, per-game SHA only
     ".github/workflows/igp-full92-ball-control-hybrid-unseen-private-20261103.yml",  # private dev-frozen owner-linear ball tracking shadows; aggregate public only
     ".github/workflows/igp-full92-causal-ball-control-forward-private-20261103.yml",  # private source-masked Full92 one-sided ball control v2; aggregate-only public QA
     ".github/workflows/igp-full92-controlled-ball-persistence-private-20261103.yml",  # private original NBA Full92 player-relative ball source-mask and natural gap candidate QA; aggregate public only
