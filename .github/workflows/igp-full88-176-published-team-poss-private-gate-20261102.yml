@@ -1,0 +1,110 @@
+# Opaque public shell. ALL original official NBA advanced/box/PBP data stays in private 104.
+name: FULL88 176-team-game official NBA published POSS release gate
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full88-176-published-team-poss-private-gate-20261102.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: full88-published-poss-176-source-gate-20261102
+  cancel-in-progress: false
+jobs:
+  validate-private:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: analysis/igp-full88-two-game-original-source-recheck-20261102
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Check public/private isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+      - name: Recover exactly pinned immutable private 81+7 source and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
+            /gamepulse/fusion/igp_full88_default_engine_v1.py \
+            /gamepulse/fusion/igp81_default_team_offrtg.py \
+            /gamepulse/fusion/igp_full88_new7_official_team_poss_probe_v1.py \
+            /gamepulse/fusion/igp_full88_team_poss_promotion_gate_v1.py \
+            /gamepulse/fusion/qa/igp_fullx/shot_event_multiview_full88_v1.json \
+            /gamepulse/fusion/qa/igp_fullx/new7_nba_team_advanced_poss_probe_20261102/ \
+            /gamepulse/fusion/qa/igp81_nba_team_offrtg_reporting_default_v1.json \
+            /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600147.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600148.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600149.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600150.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600151.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600152.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600153.json \
+            /gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600147/boxscore.json \
+            /gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600148/boxscore.json \
+            /gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600149/boxscore.json \
+            /gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600150/boxscore.json \
+            /gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600151/boxscore.json \
+            /gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600152/boxscore.json \
+            /gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600153/boxscore.json
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/igp_full88_team_poss_promotion_gate_v1.py
+          python3 gamepulse/fusion/igp_full88_team_poss_promotion_gate_v1.py --self-test
+      - name: Independently reconcile original NBA published POSS and two source score records
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 gamepulse/fusion/igp_full88_team_poss_promotion_gate_v1.py > "$RUNNER_TEMP/private-team-gate-log" 2>&1 || {
+            python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          p=Path('gamepulse/fusion/qa/igp_fullx/full88_team_poss_gate_failure_private_20261102.json')
+          log=(Path(os.environ['RUNNER_TEMP'])/'private-team-gate-log').read_text()
+          p.write_text(json.dumps({'status':'FAILED','source_private_log_tail':log[-8000:]},indent=2)+'\\n')
+          PY
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add --sparse -f gamepulse/fusion/qa/igp_fullx/full88_team_poss_gate_failure_private_20261102.json
+            git commit -qm 'qa(private): FULL88 Team POSS source-gate failure evidence [skip ci]'
+            git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH" || true
+            echo "FULL88_TEAM_POSS_PRIVATE_SOURCE_GATE_FAILED"
+            exit 1
+          }
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('gamepulse/fusion/qa/igp_fullx/full88_advanced_team_poss_and_official_score_v1.json').read_bytes())
+          assert d['games']==88 and d['team_games']==176
+          assert d['official_team_poss']==17914 and d['new7_team_poss']==1406
+          assert len(d['per_new_game_provenance'])==7
+          assert len(d['team_game_rows'])==176
+          assert d['source_originals_unchanged'] and d['physical_possessions_independently_certified']==0
+          print('FULL88_PUBLISHED_TEAM_POSS_176_RECONCILED',d['games'],d['team_games'],d['official_team_poss'],d['new7_team_poss'])
+          PY
+      - name: Commit only source-grade result to private 104
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f gamepulse/fusion/qa/igp_fullx/full88_advanced_team_poss_and_official_score_v1.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo FULL88_PRIVATE_RELEASE_QA_ALREADY_IDENTICAL; exit 0; fi
+          git commit -qm 'qa(igp): verify official NBA team POSS+score for 176 FULL88 team games'
+          for attempt in 1 2 3 4 5; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then echo FULL88_176_POSS_PRIVATE_QA_COMMITTED; exit 0; fi
+            sleep "$attempt"
+          done
+          exit 24
