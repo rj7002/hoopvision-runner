@@ -18,7 +18,7 @@ jobs:
       SOURCE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
       SOURCE_SHA: b40dfac0f4ad7398faac9eeff2dd50100883d2e8
       CODE_BRANCH: research/igp-full92-census-preparation-20261102
-      CODE_SHA: 2c554c0c96765dd184a626a14942f86a858bdd44
+      CODE_SHA: 135bb4bdebced9f99090fe451b02a914cac6972c
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -31,6 +31,8 @@ jobs:
           gh auth setup-git
           git clone -q --depth=1 --filter=blob:none --sparse -b "$SOURCE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           cd "$RUNNER_TEMP/private"
+          git fetch -q --depth=1 origin "$SOURCE_SHA"
+          git checkout -q --detach "$SOURCE_SHA"
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA" || { echo IGP_FULL92_SOURCE_SHA_DRIFT; exit 20; }
           git sparse-checkout set gamepulse/fusion
           git fetch -q --depth=1 origin "$CODE_BRANCH"
@@ -43,6 +45,41 @@ jobs:
           python3 -m unittest discover -s gamepulse/fusion/tests -p test_igp_full92_tracking_source_census_v1.py > "$RUNNER_TEMP/private-census-tests.log" 2>&1 || { echo IGP_FULL92_SOURCE_FREE_TEST_FAILED; exit 22; }
           python3 -m unittest discover -s gamepulse/fusion/tests -p test_igp_full88_p2b_natural_gap_tier_v1.py > "$RUNNER_TEMP/private-guard-tests.log" 2>&1 || { echo IGP_FULL88_GUARD_TEST_FAILED; exit 23; }
           echo IGP_FULL92_PRIVATE_SOURCE_AND_TEST_PINS_PASS
+      - name: Replay Full92 candidate runtime and rollback privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git show "$CODE_SHA:gamepulse/fusion/igp_full92_source_grade_default_v1.py" > gamepulse/fusion/igp_full92_source_grade_default_v1.py
+          git show "$CODE_SHA:gamepulse/fusion/qa/igp_fullx/full92_native_v4_source_proxy_research_20261102.json" > gamepulse/fusion/qa/igp_fullx/full92_native_v4_source_proxy_research_20261102.json
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full92_source_grade_default_v1.py
+          python3 - <<'PY' > "$RUNNER_TEMP/private-runtime.log" 2>&1
+          import igp_full92_source_grade_default_v1 as m
+          import igp_full88_source_grade_single_default_v4 as old
+          from pathlib import Path
+          root=Path('.')
+          q=m._qa(root)
+          for gid in m.NEW:
+              accepted=q['new4'][gid]['v4_single_source_qualified_utc_ms']
+              assert len(accepted)>0
+              for t in (accepted[0],accepted[len(accepted)//2],accepted[-1]):
+                  v=m.scene(root,gid,t,t)
+                  guarded=m.scene(root,gid,t,t,mode='guarded_10hz')
+                  assert v['rows'][0]['complete_ten_plus_ball'] is True
+                  assert guarded['rows'][0]['complete_ten_plus_ball'] is False
+                  assert v['rows'][0]['source_original_xyz_native']==guarded['rows'][0]['source_original_xyz_native']
+              assert m.query(root,game_id=gid,kind='shots',limit=2)['rows']
+              assert m.query(root,game_id=gid,kind='events',limit=2)['rows']
+          gid='0022600018'
+          x=old.query(root,game_id=gid,include_game_grades=False)
+          y=m.query(root,game_id=gid,include_game_grades=False)
+          assert x['source_grade_original_NBA_ten_ball_10hz_complete']==1286867
+          assert y['source_grade_original_NBA_ten_ball_10hz_complete']==x['source_grade_original_NBA_ten_ball_10hz_complete']
+          assert m.EXPLICIT_FULL88_V4_ROLLBACK==old.ENGINE_ID
+          print('FULL92_RUNTIME_PRIVATE_SAMPLE_AND_ROLLBACK_PASS')
+          PY
+          echo IGP_FULL92_PRIVATE_RUNTIME_SAMPLE_PASS
       - name: Benchmark all four SHA native games privately
         shell: bash
         run: |
