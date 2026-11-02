@@ -47,7 +47,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
           python3 gamepulse/fusion/igp_full92_all_event_rebound_tracking_v1.py \
-            --root . --game-id 0022600001 --out-dir "$RUNNER_TEMP/igp-full92-event-pilot" \
+            --root . --game-id 0022600001 --out-dir gamepulse/fusion/materialized/igp_full92_pbp_event_tracking_pilot_v1 \
             > "$RUNNER_TEMP/pilot.log" 2>&1 || {
               echo FULL92_EVENT_PILOT_FAILURE
               python3 - <<'PY'
@@ -65,7 +65,7 @@ jobs:
           python3 - <<'PY'
           import json,os
           from pathlib import Path
-          d=json.loads((Path(os.environ["RUNNER_TEMP"])/"igp-full92-event-pilot"/"index.json").read_bytes())
+          d=json.loads(Path("gamepulse/fusion/materialized/igp_full92_pbp_event_tracking_pilot_v1/index.json").read_bytes())
           c=d["counts"]
           assert d["games"]==1 and c["official_actions"]==593
           assert c["type:2pt"]+c["type:3pt"]==174
