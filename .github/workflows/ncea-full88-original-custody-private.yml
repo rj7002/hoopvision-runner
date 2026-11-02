@@ -16,7 +16,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       SOURCE_REF: research/ncea-all88-custody-shadow-20261102
-      SOURCE_SHA: bb9e482a0285eecf7eccd84b05440a9e065013bc
+      SOURCE_SHA: 7ad4496779451f819b45a982ffbd80f174e7cb68
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -99,7 +99,7 @@ jobs:
           j=json.loads(Path("gamepulse/fusion/qa/igp_fullx/ncea_ball_masked_holdout_shadow_v1.json").read_text())
           assert j["study_events"]==250
           assert j["counts"]["withheld_ball_target_slots"]>50
-          assert j["baseline"]=="LINEAR_INTERPOLATION_NOT_FROZEN_P2B"
+          assert j["baseline"]=="LINEAR_INTERPOLATION_NOT_FROZEN_P2B"\n          assert j["additional_reference"]=="EXACT_P2B_80FTS_800MS_BALL_PRIMITIVE_WITHOUT_OFFICIAL_LIVE_SEGMENT"\n          assert j["counts"]["p2b_primitive_source_slots"]>0
           assert j["ten_player_engine_accuracy_measured"] is False
           assert j["promoted_to_default"] is False
           print("NCEA_MASKED_BALL_SOURCE_QA",j["counts"]["withheld_ball_target_slots"],"source-truth frames")
