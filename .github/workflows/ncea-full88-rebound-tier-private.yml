@@ -1,0 +1,82 @@
+# Source-locked opt-in private Full88 rebound evidence tiering. Raw XYZ never public.
+name: Full88 rebound evidence tiers and matched event QA
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/ncea-full88-rebound-tier-private.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: ncea-full88-rebound-tier-20261102
+  cancel-in-progress: false
+jobs:
+  rebound-private-tier:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      SOURCE_REF: research/ncea-full88-rebound-physical-shadow-20261102
+      SOURCE_SHA: b73d5d8a772c17efa6089f642b4bc3f9194ab249
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Protect public private trust boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Sparse checkout exactly pinned private branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$SOURCE_REF" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$SOURCE_SHA"
+      - name: Execute original SHA-locked full88 source-tier evaluation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/analysis/ncea_full88_rebounds_evidence_tiers_v1.py
+          python3 gamepulse/fusion/analysis/ncea_full88_rebounds_evidence_tiers_v1.py --self-test
+          python3 gamepulse/fusion/analysis/ncea_full88_rebounds_evidence_tiers_v1.py --root .
+      - name: Enforce official action census and no physical promotion
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          a=Path("gamepulse/fusion/qa/igp_fullx/ncea_full88_rebounds_evidence_tiers_v1.json")
+          b=Path("gamepulse/fusion/qa/igp_fullx/ncea_full88_rebounds_evidence_tiers_v1.jsonl")
+          q=json.loads(a.read_text());tr=q["new_vs_old_matched_event_transitions"]
+          assert q["games"]==88 and q["official_rebounds"]==9523
+          assert q["eligible_player_rebounds"]==7809
+          assert q["new_window_candidates"]==6724
+          assert tr["old_new"]==6342 and tr["no_old_new"]==382 and tr["old_no_new"]==4
+          assert sum(1 for _ in b.open())==9523
+          assert q["independent_video_validated_rebounds"]==0 and q["default_engine_promoted"] is False
+          print("NCEA_REBOUND_TIERS_PRIVATE_ACCEPTED",q["official_rebounds"],"events",q["new_window_candidates"],"source candidates")
+          PY
+      - name: Persist source tiers in private repository only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_fullx/ncea_full88_rebounds_evidence_tiers_v1.json gamepulse/fusion/qa/igp_fullx/ncea_full88_rebounds_evidence_tiers_v1.jsonl
+          git diff --cached --check
+          if git diff --cached --quiet; then echo PRIVATE_TIER_QA_IDENTICAL; exit 0; fi
+          git commit -q -m "qa(private): full88 source-first rebound evidence tier and old/new paired audit"
+          for i in 1 2 3 4; do
+            git fetch -q origin "$SOURCE_REF"
+            git rebase -q "origin/$SOURCE_REF"
+            if git push -q origin "HEAD:refs/heads/$SOURCE_REF"; then echo PRIVATE_TIER_QA_COMMITTED; exit 0; fi
+            sleep "$i"
+          done
+          exit 17
