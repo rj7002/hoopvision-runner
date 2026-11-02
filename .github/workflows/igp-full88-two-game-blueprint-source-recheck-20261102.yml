@@ -1,0 +1,92 @@
+# Opaque public/private runner. Raw first-party NBA payloads and exact events stay in private 104.
+name: IGP FULL88 two-game Blueprint original-source revision recheck
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full88-two-game-blueprint-source-recheck-20261102.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full88-blueprint-source-recheck-20261102
+  cancel-in-progress: false
+jobs:
+  private-source-recheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      SOURCE_BRANCH: analysis/igp-full88-two-game-original-source-recheck-20261102
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Enforce original/private-only boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+      - name: Load only pinned original Blueprint and FULL88 shot evidence privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$SOURCE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          git sparse-checkout set --no-cone \
+            /scripts/update_nba_blueprint_daily_2026_27.py \
+            /data/extensions/nba_blueprint_2026_27/games/0022600111/ \
+            /data/extensions/nba_blueprint_2026_27/games/0022600143/ \
+            /gamepulse/fusion/igp_full88_default_engine_v1.py \
+            /gamepulse/fusion/igp_full88_blueprint_source_recheck_v1.py \
+            /gamepulse/fusion/qa/igp_fullx/shot_event_multiview_full88_v1.json \
+            /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_event_multiview_full88_v1/shots/0022600111.jsonl.gz \
+            /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_event_multiview_full88_v1/shots/0022600143.jsonl.gz
+          python3 -m py_compile gamepulse/fusion/igp_full88_blueprint_source_recheck_v1.py
+          python3 gamepulse/fusion/igp_full88_blueprint_source_recheck_v1.py --self-test
+      - name: Re-fetch authentic source; preserve prior versions and exact provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 gamepulse/fusion/igp_full88_blueprint_source_recheck_v1.py --root . > "$RUNNER_TEMP/private-source-log" 2>&1 || {
+            echo "IGP_FULL88_PRIVATE_SOURCE_RECHECK_FAILED"
+            exit 1
+          }
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('gamepulse/fusion/qa/igp_fullx/blueprint_fresh_recheck_20261102/summary.json')
+          x=json.loads(p.read_bytes())
+          assert x['games_checked']==2
+          assert x['no_source_or_default_model_promotion']
+          assert len(x['statuses'])==2
+          assert 0<=x['potential_exact_recoveries']<=218
+          print("FULL88_SOURCE_RECHECK_ACCEPTANCE_PRIVATE_AGGREGATES_ONLY",x['potential_exact_recoveries'],sorted(x['statuses'].values()))
+          PY
+      - name: Commit source revision candidates and detailed QA only to private 104
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f gamepulse/fusion/qa/igp_fullx/blueprint_fresh_recheck_20261102
+          for gid in 0022600111 0022600143; do
+            f="data/extensions/nba_blueprint_2026_27/games/$gid/blueprint_report_revision_20261102.json"
+            if test -f "$f"; then git add --sparse -f "$f"; fi
+          done
+          git diff --cached --check
+          if git diff --cached --quiet; then echo FULL88_RECHECK_PRIVATE_QA_UNCHANGED; exit 0; fi
+          git commit -qm "qa(igp): original Blueprint source revision recovery, frozen FULL88 unchanged"
+          for i in 1 2 3 4 5; do
+            git fetch -q origin "$SOURCE_BRANCH"
+            git rebase -q "origin/$SOURCE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$SOURCE_BRANCH"; then
+              echo FULL88_PRIVATE_RECHECK_QA_COMMITTED
+              exit 0
+            fi
+            sleep "$i"
+          done
+          echo FULL88_RECHECK_PRIVATE_QA_PUSH_FAILED
+          exit 24
