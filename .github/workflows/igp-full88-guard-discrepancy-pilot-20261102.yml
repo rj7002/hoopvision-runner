@@ -1,5 +1,5 @@
 # Opaque public bridge. Private source only; first run after exact path guard review.
-name: Full88 guard discrepancy private pilot
+name: Full88 guard discrepancy complete private source audit
 on:
   push:
     branches: [main]
@@ -12,11 +12,11 @@ concurrency:
 jobs:
   private-source-pilot:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 240
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: research/igp-full92-guard-source-forensic-20261102
-      PRIVATE_SHA: f20c0fa7f305a09006af4d2e35c3017e0d09277d
+      PRIVATE_SHA: e59fb014dd64be69230872ca35b3453bc21aea22
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -34,36 +34,44 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 -m py_compile gamepulse/fusion/igp_full88_guard_discrepancy_forensic_v1.py
           echo IGP_FORENSIC_PRIVATE_SOURCE_PIN_PASS
-      - name: Run original NBA source game 0018 discrepancy audit
+      - name: Replay all 88 original NBA games in four serial partitions
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
-          target=gamepulse/fusion/qa/igp_fullx/full88_guard_forensic_pilot_0018.json
-          python3 gamepulse/fusion/igp_full88_guard_discrepancy_forensic_v1.py --root . --game-id 0022600018 --out "$target" > "$RUNNER_TEMP/forensic-private.log" 2>&1 || {
-            echo IGP_FORENSIC_PRIVATE_SOURCE_AUDIT_FAILED
-            exit 21
+          for part in 0 1 2 3; do
+            target="gamepulse/fusion/qa/igp_fullx/full88_guard_forensic_shard_${part}.json"
+            python3 gamepulse/fusion/igp_full88_guard_discrepancy_forensic_v1.py --root . --shard "$part" --out "$target" > "$RUNNER_TEMP/forensic-private-${part}.log" 2>&1 || {
+              echo IGP_FORENSIC_PRIVATE_SHARD_FAILED "$part"
+              exit 21
+            }
+            echo IGP_FORENSIC_PRIVATE_SHARD_PASS "$part"
+          done
+          target=gamepulse/fusion/qa/igp_fullx/full88_guard_forensic_all88.json
+          python3 gamepulse/fusion/igp_full88_guard_discrepancy_forensic_v1.py --root . --reduce --out "$target" > "$RUNNER_TEMP/forensic-private-reduce.log" 2>&1 || {
+            echo IGP_FORENSIC_PRIVATE_REDUCTION_FAILED
+            exit 22
           }
           python3 - <<'PY'
           import json
           from pathlib import Path
-          q=json.loads(Path('gamepulse/fusion/qa/igp_fullx/full88_guard_forensic_pilot_0018.json').read_text())
-          assert q['scope']=='one_game' and q['discrepancy_scenes']==71
-          assert len(q['games'])==1 and q['default_changed'] is False
-          assert sum(q['root_cause_classes'].values())==71
-          print('IGP_FORENSIC_PRIVATE_SOURCE_PILOT_PASS',json.dumps(q['root_cause_classes'],sort_keys=True))
+          q=json.loads(Path('gamepulse/fusion/qa/igp_fullx/full88_guard_forensic_all88.json').read_text())
+          assert q['scope']=='full88' and q['discrepancy_scenes']==2448
+          assert len(q['games'])==88 and q['default_changed'] is False
+          assert sum(q['root_cause_classes'].values())==2448
+          print('IGP_FORENSIC_PRIVATE_FULL88_PASS',json.dumps(q['root_cause_classes'],sort_keys=True))
           PY
       - name: Commit detailed evidence to private isolated branch
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          target=gamepulse/fusion/qa/igp_fullx/full88_guard_forensic_pilot_0018.json
+          target=gamepulse/fusion/qa/igp_fullx/full88_guard_forensic_all88.json
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f "$target"
+          git add -f "$target" gamepulse/fusion/qa/igp_fullx/full88_guard_forensic_shard_*.json
           git diff --cached --check
-          git commit -qm 'qa(private): SHA original guard discrepancy pilot 0018 [skip ci]'
+          git commit -qm 'qa(private): SHA original 88 game guard discrepancy root causes [skip ci]'
           git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"
           echo IGP_FORENSIC_PRIVATE_EVIDENCE_COMMITTED
