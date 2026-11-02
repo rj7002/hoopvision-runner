@@ -16,7 +16,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       SOURCE_REF: research/ncea-full88-rebound-physical-shadow-20261102
-      SOURCE_SHA: e688a315b39e31de127282467c437ab82473e54f
+      SOURCE_SHA: 134cddf9946776ea8453f895acb7fde174981518
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -62,6 +62,24 @@ jobs:
           assert sum(1 for _ in b.open())==9523
           assert q["independent_video_validated_rebounds"]==0 and q["default_engine_promoted"] is False
           print("NCEA_REBOUND_TIERS_PRIVATE_ACCEPTED",q["official_rebounds"],"events",q["new_window_candidates"],"source candidates")
+          PY
+      - name: Validate SHA-pinned opt-in rebound geography query
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/analysis/ncea_full88_rebounds_query_v1.py
+          python3 gamepulse/fusion/analysis/ncea_full88_rebounds_query_v1.py --self-test
+          python3 gamepulse/fusion/analysis/ncea_full88_rebounds_query_v1.py --root . --source-union-only
+          python3 - <<'PY'
+          from gamepulse.fusion.analysis.ncea_full88_rebounds_query_v1 import query
+          z=query(".",only_union=True,limit=2)
+          assert z["total_matches"]==6728 and len(z["events"])==2
+          assert all(a["physical_first_touch_certified"] is False for a in z["events"])
+          assert all("private_native_evidence" not in a for a in z["events"])
+          y=query(".",rebound_kind="offensive",only_union=True,limit=0)
+          assert y["total_matches"]==1737
+          print("NCEA_REBOUND_OPTIN_PRIVATE_QUERY_ACCEPTED",z["total_matches"],"union candidates",y["total_matches"],"offensive source candidates")
           PY
       - name: Persist source tiers in private repository only
         shell: bash
