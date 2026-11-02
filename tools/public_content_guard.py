@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full92-causal-ball-control-forward-private-20261103.yml",  # private source-masked Full92 one-sided ball control v2; aggregate-only public QA
     ".github/workflows/igp-full92-controlled-ball-persistence-private-20261103.yml",  # private original NBA Full92 player-relative ball source-mask and natural gap candidate QA; aggregate public only
     ".github/workflows/igp-full92-ball-flight-physics-shadow-private-20261103.yml",  # private NBA XYZ source-masked gravity flight test; aggregate no coordinates public
     ".github/workflows/gamepulse-full92-event-query-verified-readback-20261103.yml",  # public-safe Full92 private source event query/pointer SHA readback; aggregate tests only
