@@ -38,9 +38,20 @@ function names(tag){
 }
 function ensure(tag){
  if(names(tag)!==null)return;
- const result=gh(['release','create',tag,'--repo',REPO,'--target','main','--title',tag,
-  '--notes','Private licensed SDK capture; no public observation assets','--latest=false']);
- if(!result.ok && names(tag)===null)throw Error('private_release_create_failed');
+ // Multiple part workers can race to create the same private Release.
+ // Only retry transient/concurrent outcomes; do not mask auth/rate-limit errors.
+ for(let attempt=0;attempt<5;attempt++){
+  const result=gh(['release','create',tag,'--repo',REPO,'--target','main','--title',tag,
+   '--notes','Private licensed SDK capture; no public observation assets','--latest=false']);
+  if(result.ok)return;
+  if(result.category==='RATE_LIMIT')throw Error('private_release_create_rate_limited');
+  if(result.category==='FORBIDDEN')throw Error('private_release_create_forbidden');
+  if(names(tag)!==null)return; // A different worker may have created the tag.
+  if(!['CONFLICT','SERVER_ERROR','TIMEOUT'].includes(result.category))
+   throw Error('private_release_create_failed_'+result.category);
+  spawnSync('sleep',[String(2**attempt)],{stdio:'ignore'});
+ }
+ throw Error('private_release_create_retry_exhausted');
 }
 function download(tag,name,directory){
  const path=join(directory,name);
