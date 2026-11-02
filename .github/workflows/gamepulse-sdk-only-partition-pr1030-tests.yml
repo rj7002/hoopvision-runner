@@ -41,7 +41,7 @@ jobs:
             test "$(git hash-object "$work/$name")" = "$sha" ||
               { echo 'PINNED_PRIVATE_BLOB_MISMATCH'; exit 4; }
           }
-          fetch_pinned 652830c5f5877f5b927a9a6644892700fd61c69d sdk_only_native_label_partition_2026.py
+          fetch_pinned 8afd98a4f8d7c4e2a9fded8d62452814ca63d872 sdk_only_native_label_partition_2026.py
           fetch_pinned 47b7dfe7799cdc50390c90f4fe9ade7e7e01091f test_sdk_only_native_label_partition_2026.py
           fetch_pinned 9436ed5d7badc87645175182a261b411ed7c5b9c gamepulse_ball_dynamics.py
           fetch_pinned 52968cc4c1faa6389a9f3cda6b44ab0aa4f72245 gamepulse_ball_control.py
@@ -54,3 +54,47 @@ jobs:
           python3 -m py_compile sdk_only_native_label_partition_2026.py
           python3 -m unittest -v test_sdk_only_native_label_partition_2026
           echo 'PR1030_SYNTHETIC_SOURCE_QA_PASS_NOT_REAL_SDK_ACCEPTANCE'
+
+      - name: Validate 12 private release-metadata pins against authenticated GitHub API (not SDK byte QA)
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          work="$RUNNER_TEMP/sdk-only-pr1030"
+          for n in $(seq 119 130); do
+            game=$(printf '002260%04d' "$n")
+            gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/trusted_sdk_release_manifests_2026/${game}.json?ref=f6e422fa6c5ce2e01959826fbcaaaf678b73ee00" --jq .content |
+              base64 --decode > "$work/${game}.json"
+            gh api "repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-${game}" > "$work/${game}.release.json"
+          done
+          cd "$work"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from sdk_only_native_label_partition_2026 import (
+              PINNED_GAME_RELEASE_MANIFEST_SHA256, PARTS, verify_release_manifest,
+          )
+          assert len(PINNED_GAME_RELEASE_MANIFEST_SHA256) == 12
+          for n in range(119, 131):
+              game = f"002260{n:04d}"
+              raw = Path(f"{game}.json").read_bytes()
+              parts = verify_release_manifest(
+                  game, raw, PINNED_GAME_RELEASE_MANIFEST_SHA256[game])
+              manifest = json.loads(raw)
+              release = json.loads(Path(f"{game}.release.json").read_text())
+              meta = manifest["release_metadata_provenance"]
+              assert meta["authority"] == "AUTHENTICATED_PRIVATE_GITHUB_RELEASE_API"
+              assert release["id"] == meta["release_id"]
+              assert release["tag_name"] == manifest["release_tag"]
+              assets = {a["name"]: a for a in release["assets"]}
+              assert len(parts) == len(PARTS) == 13
+              for name in PARTS:
+                  assert assets[name]["id"] == meta["sdk_part_asset_ids"][name]
+                  assert assets[name]["digest"] == "sha256:" + parts[name]
+              complete = assets["sdk-COMPLETE.json"]
+              assert complete["id"] == meta["sdk_complete_asset_id"]
+              assert complete["digest"] == (
+                  "sha256:" + meta["sdk_complete_reported_sha256"])
+          print("PRIVATE_RELEASE_METADATA_PIN_PARITY_12_OF_12")
+          print("NOT_DOWNLOADED_ARCHIVE_BYTE_QA_NOT_GAMEPLAY_CERTIFICATION")
+          PY
