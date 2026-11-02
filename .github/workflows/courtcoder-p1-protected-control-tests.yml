@@ -75,6 +75,22 @@ jobs:
               echo "COURTCODER_SUITE_OK ${module##*.}"
             else
               echo "COURTCODER_SUITE_FAILED ${module##*.}"
+              if [ "$module" = hoopvision.tests.test_p1_native_gap_confidence ]; then
+                for case in \
+                  test_four_roots_smooth_are_analysis_only \
+                  test_outer_gap_abstains_but_preserves_original_two_root \
+                  test_camera_cut_blocks_four_root_promotion \
+                  test_authorization_and_identity_spoof_rejected \
+                  test_duplicate_gap_rows_and_source_rejected \
+                  test_camera_cut_at_inner_pair_is_not_accepted \
+                  test_invalid_velocity_gate_rejected; do
+                  if python3 -m unittest "$module.FourAnchorConfidenceTests.$case" > "$RUNNER_TEMP/courtcoder-private-case.log" 2>&1; then
+                    echo "V31_TEST_OK $case"
+                  else
+                    echo "V31_TEST_FAILED $case"
+                  fi
+                done
+              fi
               if [ "$module" = hoopvision.tests.test_p1_strict_evidence_gate ]; then
                 n=0
                 for case in \
