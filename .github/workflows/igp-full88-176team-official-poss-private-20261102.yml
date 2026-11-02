@@ -26,7 +26,7 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
-          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          test "$GITHUB_REPOSITORY" = "timeedmonds-maker/hoopvision-runner"
           gh auth setup-git
       - name: SHA-backed private cohort checkout and source-free checks
         shell: bash
@@ -139,7 +139,7 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
-          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          test "$GITHUB_REPOSITORY" = "timeedmonds-maker/hoopvision-runner"
           gh auth setup-git
       - name: Source-free dispatch regressions and original PBP/Advanced SHA readbacks
         shell: bash
@@ -207,7 +207,7 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
-          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          test "$GITHUB_REPOSITORY" = "timeedmonds-maker/hoopvision-runner"
           gh auth setup-git
       - name: Checkout full88 release entrypoint and immutable statistical source
         shell: bash
