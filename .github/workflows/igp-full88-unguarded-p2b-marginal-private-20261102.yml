@@ -1,0 +1,121 @@
+# Public CI is orchestration only; all licensed NBA XYZ and source QA stay in private 104.
+# Executes exact pinned private research mode, 63-unseen retrospective masks and rollbacks.
+name: Full88 opt-in unguarded P2B marginal evidence private gate
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full88-unguarded-p2b-marginal-private-20261102.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full88-unguarded-p2b-marginal-private-20261102
+  cancel-in-progress: false
+jobs:
+  private-source-grade-marginal-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/igp-full88-unguarded-p2b-marginal-20261102
+      PRIVATE_SHA: a473a6ffde629ee13823e4f61b54a3c8fa8aaa54
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Enforce opaque public runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Clone exact private code plus original source and run fail-closed regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          test "$(git rev-parse HEAD)" = "$PRIVATE_SHA" || { echo FULL88_UNGUARDED_PRIVATE_SHA_DRIFT; exit 20; }
+          git sparse-checkout set gamepulse/fusion
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile             gamepulse/fusion/igp_full88_unguarded_p2b_research_v1.py             gamepulse/fusion/igp_full88_p2b_marginal_holdout_audit_v1.py             gamepulse/fusion/igp_full88_default_engine_v3.py
+          for suite in test_igp_full88_unguarded_p2b_research_v1.py test_igp_full88_p2b_marginal_holdout_audit_v1.py test_igp_full88_default_engine_v3.py; do
+            python3 -m unittest discover -s gamepulse/fusion/tests -p "$suite" -q > "$RUNNER_TEMP/$suite.log" 2>&1 || {
+              echo FULL88_UNGUARDED_PRIVATE_UNIT_REGRESSION_FAILED
+              tail -n 18 "$RUNNER_TEMP/$suite.log" | sed -E 's/[0-9]{7,}/[private-id]/g'
+              exit 21
+            }
+          done
+          echo FULL88_UNGUARDED_EXPLICIT_MODE_SOURCE_FREE_AND_DEFAULT_V3_REGRESSION_PASS
+      - name: Verify original SHA and research-only real scene for old71 new10 and new7
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 - <<'PY' > "$RUNNER_TEMP/full88-research-scenes-private.log" 2>&1
+          from igp_full88_unguarded_p2b_research_v1 import _checked_source,scene,MODE
+          from igp_full88_default_engine_v3 import scene as canonical_scene
+          for gid in ("0022600001","0022600015","0022600153"):
+              frames,sha,pbp,windows,segments,cohort=_checked_source(".",gid)
+              t=next(((s[0]+99)//100)*100 for s in segments
+                     if s[2]=="LIVE" and ((s[0]+99)//100)*100<=s[1])
+              out=canonical_scene(".",gid,t,t+200,mode=MODE,limit=3)
+              assert out["mode"]==MODE and len(out["rows"])>0
+              assert out["reporting_default_unchanged"] is True
+              assert all(z["experimental_coordinates_promoted"] is False for z in out["rows"])
+              assert all(z.get("physical_possession_boundary_certified") is not True for z in out["rows"])
+          print("FULL88_EXPLICIT_RESEARCH_SCENE_THREE_COHORTS_SOURCE_VERIFIED")
+          PY
+          grep -q FULL88_EXPLICIT_RESEARCH_SCENE_THREE_COHORTS_SOURCE_VERIFIED "$RUNNER_TEMP/full88-research-scenes-private.log" || {
+            echo FULL88_UNGUARDED_PRIVATE_NATIVE_PBP_SCENE_FAILURE
+            exit 22
+          }
+          echo FULL88_EXPLICIT_UNGUARDED_OLD71_NEW10_NEW7_SCENE_PASS
+      - name: Run original-source masked retrospective across 63 untouched-by-P2B-training games
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 gamepulse/fusion/igp_full88_p2b_marginal_holdout_audit_v1.py             --root . --max-games 63             --out gamepulse/fusion/qa/igp_fullx/full88_unguarded_p2b_marginal_retrospective_63_20261102.json             > "$RUNNER_TEMP/unguarded-marginal-private.log" 2>&1 || {
+              echo FULL88_UNGUARDED_MARGINAL_ORIGINAL_SHA_HOLDOUT_FAILED
+              exit 23
+            }
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          p=Path('gamepulse/fusion/qa/igp_fullx/full88_unguarded_p2b_marginal_retrospective_63_20261102.json')
+          x=json.loads(p.read_text())
+          assert x["games_evaluated"]==63
+          assert x["frozen_71_unguarded_source_complete"]==1035995
+          assert x["frozen_71_guarded_accepted_default_complete"]==1015072
+          assert x["RETROSPECTIVE_63_not_new_unseen_validation"] is True
+          assert x["promoted_to_guarded_default"]==0
+          assert x["grouped_holdout"]["single_r500_ALL"]["tested"]==4032
+          print("FULL88_UNGUARDED_63_RETROSPECTIVE_SOURCE_MASK_AND_QUALITY_GROUPS_PASS")
+          PY
+      - name: Save exact masked-original error strata PRIVATE ONLY
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          target=gamepulse/fusion/qa/igp_fullx/full88_unguarded_p2b_marginal_retrospective_63_20261102.json
+          git add -f "$target"
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo FULL88_UNGUARDED_PRIVATE_QA_ALREADY_COMMITTED
+            exit 0
+          fi
+          git commit -qm 'qa(private): save 63-game masked unguarded-vs-guarded marginal holdout [skip ci]'
+          for attempt in 1 2 3 4 5; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH" || exit 27
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo FULL88_UNGUARDED_RETROSPECTIVE_PRIVATE_SOURCE_QA_COMMITTED
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 28
