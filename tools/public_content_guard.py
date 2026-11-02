@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/courtcoder-p1-protected-control-tests.yml",  # protected ephemeral private-code unit tests; no private model/video/labels in public repo or logs
     ".github/workflows/ncea-full88-rebound-tier-private.yml",  # reviewed SHA-original private-only rebound event-tier source audit and bounded aggregate logs
     ".github/workflows/ncea-full88-rebound-physical-private.yml",  # reviewed opaque pinned NBA-source Full88 rebound candidate and masked QA; detailed data private only
     ".github/workflows/ncea-full88-multi-event-original-shadow-private.yml",  # reviewed opaque source-pinned private-only Full88 event QA; public aggregate counts only

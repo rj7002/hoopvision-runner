@@ -1,0 +1,67 @@
+# Public repo contains only private commit refs and source-free test entrypoints.
+# Private source, video, labels, model outputs and diagnostics stay private.
+name: CourtCoder protected P1 CPU source-free controls
+on:
+  push:
+    branches:
+      - research/courtcoder-p1-public-safe-controls-20261102
+      - main
+    paths:
+      - .github/workflows/courtcoder-p1-protected-control-tests.yml
+      - tools/public_content_guard.py
+permissions:
+  contents: read
+jobs:
+  private-control-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_HEAD_SHA: 0b2ca7639cd810c53b116bd9d418a13414379a86
+      PRIVATE_SOURCE_BRANCH: research/courtcoder-p1-ocr-source-triage-20261102
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce public boundary
+        run: python3 tools/public_content_guard.py
+      - name: Execute pinned private Python CPU tests without public private-source logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_SOURCE_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PRIVATE_HEAD_SHA"
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$PRIVATE_HEAD_SHA"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set \
+            tools/diagnostics tools/github_first hoopvision/core hoopvision/tests
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PRIVATE_HEAD_SHA"
+          cd "$RUNNER_TEMP/private"
+          if python3 -m unittest -v \
+            hoopvision.tests.test_p1_ocr_source_triage \
+            hoopvision.tests.test_p1_worker_output_adapter \
+            hoopvision.tests.test_p1_identity_replay \
+            hoopvision.tests.test_p1_analytics_adapter \
+            > "$RUNNER_TEMP/courtcoder-private-tests.log" 2>&1; then
+            echo "COURTCODER_PINNED_PRIVATE_CPU_TESTS_PASS"
+          else
+            echo "COURTCODER_PINNED_PRIVATE_CPU_TESTS_FAIL_DIAGNOSTICS_PRIVATE_ONLY"
+            python3 - <<'PY'
+          import os
+          from pathlib import Path
+          log=Path(os.environ["RUNNER_TEMP"])/"courtcoder-private-tests.log"
+          private_message=Path(os.environ["RUNNER_TEMP"])/"courtcoder-private-comment.txt"
+          private_message.write_text(
+            "Pinned private CourtCoder CPU unit tests failed. Commit: "
+            +os.environ["PRIVATE_HEAD_SHA"]
+            +"\n\n"+log.read_text(errors="replace")[-16000:]
+          )
+          PY
+            gh api --method POST repos/timeedmonds-maker/104/issues/1002/comments \
+              -F body=@"$RUNNER_TEMP/courtcoder-private-comment.txt" >/dev/null || true
+            rm -f "$RUNNER_TEMP/courtcoder-private-tests.log" "$RUNNER_TEMP/courtcoder-private-comment.txt"
+            exit 1
+          fi
+          rm -f "$RUNNER_TEMP/courtcoder-private-tests.log"
