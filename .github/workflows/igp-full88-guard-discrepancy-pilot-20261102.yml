@@ -1,0 +1,69 @@
+# Opaque public bridge. Detailed source diagnostics stay in private 104.
+name: Full88 guard discrepancy private pilot
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full88-guard-discrepancy-pilot-20261102.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full88-guard-forensic-pilot-20261102
+  cancel-in-progress: false
+jobs:
+  private-source-pilot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/igp-full92-guard-source-forensic-20261102
+      PRIVATE_SHA: f20c0fa7f305a09006af4d2e35c3017e0d09277d
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Validate public boundary and private source pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          test "$(git rev-parse HEAD)" = "$PRIVATE_SHA" || { echo IGP_FORENSIC_PRIVATE_SHA_DRIFT; exit 20; }
+          git sparse-checkout set gamepulse/fusion
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full88_guard_discrepancy_forensic_v1.py
+          echo IGP_FORENSIC_PRIVATE_SOURCE_PIN_PASS
+      - name: Run original NBA source game 0018 discrepancy audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          target=gamepulse/fusion/qa/igp_fullx/full88_guard_forensic_pilot_0018.json
+          python3 gamepulse/fusion/igp_full88_guard_discrepancy_forensic_v1.py --root . --game-id 0022600018 --out "$target" > "$RUNNER_TEMP/forensic-private.log" 2>&1 || {
+            echo IGP_FORENSIC_PRIVATE_SOURCE_AUDIT_FAILED
+            exit 21
+          }
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          q=json.loads(Path('gamepulse/fusion/qa/igp_fullx/full88_guard_forensic_pilot_0018.json').read_text())
+          assert q['scope']=='one_game' and q['discrepancy_scenes']==71
+          assert len(q['games'])==1 and q['default_changed'] is False
+          assert sum(q['root_cause_classes'].values())==71
+          print('IGP_FORENSIC_PRIVATE_SOURCE_PILOT_PASS',json.dumps(q['root_cause_classes'],sort_keys=True))
+          PY
+      - name: Commit detailed evidence to private isolated branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          target=gamepulse/fusion/qa/igp_fullx/full88_guard_forensic_pilot_0018.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$target"
+          git diff --cached --check
+          git commit -qm 'qa(private): SHA original guard discrepancy pilot 0018 [skip ci]'
+          git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"
+          echo IGP_FORENSIC_PRIVATE_EVIDENCE_COMMITTED
