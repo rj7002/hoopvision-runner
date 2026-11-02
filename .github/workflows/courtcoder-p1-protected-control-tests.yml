@@ -10,6 +10,7 @@ on:
       - research/courtcoder-v28-tier99-guarded-tests-20261102
       - research/courtcoder-v29-blocked-selfconsistency-20261102
       - research/courtcoder-v30-original-gap-protected-controls-20261102
+      - research/courtcoder-v30-pin-merged-private-prod-20261102
       - main
     paths:
       - .github/workflows/courtcoder-p1-protected-control-tests.yml
@@ -22,8 +23,8 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_HEAD_SHA: 6bf5402f6475a75a2df41dd8e9ea17697af68f4c
-      PRIVATE_SOURCE_BRANCH: research/courtcoder-v30-original-odd-frame-physical-shadow-20261102
+      PRIVATE_HEAD_SHA: 6a4e5aadfa9f2313c9c727e5eab67db19c1800cf
+      PRIVATE_SOURCE_BRANCH: hoopvision-production
     steps:
       - uses: actions/checkout@v4
         with:
