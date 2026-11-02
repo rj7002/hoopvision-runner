@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full88-0004-original-feature-revision-private-20261102.yml",  # private-only Blueprint source shot-field diff after changed provider SHA, only aggregate public results
     ".github/workflows/igp-full88-three-gap-blueprint-fresh-private-20261102.yml",  # private-only first-party NBA Blueprint revision recheck on three missingness games, aggregate public outputs
     ".github/workflows/igp-full88-shot-source-rootcause-private-20261102.yml",  # opaque private 88-game original Blueprint vs exact shot-identity rootcause; aggregates only public
     ".github/workflows/igp-full88-v2-official-176-team-poss-acceptance-20261102.yml",  # protected private SHA-pinned FULL88 statistical v2 test, aggregate logs only
