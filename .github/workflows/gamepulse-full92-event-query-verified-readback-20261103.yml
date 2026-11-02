@@ -45,8 +45,10 @@ jobs:
           from igp_full92_all_event_rebound_tracking_v1 import query
           d=search(".", game_id="0022600001",event_type="rebound",limit=100)
           assert d["total_matches"]==104
-          assert all(x["event_type"]=="rebound" for x in d["records"])
-          p=[x for x in d["records"] if x["official_player_id"] is not None]
+          nextpage=search(".", game_id="0022600001",event_type="rebound",offset=100,limit=100)
+          rebound_rows=d["records"]+nextpage["records"]
+          assert len(rebound_rows)==104 and all(x["event_type"]=="rebound" for x in rebound_rows)
+          p=[x for x in rebound_rows if x["official_player_id"] is not None]
           assert len(p)==88
           selected=next(x for x in p if x["closest_native_frame_pointer"] is not None)
           raw=query(".", "0022600001",selected["action_number"],include_original_xyz=True)
