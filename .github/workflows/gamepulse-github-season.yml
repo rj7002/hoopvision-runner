@@ -41,6 +41,71 @@ jobs:
         with:
           node-version: '22'
       - run: node --test tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs
+  final-game-official-index:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 85
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      IGP_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Guard public runner, authenticate private GitHub
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Source-reconcile official newly final NBA games and index logical PBP
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$IGP_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_official_20_additive_20261029.py gamepulse/fusion/igp_auto_extend_unified_season_2026.py gamepulse/fusion/igp_post56_official_logical_chain_index_v1.py
+          python3 gamepulse/fusion/igp_official_20_additive_20261029.py --root . > "$RUNNER_TEMP/private-official-intake.log"
+          python3 gamepulse/fusion/igp_auto_extend_unified_season_2026.py --root . > "$RUNNER_TEMP/private-additive-intake.log"
+          python3 gamepulse/fusion/igp_post56_official_logical_chain_index_v1.py --root . > "$RUNNER_TEMP/private-chain-intake.log"
+          python3 - <<'PY'
+          import json,hashlib,gzip
+          from pathlib import Path
+          p=Path("gamepulse/fusion")
+          root=p/"materialized/igp_2026_27_unified_season_v3"
+          idx=json.loads((root/"index.json").read_bytes())
+          add=json.loads((root/"post56_additive_20261028/index.json").read_bytes())
+          ids=[f"0022600{i:03d}" for i in (154,155,156,157)]
+          assert idx["official_games"]==56 and len(idx["per_game_model"])==56
+          assert idx["total_indexed_games_including_additive"]>=92
+          assert set(ids)<=set(add["games"])
+          for gid in ids:
+            r=add["games"][gid]
+            for file,key in zip(r["official_pbp_original_paths"],
+                 ("original_nba_pbp_sha256","original_nba_boxscore_sha256","official_pbp_sha256")):
+              assert hashlib.sha256(Path(file).read_bytes()).hexdigest()==r[key]
+            chain=Path(r["nba_logical_chain_original_index"])
+            assert hashlib.sha256(chain.read_bytes()).hexdigest()==r["nba_logical_chain_original_index_sha256"]
+            d=json.loads(gzip.decompress(chain.read_bytes()))
+            assert d["game_id"]==gid and len(d["nba_logical_possessions"])==r["nba_logical_chain_count"]
+          print("IGP_OFFICIAL_LATEST_FOUR_SOURCE_GRADE_ACCEPTED",idx["total_indexed_games_including_additive"],len(ids))
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/official_pbp_timing gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028 gamepulse/fusion/qa/igp_progress_20261030/igp_autonomous_season_index_status.json gamepulse/fusion/qa/igp_progress_20261030/igp_post56_official_logical_12_chain_QA_v1.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo IGP_OFFICIAL_FOUR_ALREADY_SOURCE_INDEXED; exit 0; fi
+          git commit -q -m "data(igp): source-verifiable four new NBA final PBP and logical chains"
+          for n in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            git fetch -q origin "$IGP_BRANCH"
+            git rebase -q "origin/$IGP_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$IGP_BRANCH"; then echo IGP_FOUR_OFFICIAL_NBA_SOURCE_INDEX_COMMITTED; exit 0; fi
+            sleep "$n"
+          done
+          exit 23
+
   private-season:
     if: (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'
     needs: preflight
