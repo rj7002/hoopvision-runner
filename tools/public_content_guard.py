@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-55game-native-search-pr1030.yml",  # ephemeral SHA-verified private 55-game source-only search; public aggregate counts only
     ".github/workflows/gamepulse-sdk-only-partition-pr1030-tests.yml",  # SHA-pinned private synthetic-only SDK partition tests on free CPU; no licensed records public
     ".github/workflows/igp-full92-ball-tail-v10-private-20261103.yml",  # opaque protected native-ball tail source-masked evaluator (dedicated ref)
     ".github/workflows/igp-full92-controlled-ball-query-private-smoke-20261103.yml",  # private original observed-first Full92 ball query, no licensed XYZ public logs
