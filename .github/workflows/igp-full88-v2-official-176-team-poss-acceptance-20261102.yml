@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 35
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      BRANCH: analysis/igp-full88-two-game-original-source-recheck-20261102
+      BRANCH: release/igp-full88-v2-official-176-statistical-default-20261102
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -34,11 +34,13 @@ jobs:
           set -euo pipefail
           git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
+            /gamepulse/fusion/igp_default_engine.py \
             /gamepulse/fusion/igp_full88_default_engine_v1.py \
             /gamepulse/fusion/igp_full88_default_engine_v2.py \
             /gamepulse/fusion/igp_full88_team_statistical_reporting_v1.py \
             /gamepulse/fusion/igp81_default_team_offrtg.py \
             /gamepulse/fusion/tests/test_igp_full88_default_engine_v2.py \
+            /gamepulse/fusion/tests/test_igp_full88_default_engine_v1.py \
             /gamepulse/fusion/qa/igp_fullx/shot_event_multiview_full88_v1.json \
             /gamepulse/fusion/qa/igp_fullx/full88_advanced_team_poss_and_official_score_v1.json \
             /gamepulse/fusion/qa/igp81_nba_team_offrtg_reporting_default_v1.json
@@ -56,6 +58,8 @@ jobs:
           PYTHONPATH=gamepulse/fusion python3 - <<'PY'
           import igp_full88_team_statistical_reporting_v1 as s
           import igp_full88_default_engine_v2 as v
+          import igp_default_engine as canonical
+          assert canonical.ENGINE_ID==v.ENGINE_ID and canonical.query is v.query
           t=s.query(".",include_rows=False)
           assert t["team_games"]==176 and t["games"]==88
           assert t["team_possession_denominator"]==17914
