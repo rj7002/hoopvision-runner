@@ -84,6 +84,22 @@ jobs:
               echo "COURTCODER_SUITE_OK ${module##*.}"
             else
               echo "COURTCODER_SUITE_FAILED ${module##*.}"
+              if [ "$module" = hoopvision.tests.test_owner40_original_frame_freeze ]; then
+                for case in \
+                  test_true_packet_structure \
+                  test_packet_integrity \
+                  test_human_answer_absent_from_source_queue \
+                  test_original_bbox_ambiguity_abstains \
+                  test_multiframe_different_entity_abstains \
+                  test_wrong_video_source_rejected \
+                  test_p1_reads_real_shapinned_original_arm_not_h1_score_projection; do
+                  if python3 -m unittest "$module.OriginalCasePacketTest.$case" > "$RUNNER_TEMP/courtcoder-private-case.log" 2>&1; then
+                    echo "COURTCODER_OWNER40_CASE_OK $case"
+                  else
+                    echo "COURTCODER_OWNER40_CASE_FAILED $case"
+                  fi
+                done
+              fi
               if [ "$module" = hoopvision.tests.test_p1_native_gap_confidence ]; then
                 for case in \
                   test_four_roots_smooth_are_analysis_only \
