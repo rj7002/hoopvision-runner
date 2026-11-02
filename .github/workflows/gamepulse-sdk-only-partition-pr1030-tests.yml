@@ -144,6 +144,35 @@ jobs:
           print("SDK_NATIVE_LABEL_AND_FRAME_SPAN_COUNTS", game, len(native), len(spans))
           print("NOT_LIVE_GAMEPLAY_NOT_PHYSICAL_POSSESSION_CERTIFICATION")
           PY
+            gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/games/$game.json?ref=main" --jq .content |
+              base64 --decode > "$work/view-$game.json"
+            python3 sdk_only_native_label_partition_2026.py \
+              --game "$game" \
+              --sdk-dir "$work/sdk-$game" \
+              --expected-sdk-sha-json "$work/$game.json" \
+              --view "$work/view-$game.json" \
+              --out "$work/source-only-$game.json"
+            GAME_ID="$game" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          game = os.environ["GAME_ID"]
+          doc = json.loads(Path(f"source-only-{game}.json").read_text())
+          assert doc["game_id"] == game
+          assert doc["native_source_unique_touch_labels"] > 0
+          assert doc["native_labels_with_frame_observations"] > 0
+          assert doc["native_source_unique_touch_labels"] == len(doc["touches"])
+          assert doc["physical_possessions_certified"] == 0
+          assert doc["nba_pbp_action_tracking_utc_joins_certified"] == 0
+          assert all(t["nba_action_number"] is None and
+                     t["nba_team_possession_run"] is None and
+                     t["physical_possession_certified"] is False
+                     for t in doc["touches"])
+          print("SDK_ONLY_SOURCE_PARTITION_RESEARCH_QA_PASS", game,
+                doc["native_source_unique_touch_labels"],
+                doc["native_labels_with_frame_observations"])
+          PY
             rm -rf -- "$work/sdk-$game"
           done
           echo 'ALL_12_ORIGINAL_SDK_RELEASES_BYTE_SHA_AND_NATIVE_LABELS_VERIFIED'
+          echo 'ALL_12_SOURCE_ONLY_PARTITIONS_BUILT_RESEARCH_ONLY_NOT_PUBLISHED'
