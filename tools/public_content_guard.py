@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/ncea-full88-rebound-tier-private.yml",  # reviewed SHA-original private-only rebound event-tier source audit and bounded aggregate logs
     ".github/workflows/ncea-full88-rebound-physical-private.yml",  # reviewed opaque pinned NBA-source Full88 rebound candidate and masked QA; detailed data private only
     ".github/workflows/ncea-full88-multi-event-original-shadow-private.yml",  # reviewed opaque source-pinned private-only Full88 event QA; public aggregate counts only
     ".github/workflows/ncea-full88-original-custody-private.yml",  # private 4616-event NCEA original SDK shadow and controls; public aggregate counters only
