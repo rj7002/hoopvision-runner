@@ -17,7 +17,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: research/igp-full88-unguarded-p2b-marginal-20261102
-      PRIVATE_SHA: b6433069ae766805a57186baef78ec8b42a35fcd
+      PRIVATE_SHA: 0a683c53c37f597048dce02fcbb97f2f76a4f055
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
