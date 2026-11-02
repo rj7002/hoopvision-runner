@@ -13,6 +13,7 @@ on:
       - research/courtcoder-v30-pin-merged-private-prod-20261102
       - research/courtcoder-v31-gap-confidence-controls-20261102
       - research/courtcoder-v31-source-custody-controls-20261102
+      - research/courtcoder-v31-pin-merged-private-source-20261102
       - main
     paths:
       - .github/workflows/courtcoder-p1-protected-control-tests.yml
@@ -25,8 +26,8 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_HEAD_SHA: 7338472055c558ae5fe68b18f2dc0f56bb02be6b
-      PRIVATE_SOURCE_BRANCH: research/courtcoder-v31-source-custody-tightening-20261102
+      PRIVATE_HEAD_SHA: 42800497c63dc542099d7b6126f7cb209d3ef3a4
+      PRIVATE_SOURCE_BRANCH: hoopvision-production
     steps:
       - uses: actions/checkout@v4
         with:
