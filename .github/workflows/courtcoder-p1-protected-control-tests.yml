@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_HEAD_SHA: 07c4d8f60e63d4acd74016161ba12154713ec980
+      PRIVATE_HEAD_SHA: 9e16b98f8452f84ebccc2bca402306d6f1540a73
       PRIVATE_SOURCE_BRANCH: hoopvision-production
     steps:
       - uses: actions/checkout@v4
@@ -63,6 +63,7 @@ jobs:
             tools/diagnostics/cc_full81_owner40_original_frame_freeze.py \
             tools/diagnostics/cc_full81_owner40_protected_gcs_packet.py \
             tools/diagnostics/cc_full81_owner40_protected_end_to_end.py \
+            tools/diagnostics/cc_full81_h1_foot_support_sensitivity.py \
             > "$RUNNER_TEMP/courtcoder-private-compile.log" 2>&1 || { echo "COURTCODER_PRIVATE_COMPILE_FAILED"; exit 3; }
           failed=0
           for module in \
@@ -81,7 +82,8 @@ jobs:
             hoopvision.tests.test_recovered_owner_reviews_score \
             hoopvision.tests.test_owner40_original_frame_freeze \
             hoopvision.tests.test_owner40_protected_gcs_packet \
-            hoopvision.tests.test_owner40_protected_end_to_end; do
+            hoopvision.tests.test_owner40_protected_end_to_end \
+            hoopvision.tests.test_h1_foot_support_sensitivity; do
             if python3 -m unittest "$module" > "$RUNNER_TEMP/courtcoder-private-tests.log" 2>&1; then
               echo "COURTCODER_SUITE_OK ${module##*.}"
             else
