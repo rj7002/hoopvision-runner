@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full81-nba-poss-definition-private-20261102.yml",  # private-only NBA PBP vs published team POSS formula sensitivity, no provider claims/logs
     ".github/workflows/igp-full81-original-pbp-terminal-atlas-private-20261102.yml",  # opaque source-private original NBA PBP full81 terminal/poss discrepancy replay
     ".github/workflows/igp-full88-0004-original-feature-revision-private-20261102.yml",  # private-only Blueprint source shot-field diff after changed provider SHA, only aggregate public results
     ".github/workflows/igp-full88-three-gap-blueprint-fresh-private-20261102.yml",  # private-only first-party NBA Blueprint revision recheck on three missingness games, aggregate public outputs
