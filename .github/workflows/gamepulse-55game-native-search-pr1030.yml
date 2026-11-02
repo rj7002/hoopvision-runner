@@ -1,5 +1,5 @@
 name: Game Pulse 55-game source-native search research acceptance (PR1030)
-# Free CPU, private source bytes ephemeral. Never uploads original SDK labels.
+# Free CPU, private source bytes ephemeral. Never uploads original SDK labels or private query rows. 
 on:
   push:
     branches: [main]
