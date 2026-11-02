@@ -99,27 +99,31 @@ jobs:
           print("NOT_DOWNLOADED_ARCHIVE_BYTE_QA_NOT_GAMEPLAY_CERTIFICATION")
           PY
 
-      - name: Pilot actual downloaded-byte SDK QA for game 0022600119 (no public source output)
+
+      - name: Verify downloaded original SDK bytes and native labels for all 12 games (source stays ephemeral)
         shell: bash
         run: |
           set -euo pipefail
           umask 077
           work="$RUNNER_TEMP/sdk-only-pr1030"
-          mkdir -p "$work/sdk-0022600119"
-          gh release download gamepulse-sdk-0022600119 -R timeedmonds-maker/104 \
-            -D "$work/sdk-0022600119" \
-            -p 'sdk-part-*.tar.gz' -p 'sdk-COMPLETE.json'
           cd "$work"
-          python3 - <<'PY'
+          for n in $(seq 119 130); do
+            game=$(printf '002260%04d' "$n")
+            mkdir -p "$work/sdk-$game"
+            gh release download "gamepulse-sdk-$game" -R timeedmonds-maker/104 \
+              -D "$work/sdk-$game" \
+              -p 'sdk-part-*.tar.gz' -p 'sdk-COMPLETE.json'
+            GAME_ID="$game" python3 - <<'PY'
           import hashlib
           import json
+          import os
           from pathlib import Path
           from sdk_only_native_label_partition_2026 import (
               PINNED_GAME_RELEASE_MANIFEST_SHA256, PARTS,
               verify_release_manifest, verify_archives,
           )
           from gamepulse_ball_dynamics import native_touches
-          game = "0022600119"
+          game = os.environ["GAME_ID"]
           raw = Path(f"{game}.json").read_bytes()
           manifest = json.loads(raw)
           expected = verify_release_manifest(
@@ -131,14 +135,15 @@ jobs:
           assert hashlib.sha256(complete_bytes).hexdigest() == (
               manifest["release_metadata_provenance"]["sdk_complete_reported_sha256"])
           complete = json.loads(complete_bytes)
-          assert isinstance(complete, dict)
-          print("SDK_0119_DOWNLOADED_BYTE_SHA_VERIFIED_13_OF_13")
-          print("SDK_0119_COMPLETE_REPORT_SHA_VERIFIED")
-          print("SDK_0119_COMPLETE_TOP_LEVEL_KEYS", sorted(complete.keys()))
+          assert isinstance(complete, dict) and str(complete.get("game_id")) == game
           native, diagnostics, spans = native_touches(
               [sdk / name for name in PARTS], with_frame_diagnostics=True)
-          assert native and spans, "SDK_0119_NO_NATIVE_TOUCH_OR_FRAME_EVIDENCE"
-          print("SDK_0119_SOURCE_NATIVE_LABELS", len(native))
-          print("SDK_0119_SOURCE_NATIVE_FRAME_SPANS", len(spans))
+          assert native and spans, "NO_NATIVE_TOUCH_OR_FRAME_EVIDENCE"
+          print("SDK_ORIGINAL_BYTE_SHA_13_OF_13", game)
+          print("SDK_COMPLETE_BYTE_SHA_AND_GAME_ID_VERIFIED", game)
+          print("SDK_NATIVE_LABEL_AND_FRAME_SPAN_COUNTS", game, len(native), len(spans))
           print("NOT_LIVE_GAMEPLAY_NOT_PHYSICAL_POSSESSION_CERTIFICATION")
           PY
+            rm -rf -- "$work/sdk-$game"
+          done
+          echo 'ALL_12_ORIGINAL_SDK_RELEASES_BYTE_SHA_AND_NATIVE_LABELS_VERIFIED'
