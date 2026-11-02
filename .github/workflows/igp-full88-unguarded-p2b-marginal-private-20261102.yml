@@ -17,7 +17,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: research/igp-full88-unguarded-p2b-marginal-20261102
-      PRIVATE_SHA: a473a6ffde629ee13823e4f61b54a3c8fa8aaa54
+      PRIVATE_SHA: 5ed7381109846eab4a5bb7ecb84d7b5a393caa86
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -55,10 +55,11 @@ jobs:
           python3 - <<'PY' > "$RUNNER_TEMP/full88-research-scenes-private.log" 2>&1
           from igp_full88_unguarded_p2b_research_v1 import _checked_source,scene,MODE
           from igp_full88_default_engine_v3 import scene as canonical_scene
+          from igp_68_live_play_tracking_qa_v1 import LIVE
           for gid in ("0022600001","0022600015","0022600153"):
               frames,sha,pbp,windows,segments,cohort=_checked_source(".",gid)
               t=next(((s[0]+99)//100)*100 for s in segments
-                     if s[2]=="LIVE" and ((s[0]+99)//100)*100<=s[1])
+                     if s[2]==LIVE and ((s[0]+99)//100)*100<=s[1])
               out=canonical_scene(".",gid,t,t+200,mode=MODE,limit=3)
               assert out["mode"]==MODE and len(out["rows"])>0
               assert out["reporting_default_unchanged"] is True
@@ -67,6 +68,13 @@ jobs:
           print("FULL88_EXPLICIT_RESEARCH_SCENE_THREE_COHORTS_SOURCE_VERIFIED")
           PY
           grep -q FULL88_EXPLICIT_RESEARCH_SCENE_THREE_COHORTS_SOURCE_VERIFIED "$RUNNER_TEMP/full88-research-scenes-private.log" || {
+            python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          lines=(Path(os.environ['RUNNER_TEMP'])/'full88-research-scenes-private.log').read_text(errors='replace').splitlines()
+          error=next((line for line in reversed(lines) if re.match(r'^(ValueError|TypeError|KeyError|FileNotFoundError|ImportError|AssertionError|StopIteration):',line)),None)
+          print('FULL88_PRIVATE_SCENE_FAILURE_TYPE',re.sub(r'[0-9]{4,}','[id]',error or 'UNKNOWN')[:210])
+          PY
             echo FULL88_UNGUARDED_PRIVATE_NATIVE_PBP_SCENE_FAILURE
             exit 22
           }
