@@ -31,6 +31,8 @@ jobs:
           gh auth setup-git
           git clone -q --depth=1 --filter=blob:none --sparse -b "$SOURCE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           cd "$RUNNER_TEMP/private"
+          git fetch -q --depth=1 origin "$SOURCE_SHA"
+          git checkout -q --detach "$SOURCE_SHA"
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA" || { echo IGP_FULL92_SOURCE_SHA_DRIFT; exit 20; }
           git sparse-checkout set gamepulse/fusion
           git fetch -q --depth=1 origin "$CODE_BRANCH"
