@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_HEAD_SHA: 9e16b98f8452f84ebccc2bca402306d6f1540a73
+      PRIVATE_HEAD_SHA: 47e58f5301548a7765fa90b9922d14a7f40f3462
       PRIVATE_SOURCE_BRANCH: hoopvision-production
     steps:
       - uses: actions/checkout@v4
