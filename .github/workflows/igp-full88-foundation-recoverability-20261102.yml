@@ -1,0 +1,93 @@
+# Source-private Full88 forensic audit. Output is aggregate QA; no licensed XYZ,
+# per-shot event rows, PBP, private GH tokens or raw positions enter public logs.
+name: IGP FULL88 source recoverability and possession baseline
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full88-foundation-recoverability-20261102.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full88-foundation-20261102
+  cancel-in-progress: false
+jobs:
+  private-source-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: analysis/igp-full88-foundation-audit-20261102
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify public/private boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq '.private')" = true
+          gh auth setup-git
+      - name: Clone only pinned FULL88 index, shot ledgers and statistical QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
+            /gamepulse/fusion/igp_full88_default_engine_v1.py \
+            /gamepulse/fusion/igp_full88_foundation_audit_v1.py \
+            /gamepulse/fusion/igp81_default_team_offrtg.py \
+            /gamepulse/fusion/tests/test_igp_full88_foundation_audit_v1.py \
+            /gamepulse/fusion/qa/igp_fullx/shot_event_multiview_full88_v1.json \
+            /gamepulse/fusion/qa/igp81_nba_team_offrtg_reporting_default_v1.json \
+            /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_event_multiview_full88_v1/shots/
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full88_foundation_audit_v1.py
+          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_full88_foundation_audit_v1.py' -v
+      - name: Run SHA-original full88 event recoverability and official81 score/poss
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          PYTHONPATH=gamepulse/fusion python3 gamepulse/fusion/igp_full88_foundation_audit_v1.py
+          python3 - <<'PY'
+          import json
+          p='gamepulse/fusion/qa/igp_fullx/full88_foundation_audit_20261102.json'
+          d=json.load(open(p)); shot=d['shot_totals']
+          assert d['games']==88 and shot['official_fga']==15584
+          assert shot['neither']==1168 and d['two_highest_unmatched']==218
+          assert d['new7_team_games_missing_published_advanced_acceptance']==14
+          c=d['frozen81_team_possession']['totals']
+          assert (c['published_poss'],c['candidate_sequences'],c['absolute_difference'],c['exact_team_games'])==(16508,16484,156,54)
+          print('FULL88_RECOVERABILITY_PRIVATE_AGGREGATE_ONLY',json.dumps({
+            'shot_fga':shot['official_fga'],
+            'matched':shot['any_source_exact'],
+            'neither':shot['neither'],
+            'top2':d['two_highest_unmatched'],
+            'game0143_missing':d['per_game']['0022600143']['neither'],
+            'game0111_missing':d['per_game']['0022600111']['neither'],
+            'unadmitted_poss_team_games':14
+          },sort_keys=True))
+          PY
+      - name: Commit complete evidence privately only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_fullx/full88_foundation_audit_20261102.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo PRIVATE_FULL88_FOUNDATION_QA_UNCHANGED; exit 0; fi
+          git commit -q -m "qa(igp): freeze Full88 exact shot missingness and possession residuals [skip ci]"
+          for attempt in 1 2 3 4 5; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo FULL88_FOUNDATION_QA_COMMITTED_PRIVATE_ONLY
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 23
