@@ -35,6 +35,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git sparse-checkout set --no-cone \
             /scripts/update_nba_blueprint_daily_2026_27.py \
+            /scripts/build_nba_blueprint_2026_27.py \
             /data/extensions/nba_blueprint_2026_27/games/0022600111/ \
             /data/extensions/nba_blueprint_2026_27/games/0022600143/ \
             /gamepulse/fusion/igp_full88_default_engine_v1.py \
