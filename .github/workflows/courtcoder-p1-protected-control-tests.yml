@@ -11,6 +11,7 @@ on:
       - research/courtcoder-v29-blocked-selfconsistency-20261102
       - research/courtcoder-v30-original-gap-protected-controls-20261102
       - research/courtcoder-v30-pin-merged-private-prod-20261102
+      - research/courtcoder-v31-gap-confidence-controls-20261102
       - main
     paths:
       - .github/workflows/courtcoder-p1-protected-control-tests.yml
@@ -23,8 +24,8 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_HEAD_SHA: 6a4e5aadfa9f2313c9c727e5eab67db19c1800cf
-      PRIVATE_SOURCE_BRANCH: hoopvision-production
+      PRIVATE_HEAD_SHA: 19691c1cebc25e27480041b9cac538d6ccb911b5
+      PRIVATE_SOURCE_BRANCH: research/courtcoder-v31-native-gap-promotion-falsification-20261102
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,7 +69,8 @@ jobs:
             hoopvision.tests.test_p1_h1_subset_envelope \
             hoopvision.tests.test_p1_blocked_model_label_holdout \
             hoopvision.tests.test_p1_native_gap_shadow \
-            hoopvision.tests.test_p1_native_gap_masked_holdout; do
+            hoopvision.tests.test_p1_native_gap_masked_holdout \
+            hoopvision.tests.test_p1_native_gap_confidence; do
             if python3 -m unittest "$module" > "$RUNNER_TEMP/courtcoder-private-tests.log" 2>&1; then
               echo "COURTCODER_SUITE_OK ${module##*.}"
             else
