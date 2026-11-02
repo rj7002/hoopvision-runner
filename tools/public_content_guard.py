@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full88-two-game-blueprint-source-recheck-20261102.yml",  # reviewed original Blueprint two-game private SHA recheck; aggregate-only public logs
     ".github/workflows/igp-full88-foundation-recoverability-20261102.yml",  # vetted opaque SHA-private Full88 shot recoverability and 81game POSS QA; public aggregates only
     ".github/workflows/courtcoder-p1-protected-control-tests.yml",  # protected ephemeral private-code unit tests; no private model/video/labels in public repo or logs
     ".github/workflows/ncea-full88-rebound-tier-private.yml",  # reviewed SHA-original private-only rebound event-tier source audit and bounded aggregate logs
