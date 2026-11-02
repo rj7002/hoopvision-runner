@@ -1,6 +1,6 @@
 {
   "consumer_contract": "public_outbox_private_pull.v1",
-  "observed_at_utc": "2026-11-02T21:11:14Z",
+  "observed_at_utc": "2026-11-02T21:22:13Z",
   "schema": "hoopvision.public-consumer-heartbeat.v1",
   "status": "READY"
 }
