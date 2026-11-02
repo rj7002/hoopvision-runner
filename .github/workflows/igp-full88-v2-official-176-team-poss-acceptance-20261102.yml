@@ -1,0 +1,68 @@
+# Public orchestration only; private FULL88 source, SHA QA and models never exported.
+name: FULL88 v2 official 176 team-game statistical release acceptance
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full88-v2-official-176-team-poss-acceptance-20261102.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: full88-v2-official-176-team-poss-release-20261102
+  cancel-in-progress: false
+jobs:
+  accepted-private-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: analysis/igp-full88-two-game-original-source-recheck-20261102
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Confirm public bridge and private target
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+      - name: Clone only immutable FULL88 official statistical and test assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
+            /gamepulse/fusion/igp_full88_default_engine_v1.py \
+            /gamepulse/fusion/igp_full88_default_engine_v2.py \
+            /gamepulse/fusion/igp_full88_team_statistical_reporting_v1.py \
+            /gamepulse/fusion/igp81_default_team_offrtg.py \
+            /gamepulse/fusion/tests/test_igp_full88_default_engine_v2.py \
+            /gamepulse/fusion/qa/igp_fullx/shot_event_multiview_full88_v1.json \
+            /gamepulse/fusion/qa/igp_fullx/full88_advanced_team_poss_and_official_score_v1.json \
+            /gamepulse/fusion/qa/igp81_nba_team_offrtg_reporting_default_v1.json
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/igp_full88_default_engine_v2.py gamepulse/fusion/igp_full88_team_statistical_reporting_v1.py
+          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_full88_default_engine_v2.py' -v > "$RUNNER_TEMP/private-tests" 2>&1 || {
+            echo "FULL88_V2_RELEASE_TEST_FAILED_DETAIL_PRIVATE_ONLY"
+            exit 1
+          }
+      - name: Independently re-open the source SHA-pinned FULL88 v2 statistical release
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          PYTHONPATH=gamepulse/fusion python3 - <<'PY'
+          import igp_full88_team_statistical_reporting_v1 as s
+          import igp_full88_default_engine_v2 as v
+          t=s.query(".",include_rows=False)
+          assert t["team_games"]==176 and t["games"]==88
+          assert t["team_possession_denominator"]==17914
+          assert t["team_offensive_points"]==20036
+          x=v.query(".",game_id="0022600153",team="HOU",include_game_grades=False)
+          assert x["accepted_guarded_P2B_10hz_games"]==81
+          assert x["full88_published_team_statistical_and_OffRtg"]["team_possession_denominator"]==94
+          assert x["full88_published_team_statistical_and_OffRtg"]["team_offensive_points"]==119
+          assert x["new7_guarded_10hz_tracking_still_unadmitted"]
+          print("FULL88_V2_PRIVATE_88_GAME_176_ROW_STATISTICAL_QA_ACCEPTED",t["team_games"],t["team_possession_denominator"])
+          PY
