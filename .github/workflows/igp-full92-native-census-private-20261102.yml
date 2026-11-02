@@ -18,7 +18,7 @@ jobs:
       SOURCE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
       SOURCE_SHA: b40dfac0f4ad7398faac9eeff2dd50100883d2e8
       CODE_BRANCH: research/igp-full92-census-preparation-20261102
-      CODE_SHA: 135bb4bdebced9f99090fe451b02a914cac6972c
+      CODE_SHA: 128efcad66fad5e91221a4831619c22bf75eb51a
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -51,6 +51,7 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           git show "$CODE_SHA:gamepulse/fusion/igp_full92_source_grade_default_v1.py" > gamepulse/fusion/igp_full92_source_grade_default_v1.py
+          git show "$CODE_SHA:gamepulse/fusion/igp_default_engine.py" > gamepulse/fusion/igp_default_engine.py
           git show "$CODE_SHA:gamepulse/fusion/qa/igp_fullx/full92_native_v4_source_proxy_research_20261102.json" > gamepulse/fusion/qa/igp_fullx/full92_native_v4_source_proxy_research_20261102.json
           export PYTHONPATH=gamepulse/fusion
           python3 -m py_compile gamepulse/fusion/igp_full92_source_grade_default_v1.py
@@ -75,9 +76,24 @@ jobs:
           x=old.query(root,game_id=gid,include_game_grades=False)
           y=m.query(root,game_id=gid,include_game_grades=False)
           assert x['source_grade_original_NBA_ten_ball_10hz_complete']==1286867
-          assert y['source_grade_original_NBA_ten_ball_10hz_complete']==x['source_grade_original_NBA_ten_ball_10hz_complete']
+          assert y['source_grade_original_NBA_ten_ball_10hz_complete']==1350076
+          assert y['source_grade_original_NBA_ten_ball_10hz_total']==1537346
+          assert y['legacy_full88_source_grade_complete']==x['source_grade_original_NBA_ten_ball_10hz_complete']
+          import igp_default_engine as default
+          assert default.ENGINE_ID==m.ENGINE_ID
+          assert default.EXPLICIT_FULL88_V4_ROLLBACK==old.ENGINE_ID
           assert m.EXPLICIT_FULL88_V4_ROLLBACK==old.ENGINE_ID
           print('FULL92_RUNTIME_PRIVATE_SAMPLE_AND_ROLLBACK_PASS')
+          PY
+          python3 gamepulse/fusion/igp_default_engine.py --root . --summary-only > "$RUNNER_TEMP/private-default-query.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          out=json.loads((Path(os.environ['RUNNER_TEMP'])/'private-default-query.json').read_text())
+          assert out['source_grade_original_NBA_ten_ball_10hz_complete']==1350076
+          assert out['source_grade_original_NBA_ten_ball_10hz_total']==1537346
+          assert out['legacy_full88_rows_scope'] is True
+          print('IGP_FULL92_DEFAULT_CLI_PASS')
           PY
           echo IGP_FULL92_PRIVATE_RUNTIME_SAMPLE_PASS
       - name: Replay every exact new-game v4 timestamp privately
