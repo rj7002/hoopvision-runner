@@ -49,6 +49,9 @@ jobs:
             /gamepulse/fusion/qa/igp_fullx/ncea_full88_multi_event_shadow_v3.jsonl \
             /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_event_multiview_full88_v1/events/ \
             /gamepulse/fusion/tests/test_igp_full88_v3_event_evidence.py \
+            /gamepulse/fusion/tests/test_igp_full88_default_engine_v1.py \
+            /gamepulse/fusion/tests/test_igp_full88_default_engine_v2.py \
+            /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_event_multiview_full88_v1/shots/0022600153.jsonl.gz \
             /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json \
             /gamepulse/fusion/materialized/igp_all_original_xyz/0022600147/ \
             /gamepulse/fusion/materialized/igp_all_original_xyz/0022600148/ \
@@ -73,6 +76,9 @@ jobs:
             /gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600153/boxscore.json
           export PYTHONPATH=gamepulse/fusion
           python3 -m py_compile gamepulse/fusion/igp_full88_v3_source_gate.py gamepulse/fusion/igp_full88_new7_guarded_scene_v3.py gamepulse/fusion/igp_full88_default_engine_v3.py
+          for suite in test_igp_full88_default_engine_v1.py test_igp_full88_default_engine_v2.py; do
+            python3 -m unittest discover -s gamepulse/fusion/tests -p "$suite" -q > "$RUNNER_TEMP/$suite.private.log" 2>&1 || { echo "FULL88_V3_LEGACY_RELEASE_REGRESSION_FAILED"; exit 1; }
+          done
           python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_full88_v3_event_evidence.py' -q > "$RUNNER_TEMP/v3events.private.log" 2>&1 || {
             echo "FULL88_V3_PRIVATE_EVENT_SOURCE_CROSSWALK_TEST_FAILURE"
             exit 1
