@@ -14,6 +14,7 @@ on:
       - research/courtcoder-v31-gap-confidence-controls-20261102
       - research/courtcoder-v31-source-custody-controls-20261102
       - research/courtcoder-v31-pin-merged-private-source-20261102
+      - research/courtcoder-v32-owner-review-sourcefree-20261102
       - main
     paths:
       - .github/workflows/courtcoder-p1-protected-control-tests.yml
@@ -26,7 +27,7 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_HEAD_SHA: 42800497c63dc542099d7b6126f7cb209d3ef3a4
+      PRIVATE_HEAD_SHA: aa8e18b939ed645e4e952b93df36123545e0ceb9
       PRIVATE_SOURCE_BRANCH: hoopvision-production
     steps:
       - uses: actions/checkout@v4
@@ -58,6 +59,7 @@ jobs:
             tools/diagnostics/cc_full81_p1_native_gap_masked_holdout.py \
             tools/diagnostics/cc_full81_p1_native_gap_original_replay.py \
             tools/diagnostics/cc_full81_p1_native_gap_h1_private_score.py \
+            tools/diagnostics/cc_full81_recovered_owner_reviews_score.py \
             > "$RUNNER_TEMP/courtcoder-private-compile.log" 2>&1 || { echo "COURTCODER_PRIVATE_COMPILE_FAILED"; exit 3; }
           failed=0
           for module in \
@@ -72,7 +74,8 @@ jobs:
             hoopvision.tests.test_p1_blocked_model_label_holdout \
             hoopvision.tests.test_p1_native_gap_shadow \
             hoopvision.tests.test_p1_native_gap_masked_holdout \
-            hoopvision.tests.test_p1_native_gap_confidence; do
+            hoopvision.tests.test_p1_native_gap_confidence \
+            hoopvision.tests.test_recovered_owner_reviews_score; do
             if python3 -m unittest "$module" > "$RUNNER_TEMP/courtcoder-private-tests.log" 2>&1; then
               echo "COURTCODER_SUITE_OK ${module##*.}"
             else
