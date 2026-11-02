@@ -16,7 +16,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       SOURCE_REF: research/ncea-all88-custody-shadow-20261102
-      SOURCE_SHA: 6cfe07ff905b9ecc3fbd702fef26606eb2e470d9
+      SOURCE_SHA: 47176a39d8f35f60513c34036463e338e0db7552
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -67,6 +67,25 @@ jobs:
                 "added",c["new_pairs"],"controls",c["noncredited_control_trials"],
                 "mask_trials",c["mask_trials"])
           PY
+      - name: Build opt-in research-only event anchors, preserving strict accepted engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 gamepulse/fusion/analysis/ncea_full88_event_overlay_v1.py --self-test
+          python3 gamepulse/fusion/analysis/ncea_full88_event_overlay_v1.py --root . --out gamepulse/fusion/qa/igp_fullx/ncea_full88_event_overlay_v1.json
+          python3 - <<'PY'
+          import collections,json
+          from pathlib import Path
+          j=json.loads(Path("gamepulse/fusion/qa/igp_fullx/ncea_full88_event_overlay_v1.json").read_text())
+          c=j["tier_counts"]
+          assert j["mode"]=="OPT_IN_ONLY" and len(j["source_verified_anchors"])==4616
+          assert c["FROZEN_STRICT_PRIORITY"]==2223
+          assert c["NONCREDITED_TEAMMATE_CONTROL_CONFLICT"]==222
+          assert c["PRIORITY_SOURCE_REVIEW_SHORTLIST_NOT_CERTIFIED"]==250
+          assert not any(a["whole_engine_player_xyz_accuracy_improved"] for a in j["source_verified_anchors"])
+          print("NCEA_PRIVATE_OPTIN_SOURCE_TIER_GATES_PASS",c["PRIORITY_SOURCE_REVIEW_SHORTLIST_NOT_CERTIFIED"],"priority")
+          PY
       - name: Persist QA and event-level evidence ONLY to private GitHub
         shell: bash
         run: |
@@ -74,7 +93,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/qa/igp_fullx/ncea_all88_custody_shadow_v1.json gamepulse/fusion/qa/igp_fullx/ncea_all88_custody_events_v1.jsonl
+          git add -f gamepulse/fusion/qa/igp_fullx/ncea_all88_custody_shadow_v1.json gamepulse/fusion/qa/igp_fullx/ncea_all88_custody_events_v1.jsonl gamepulse/fusion/qa/igp_fullx/ncea_full88_event_overlay_v1.json
           git diff --cached --check
           if git diff --cached --quiet; then echo NCEA_PRIVATE_OUTPUT_IDENTICAL; exit 0; fi
           git commit -q -m "qa(private): source-preserving 4616-assist native custody shadow, negative and mask tests"
