@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_HEAD_SHA: 410c43dfa7e4df9c770a2ceb0e073bb008120f03
+      PRIVATE_HEAD_SHA: 3996d1f6b26b1aea71bcaae4e3b2bafc0c63367e
       PRIVATE_SOURCE_BRANCH: research/courtcoder-v28-tier99-research-h1-envelope-20261102
     steps:
       - uses: actions/checkout@v4
@@ -56,7 +56,8 @@ jobs:
             hoopvision.tests.test_p1_analytics_adapter \
             hoopvision.tests.test_p1_certified_worker_path \
             hoopvision.tests.test_p1_strict_evidence_gate \
-            hoopvision.tests.test_p1_tiered_identity_shadow; do
+            hoopvision.tests.test_p1_tiered_identity_shadow \
+            hoopvision.tests.test_p1_h1_subset_envelope; do
             if python3 -m unittest "$module" > "$RUNNER_TEMP/courtcoder-private-tests.log" 2>&1; then
               echo "COURTCODER_SUITE_OK ${module##*.}"
             else
