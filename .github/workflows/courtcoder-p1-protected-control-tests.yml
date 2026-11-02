@@ -57,6 +57,25 @@ jobs:
               echo "COURTCODER_SUITE_OK ${module##*.}"
             else
               echo "COURTCODER_SUITE_FAILED ${module##*.}"
+              if [ "$module" = hoopvision.tests.test_p1_strict_evidence_gate ]; then
+                n=0
+                for case in \
+                  test_supported_remains_provisional_and_incumbents_immutable \
+                  test_nonobservable_abstains \
+                  test_nearby_conflicting_incumbent_abstains \
+                  test_cross_path_root_abstains \
+                  test_no_certifications_allowed \
+                  test_no_forged_provisional_renderer_flag \
+                  test_duplicate_and_mismatched_frame_rejected \
+                  test_bad_window_and_far_root_abstain; do
+                  n=$((n+1))
+                  if python3 -m unittest "$module.StrictP1Tests.$case" > "$RUNNER_TEMP/courtcoder-private-case.log" 2>&1; then
+                    echo "COURTCODER_STRICT_CASE_${n}_PASS"
+                  else
+                    echo "COURTCODER_STRICT_CASE_${n}_FAIL"
+                  fi
+                done
+              fi
               failed=1
             fi
           done
