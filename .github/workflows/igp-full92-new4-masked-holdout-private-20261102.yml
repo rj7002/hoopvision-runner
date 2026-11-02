@@ -18,7 +18,7 @@ jobs:
       SOURCE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
       SOURCE_SHA: b40dfac0f4ad7398faac9eeff2dd50100883d2e8
       CODE_BRANCH: research/igp-full92-census-preparation-20261102
-      CODE_SHA: c945335c7f52929f176658fb019728afc2a4aa63
+      CODE_SHA: 9090ed2c4c93d287ac2edf3478522fe8a47a4643
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -35,7 +35,7 @@ jobs:
           git sparse-checkout set gamepulse/fusion
           git fetch -q --depth=1 origin "$CODE_BRANCH"
           test "$(git rev-parse FETCH_HEAD)" = "$CODE_SHA" || { echo IGP_FULL92_HOLDOUT_CODE_SHA_DRIFT; exit 21; }
-          for path in gamepulse/fusion/igp_full92_tracking_source_census_v1.py gamepulse/fusion/igp_full92_new4_source_masked_v4_holdout_v1.py gamepulse/fusion/igp_full92_new4_source_masked_v4_holdout_v2.py; do
+          for path in gamepulse/fusion/igp_full92_tracking_source_census_v1.py gamepulse/fusion/igp_full92_new4_source_masked_v4_holdout_v1.py gamepulse/fusion/igp_full92_new4_source_masked_v4_holdout_v2.py gamepulse/fusion/igp_full92_new4_timing_enriched_holdout_v1.py; do
             git show "$CODE_SHA:$path" > "$path"
           done
           export PYTHONPATH=gamepulse/fusion
@@ -47,16 +47,16 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
-          target=gamepulse/fusion/qa/igp_fullx/full92_new4_original_player_source_masked_4096_v3_20261102.json
-          python3 gamepulse/fusion/igp_full92_new4_source_masked_v4_holdout_v2.py --root . --out "$target" > "$RUNNER_TEMP/private-holdout.log" 2>&1 || { echo IGP_FULL92_NEW4_PRIVATE_MASKED_FAILED; exit 22; }
+          target=gamepulse/fusion/qa/igp_fullx/full92_new4_timing_enriched_masked_20261103.json
+          python3 gamepulse/fusion/igp_full92_new4_timing_enriched_holdout_v1.py --root . --out "$target" > "$RUNNER_TEMP/private-holdout.log" 2>&1 || { echo IGP_FULL92_NEW4_PRIVATE_MASKED_FAILED; exit 22; }
           python3 - <<'PY'
           import json
           from pathlib import Path
-          q=json.loads(Path('gamepulse/fusion/qa/igp_fullx/full92_new4_original_player_source_masked_4096_v3_20261102.json').read_text())
+          q=json.loads(Path('gamepulse/fusion/qa/igp_fullx/full92_new4_timing_enriched_masked_20261103.json').read_text())
           assert q['games']==4 and len(q['per_game'])==4
-          assert all(x['target_source_withheld_before_prediction'] for x in q['per_game'].values())
-          assert q['default_changed'] is False and q['independent_video_position_certified'] is False
-          assert q['tested']['one_r250']==16384 and q['design']['two_player_cases']==0
+          assert q['selection_uses_source_utc_and_presence_only'] is True
+          assert q['default_changed'] is False and q['independent_video_accuracy_certified'] is False
+          assert q['counts']['tested']==12000 and q['aggregate']['predicted']==q['counts']['qualified']
           print('IGP_FULL92_NEW4_PRIVATE_MASKED_QA_COMPUTED')
           PY
       - name: Commit exact holdout receipt to isolated private branch
@@ -64,11 +64,11 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          git switch -c research/igp-full92-new4-masked-4096-v3-qa-20261102
+          git switch -c research/igp-full92-new4-timing-enriched-qa-20261103
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/igp_full92_tracking_source_census_v1.py gamepulse/fusion/igp_full92_new4_source_masked_v4_holdout_v1.py gamepulse/fusion/igp_full92_new4_source_masked_v4_holdout_v2.py gamepulse/fusion/qa/igp_fullx/full92_new4_original_player_source_masked_4096_v3_20261102.json
+          git add -f gamepulse/fusion/igp_full92_tracking_source_census_v1.py gamepulse/fusion/igp_full92_new4_source_masked_v4_holdout_v1.py gamepulse/fusion/igp_full92_new4_source_masked_v4_holdout_v2.py gamepulse/fusion/igp_full92_new4_timing_enriched_holdout_v1.py gamepulse/fusion/qa/igp_fullx/full92_new4_timing_enriched_masked_20261103.json
           git diff --cached --check
           git commit -qm 'qa(private): unseen Full92 original-player source masked tails [skip ci]'
-          git push -q origin HEAD:refs/heads/research/igp-full92-new4-masked-4096-v3-qa-20261102
+          git push -q origin HEAD:refs/heads/research/igp-full92-new4-timing-enriched-qa-20261103
           echo IGP_FULL92_NEW4_PRIVATE_MASKED_QA_COMMITTED
