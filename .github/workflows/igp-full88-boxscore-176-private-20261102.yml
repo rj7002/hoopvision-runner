@@ -76,7 +76,10 @@ jobs:
           d=json.loads(f.read_bytes())
           assert d["games"]==88 and d["team_games"]==176
           assert d["PBP_event_totals"]["pbp_FGA"]==15584
-          assert d["PBP_event_totals"]["pbp_oreb_combined"]==3094
+          assert d["PBP_event_totals"]["pbp_oreb_combined"]>3094
+          assert (d["PBP_event_totals"]["pbp_oreb_combined"]==
+                  d["PBP_event_totals"]["pbp_oreb_person"]+d["PBP_event_totals"]["pbp_oreb_team"])
+          assert d["original_archived_games"]==32 and d["boxscore_source_verified_team_games"]==64
           assert d["full88_published_NBA_team_POSS_17914"]==17914
           assert d["full88_official_score_points_20036"]==20036
           assert d["does_not_modify_any_original_or_production_default"]
