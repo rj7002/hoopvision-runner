@@ -1,6 +1,7 @@
 # Opaque public-to-private Full88 v3 source/scene release validation.
 # No licensed coordinates, private files or player-level outputs enter public logs.
 # Reviewed allowlist gate: only aggregate acceptance status may enter public logs.
+# Release retest: official assist + NCEA canonical action crosswalk 2026-11-02.
 name: Full88 v3 guarded 88-game original-source release candidate
 on:
   push:
