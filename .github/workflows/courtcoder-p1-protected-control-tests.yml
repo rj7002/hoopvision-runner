@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - research/courtcoder-p1-public-safe-controls-20261102
+      - research/courtcoder-p1-dual-gate-controls-20261102
       - main
     paths:
       - .github/workflows/courtcoder-p1-protected-control-tests.yml
@@ -17,8 +18,8 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_HEAD_SHA: 0b2ca7639cd810c53b116bd9d418a13414379a86
-      PRIVATE_SOURCE_BRANCH: research/courtcoder-p1-ocr-source-triage-20261102
+      PRIVATE_HEAD_SHA: 1774b7eb2381124d4a2177b16d3d9c6c4b001165
+      PRIVATE_SOURCE_BRANCH: research/courtcoder-p1-trusted-certificate-worker-path-20261102
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,6 +45,7 @@ jobs:
             hoopvision.tests.test_p1_worker_output_adapter \
             hoopvision.tests.test_p1_identity_replay \
             hoopvision.tests.test_p1_analytics_adapter \
+            hoopvision.tests.test_p1_certified_worker_path \
             > "$RUNNER_TEMP/courtcoder-private-tests.log" 2>&1; then
             echo "COURTCODER_PINNED_PRIVATE_CPU_TESTS_PASS"
           else
@@ -59,7 +61,7 @@ jobs:
             +"\n\n"+log.read_text(errors="replace")[-16000:]
           )
           PY
-            gh api --method POST repos/timeedmonds-maker/104/issues/1002/comments \
+            gh api --method POST repos/timeedmonds-maker/104/issues/1003/comments \
               -F body=@"$RUNNER_TEMP/courtcoder-private-comment.txt" >/dev/null || true
             rm -f "$RUNNER_TEMP/courtcoder-private-tests.log" "$RUNNER_TEMP/courtcoder-private-comment.txt"
             exit 1
