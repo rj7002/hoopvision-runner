@@ -1,0 +1,74 @@
+# Opaque private original SDK source-masked holdout; no NBA rows in public logs.
+name: Full92 unseen four-game private source-masked player holdout
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full92-new4-masked-holdout-private-20261102.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full92-new4-private-player-holdout-20261102
+  cancel-in-progress: false
+jobs:
+  masked:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      SOURCE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+      SOURCE_SHA: b40dfac0f4ad7398faac9eeff2dd50100883d2e8
+      CODE_BRANCH: research/igp-full92-census-preparation-20261102
+      CODE_SHA: 7d75429bca0472e014371f1dc864a9f63a425805
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Validate public guard and private source pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$SOURCE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA" || { echo IGP_FULL92_SOURCE_SHA_DRIFT; exit 20; }
+          git sparse-checkout set gamepulse/fusion
+          git fetch -q --depth=1 origin "$CODE_BRANCH"
+          test "$(git rev-parse FETCH_HEAD)" = "$CODE_SHA" || { echo IGP_FULL92_HOLDOUT_CODE_SHA_DRIFT; exit 21; }
+          for path in gamepulse/fusion/igp_full92_tracking_source_census_v1.py gamepulse/fusion/igp_full92_new4_source_masked_v4_holdout_v1.py; do
+            git show "$CODE_SHA:$path" > "$path"
+          done
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full92_new4_source_masked_v4_holdout_v1.py
+          echo IGP_FULL92_NEW4_PRIVATE_MASKED_PINS_PASS
+      - name: Withhold original positions and score source XY tails
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          target=gamepulse/fusion/qa/igp_fullx/full92_new4_original_player_source_masked_20261102.json
+          python3 gamepulse/fusion/igp_full92_new4_source_masked_v4_holdout_v1.py --root . --out "$target" > "$RUNNER_TEMP/private-holdout.log" 2>&1 || { echo IGP_FULL92_NEW4_PRIVATE_MASKED_FAILED; exit 22; }
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          q=json.loads(Path('gamepulse/fusion/qa/igp_fullx/full92_new4_original_player_source_masked_20261102.json').read_text())
+          assert q['games']==4 and len(q['per_game'])==4
+          assert all(x['target_source_withheld_before_prediction'] for x in q['per_game'].values())
+          assert q['default_changed'] is False and q['independent_video_position_certified'] is False
+          assert q['tested']['one_r250']==768 and q['tested']['two_r250']==256
+          print('IGP_FULL92_NEW4_PRIVATE_MASKED_QA_COMPUTED')
+          PY
+      - name: Commit exact holdout receipt to isolated private branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git switch -c research/igp-full92-new4-masked-holdout-qa-20261102
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/igp_full92_tracking_source_census_v1.py gamepulse/fusion/igp_full92_new4_source_masked_v4_holdout_v1.py gamepulse/fusion/qa/igp_fullx/full92_new4_original_player_source_masked_20261102.json
+          git diff --cached --check
+          git commit -qm 'qa(private): unseen Full92 original-player source masked tails [skip ci]'
+          git push -q origin HEAD:refs/heads/research/igp-full92-new4-masked-holdout-qa-20261102
+          echo IGP_FULL92_NEW4_PRIVATE_MASKED_QA_COMMITTED
