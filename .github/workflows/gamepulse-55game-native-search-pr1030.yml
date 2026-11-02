@@ -63,7 +63,7 @@ jobs:
                "--jq", ".content"], capture_output=True, text=True, check=True)
           code = base64.b64decode(p.stdout)
           git_sha = hashlib.sha1(
-              b"blob " + str(len(code)).encode() + b"\\0" + code).hexdigest()
+              b"blob " + str(len(code)).encode() + b"\0" + code).hexdigest()
           assert git_sha == code_sha, "PRIVATE_SOURCE_SEARCH_CODE_GIT_SHA_MISMATCH"
           (root / "native_label_season_search_2026.py").write_bytes(code)
           spec = importlib.util.spec_from_file_location(
