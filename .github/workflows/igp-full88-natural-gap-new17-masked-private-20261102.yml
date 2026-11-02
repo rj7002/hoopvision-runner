@@ -29,7 +29,11 @@ jobs:
           gh auth setup-git
           git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           cd "$RUNNER_TEMP/private"
-          test "$(git rev-parse HEAD)" = "$PRIVATE_SHA" || { echo ORIGINAL_SOURCE_MASK_PRIVATE_HEAD_DRIFT; exit 17; }
+          # A distinct private QA workflow may advance the branch while we
+          # run. Resolve the immutable evaluated code commit explicitly.
+          git fetch -q --depth=1 origin "$PRIVATE_SHA"
+          git checkout --detach -q "$PRIVATE_SHA"
+          test "$(git rev-parse HEAD)" = "$PRIVATE_SHA" || { echo ORIGINAL_SOURCE_MASK_PRIVATE_COMMIT_DRIFT; exit 17; }
           git sparse-checkout set gamepulse/fusion
           export PYTHONPATH=gamepulse/fusion
           python3 -m py_compile gamepulse/fusion/igp_full88_p2b_natural_gap_new17_masked_v1.py
