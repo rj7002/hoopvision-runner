@@ -1,0 +1,74 @@
+name: Full92 private ball flight gravity masked original shadow
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full92-ball-flight-physics-shadow-private-20261103.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  masked-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/full92-ball-free-flight-physics-shadow-20261103
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify boundary and clone private
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: Deterministic source-free physics tests
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_full92_ball_free_flight_physics_shadow_v1.py' -v
+      - name: Private masked-original dev3 and unseen3
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 gamepulse/fusion/igp_full92_ball_free_flight_physics_shadow_v1.py --root . --games 0022600001 0022600002 0022600009 --out gamepulse/fusion/qa/igp_fullx/full92_ball_freeflight_dev3_shadow_20261103.json
+          python3 gamepulse/fusion/igp_full92_ball_free_flight_physics_shadow_v1.py --root . --games 0022600086 0022600111 0022600141 --out gamepulse/fusion/qa/igp_fullx/full92_ball_freeflight_unseen3_shadow_20261103.json
+      - name: Private result SHA and nonpromotion summary
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          base=Path('gamepulse/fusion/qa/igp_fullx')
+          paths=[base/'full92_ball_freeflight_dev3_shadow_20261103.json',base/'full92_ball_freeflight_unseen3_shadow_20261103.json']
+          ds=[json.loads(p.read_bytes()) for p in paths]
+          assert all(d["games"]==3 for d in ds) and set(ds[0]["game_ids"]).isdisjoint(ds[1]["game_ids"])
+          assert all(d["no_ball_or_player_positions_promoted"] for d in ds)
+          info={"schema":"igp.full92.flight.disjoint-source-mask.v1","dev":ds[0]["by_block"],"unseen":ds[1]["by_block"],
+                "sha":[hashlib.sha256(p.read_bytes()).hexdigest() for p in paths],"status":"SHADOW_ONLY_NO_VIDEO_CONTACT_TRUTH"}
+          (base/'full92_ball_freeflight_disjoint6_decision_20261103.json').write_text(json.dumps(info,sort_keys=True,indent=2)+"\n")
+          print("FULL92_BALL_FLIGHT_AGGREGATE",json.dumps({"dev":info["dev"],"unseen":info["unseen"]},sort_keys=True))
+          PY
+      - name: Commit QA only to private
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_fullx/full92_ball_freeflight_*_20261103.json
+          git diff --cached --check
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -qm 'qa: private gravity flight masked source six-game study'
+          gh auth setup-git
+          for n in 1 2 3; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then exit 0; fi
+            sleep "$n"
+          done
+          exit 1
