@@ -12,6 +12,7 @@ on:
       - research/courtcoder-v30-original-gap-protected-controls-20261102
       - research/courtcoder-v30-pin-merged-private-prod-20261102
       - research/courtcoder-v31-gap-confidence-controls-20261102
+      - research/courtcoder-v31-source-custody-controls-20261102
       - main
     paths:
       - .github/workflows/courtcoder-p1-protected-control-tests.yml
@@ -24,8 +25,8 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_HEAD_SHA: 784f954b9bc85777f6e0e2d2249e23b90ec7a3f4
-      PRIVATE_SOURCE_BRANCH: research/courtcoder-v31-native-gap-promotion-falsification-20261102
+      PRIVATE_HEAD_SHA: 7338472055c558ae5fe68b18f2dc0f56bb02be6b
+      PRIVATE_SOURCE_BRANCH: research/courtcoder-v31-source-custody-tightening-20261102
     steps:
       - uses: actions/checkout@v4
         with:
