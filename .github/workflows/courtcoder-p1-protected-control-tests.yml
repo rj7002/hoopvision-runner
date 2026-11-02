@@ -102,20 +102,24 @@ jobs:
           rm -f "$RUNNER_TEMP/courtcoder-private-tests.log"
           # Original 15,614-row frozen producer archive stays ephemeral,
           # never published to this public repository or its artifacts/logs.
-          curl -fsSL --retry 2 --connect-timeout 20 --max-time 120 \
+          if curl -fsSL --retry 1 --connect-timeout 20 --max-time 120 \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/timeedmonds-maker/104/actions/artifacts/13113878628/zip" \
-            -o "$RUNNER_TEMP/courtcoder-private-frozen.zip"
-          if python3 -m tools.diagnostics.cc_full81_p1_strict_original_artifact_replay \
-             --archive "$RUNNER_TEMP/courtcoder-private-frozen.zip" \
-             --out "$RUNNER_TEMP/courtcoder-private-original-shadow" \
-             > "$RUNNER_TEMP/courtcoder-private-replay.log" 2>&1; then
-            echo "COURTCODER_15614_FROZEN_SHA_WORKER_SHADOW_PASS"
+            -o "$RUNNER_TEMP/courtcoder-private-frozen.zip" 2> "$RUNNER_TEMP/private-artifact-access.log"; then
+            if python3 -m tools.diagnostics.cc_full81_p1_strict_original_artifact_replay \
+               --archive "$RUNNER_TEMP/courtcoder-private-frozen.zip" \
+               --out "$RUNNER_TEMP/courtcoder-private-original-shadow" \
+               > "$RUNNER_TEMP/courtcoder-private-replay.log" 2>&1; then
+              echo "COURTCODER_15614_FROZEN_SHA_WORKER_SHADOW_PASS"
+            else
+              echo "COURTCODER_FROZEN_ORIGINAL_PRIVATE_REPLAY_FAILED"
+              exit 7
+            fi
           else
-            echo "COURTCODER_FROZEN_ORIGINAL_PRIVATE_REPLAY_FAILED"
-            exit 7
+            echo "COURTCODER_FROZEN_ARTIFACT_ACTIONS_READ_NOT_AUTHORIZED_OR_UNAVAILABLE_REPLAY_NOT_RUN"
           fi
           rm -rf "$RUNNER_TEMP/courtcoder-private-frozen.zip" \
             "$RUNNER_TEMP/courtcoder-private-original-shadow" \
-            "$RUNNER_TEMP/courtcoder-private-replay.log"
+            "$RUNNER_TEMP/courtcoder-private-replay.log" \
+            "$RUNNER_TEMP/private-artifact-access.log"
