@@ -74,7 +74,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/qa/igp_fullx/full92_ball_control_new18_bounded_v5_20261103.json gamepulse/fusion/qa/igp_fullx/full92_ball_native_natural92_census_v1_20261103.json gamepulse/fusion/qa/igp_fullx/full92_ball_native_10hz_3game_pilot_v6_20261103.json gamepulse/fusion/qa/igp_fullx/full92_ball_native_10hz_doublemask_v6_20261103.json gamepulse/fusion/qa/igp_fullx/full92_ball_native_10hz_strict_marginal3_v7_20261103.json gamepulse/fusion/qa/igp_fullx/full92_ball_native_10hz_joint_marginal3_v8_20261103.json gamepulse/fusion/qa/igp_fullx/full92_ball_joint_missing_actor_forensic3_v9_20261103.json
+          git add -f gamepulse/fusion/qa/igp_fullx/full92_ball_native_10hz_xy_tail_repair_v8_20261103.json gamepulse/fusion/qa/igp_fullx/full92_ball_control_new18_bounded_v5_20261103.json gamepulse/fusion/qa/igp_fullx/full92_ball_native_natural92_census_v1_20261103.json gamepulse/fusion/qa/igp_fullx/full92_ball_native_10hz_3game_pilot_v6_20261103.json gamepulse/fusion/qa/igp_fullx/full92_ball_native_10hz_doublemask_v6_20261103.json gamepulse/fusion/qa/igp_fullx/full92_ball_native_10hz_strict_marginal3_v7_20261103.json gamepulse/fusion/qa/igp_fullx/full92_ball_native_10hz_joint_marginal3_v8_20261103.json gamepulse/fusion/qa/igp_fullx/full92_ball_joint_missing_actor_forensic3_v9_20261103.json
           git diff --cached --check
           if git diff --cached --quiet; then echo ALREADY_COMMITTED; exit 0; fi
           git commit -qm 'qa(igp): bounded player ball original-native source masked fresh18'
