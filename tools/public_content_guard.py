@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-full92-event-query-verified-readback-20261103.yml",  # public-safe Full92 private source event query/pointer SHA readback; aggregate tests only
     ".github/workflows/gamepulse-full92-universal-event-rebound-tracking-20261103.yml",  # private full92 original NBA event, rebound and XYZ provenance; aggregate-only public logs
     ".github/workflows/igp-full92-new4-masked-holdout-private-20261102.yml",  # SHA-pinned unseen game source masking; no private rows public
     ".github/workflows/igp-full92-native-census-private-20261102.yml",  # SHA-pinned private 92-game intake census; aggregate pass only public
