@@ -1,0 +1,139 @@
+name: Full92 original NBA action-to-XYZ and rebound alignment
+# PUBLIC ORCHESTRATION ONLY. Native NBA coordinates and PBP stay private in 104.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-full92-universal-event-rebound-tracking-20261103.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full92-all-pbp-event-original-xyz-20261103
+  cancel-in-progress: false
+jobs:
+  private-original-source-92:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/full92-all-event-rebound-tracking-20261103
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Source guard, private authenticated clone
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: Source-free tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full92_all_event_rebound_tracking_v1.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests \
+            -p 'test_igp_full92_all_event_rebound_tracking_v1.py'
+          echo FULL92_EVENT_SOURCEFREE_PASS
+      - name: Real original-source one-game pilot
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 gamepulse/fusion/igp_full92_all_event_rebound_tracking_v1.py \
+            --root . --game-id 0022600001 --out-dir "$RUNNER_TEMP/igp-full92-event-pilot" \
+            > "$RUNNER_TEMP/pilot.log" 2>&1 || {
+              echo FULL92_EVENT_PILOT_FAILURE
+              python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          z=(Path(os.environ["RUNNER_TEMP"])/"pilot.log").read_text(errors="replace").splitlines()
+          e=next((x for x in reversed(z) if re.match(r"^(?:ValueError|TypeError|KeyError|FileNotFoundError|ImportError|AssertionError):",x)),None)
+          if e:
+              typ,_,detail=e.partition(":");code=detail.strip().split(":",1)[0].split(" ",1)[0]
+              print("PRIVATE_FAILURE",typ,code if re.fullmatch("[A-Z0-9_]{5,90}",code) else "REDACTED")
+          else:print("PRIVATE_FAILURE UNCLASSIFIED")
+          PY
+              exit 41
+            }
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          d=json.loads((Path(os.environ["RUNNER_TEMP"])/"igp-full92-event-pilot"/"index.json").read_bytes())
+          c=d["counts"]
+          assert d["games"]==1 and c["official_actions"]==593
+          assert c["type:2pt"]+c["type:3pt"]==174
+          assert c["rebound_all"]==c["rebound_player"]+c["rebound_team"]
+          assert c["rebound_player_sustained_proximity"]<=c["rebound_player_coobserved"]
+          assert c["native_250ms"]<=c["native_4100ms"]<=593
+          assert d["physical_rebound_contacts_independently_certified"]==0
+          print("FULL92_EVENT_REAL_PILOT_OK",c["official_actions"],c["rebound_all"],c["native_250ms"])
+          PY
+      - name: Run and verify complete source SHA-locked Full92
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 gamepulse/fusion/igp_full92_all_event_rebound_tracking_v1.py \
+            --root . > "$RUNNER_TEMP/full92.log" 2>&1 || {
+              echo FULL92_EVENT_ALL92_FAILURE
+              python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          z=(Path(os.environ["RUNNER_TEMP"])/"full92.log").read_text(errors="replace").splitlines()
+          e=next((x for x in reversed(z) if re.match(r"^(?:ValueError|TypeError|KeyError|FileNotFoundError|ImportError|AssertionError):",x)),None)
+          if e:
+              typ,_,detail=e.partition(":");code=detail.strip().split(":",1)[0].split(" ",1)[0]
+              print("PRIVATE_FAILURE",typ,code if re.fullmatch("[A-Z0-9_]{5,90}",code) else "REDACTED")
+          else:print("PRIVATE_FAILURE UNCLASSIFIED")
+          PY
+              exit 42
+            }
+          python3 - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          p=Path("gamepulse/fusion/materialized/igp_full92_pbp_event_tracking_v1/index.json")
+          d=json.loads(p.read_bytes()); c=d["counts"]
+          assert d["games"]==92 and len(d["by_game"])==92
+          assert c["official_actions"]==55956 and c["type:2pt"]+c["type:3pt"]==16254
+          assert c["rebound_all"]==c["rebound_player"]+c["rebound_team"]
+          assert c["rebound_player_sustained_proximity"]<=c["rebound_player_coobserved"]
+          assert c["native_250ms"]<=c["native_4100ms"]<=55956
+          assert d["physical_rebound_contacts_independently_certified"]==0
+          print("FULL92_EVENT_TRACKING_QA_PASS",json.dumps({
+            "events":c["official_actions"],"rebounds":c["rebound_all"],
+            "player_rebounds":c["rebound_player"],"team_rebounds":c["rebound_team"],
+            "coobserved":c["rebound_player_coobserved"],
+            "sustained_proximity":c["rebound_player_sustained_proximity"],
+            "event_direct_250ms":c["native_250ms"],
+            "event_window_4100ms":c["native_4100ms"],
+            "index_sha256":hashlib.sha256(p.read_bytes()).hexdigest()},sort_keys=True))
+          PY
+      - name: Commit proprietary event-to-source pointer index only to PRIVATE repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/materialized/igp_full92_pbp_event_tracking_v1/
+          git diff --cached --check
+          if git diff --cached --quiet; then echo FULL92_ALREADY_PRIVATE; exit 0; fi
+          git commit -qm 'data(igp): private Full92 official event to original native SHA pointers'
+          gh auth setup-git
+          for n in 1 2 3 4 5; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH" || exit 43
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo FULL92_EVENT_PRIVATE_RECEIPTS_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 44
