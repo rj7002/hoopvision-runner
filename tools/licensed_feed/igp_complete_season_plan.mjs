@@ -4,7 +4,7 @@ import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 const TOKEN=process.env.GH_TOKEN;
 const NOW=Date.now();
-const MAX=10; // Bounded full Oct 30 NBA ten-game slate fanout; do not exceed 10.
+const MAX=10; // Bounded dynamic final-game batch; older incomplete sources retry on the next run.
 if(!TOKEN || !process.env.GITHUB_OUTPUT)throw Error('PRIVATE_TOKEN_OR_OUTPUT_MISSING');
 async function get(url,privateRead=false){
  if(privateRead){
@@ -183,19 +183,11 @@ const rotation=incomplete.length?Math.floor(NOW/(3*3600000))%incomplete.length:0
 // existing incomplete-game rotation resumes, preventing long-term starvation.
 const urgent=pending.filter(g=>NOW-g.start<=48*3600000)
   .sort((a,b)=>b.start-a.start||b.id.localeCompare(a.id));
-// Oct 30 US games (Oct 31 NZ): explicitly prioritize this completed ten-game slate
-// over earlier incomplete games. This is date-scoped official schedule selection,
-// not inferred game identifiers or a permanent change to the baseline release.
-const oct30Within=g=>g.start>=Date.parse('2026-10-30T04:00:00Z')
-    &&g.start<Date.parse('2026-10-31T04:00:00Z');
-const oct30Official=fixtures.filter(oct30Within);
-if (oct30Official.length !== 10)
-  throw Error('IGP91_OCT30_OFFICIAL_FINAL_TEN_COUNT_NOT_READY');
-const oct30=pending.filter(oct30Within);
-console.log('IGP91_OCT30_SCOPED_DISCOVERY',JSON.stringify({
-  official_final:oct30Official.length,remaining_source_incomplete:oct30.length,
-  official_game_ids:oct30Official.map(g=>g.id),pending_game_ids:oct30.map(g=>g.id)}));
-const candidates=[...oct30,...fresh,...urgent,...incomplete.slice(rotation),...incomplete.slice(0,rotation)];
+// Newest verified official-final games take priority over earlier incomplete-source
+// backlog. Discover dynamically from the NBA schedule; never pin a prior slate.
+// Rotation guarantees old source gaps remain eligible after the recent cohort.
+const freshNewest=[...fresh].sort((a,b)=>b.start-a.start||b.id.localeCompare(a.id));
+const candidates=[...urgent,...freshNewest,...incomplete.slice(rotation),...incomplete.slice(0,rotation)];
 const selected=[...new Map(candidates.map(g=>[g.id,g])).values()].slice(0,MAX);
 const parts=[],apps=[],games=[],sdkGames=[];
 let reused=0,releaseReadDeferred=0;
