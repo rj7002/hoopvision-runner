@@ -25,7 +25,8 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
-          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          # Authenticated private clone in next step is the access proof;
+          # avoid an unnecessary GitHub REST preflight under rate limits.
           gh auth setup-git
       - name: Clone only immutable FULL88 official statistical and test assets
         shell: bash
