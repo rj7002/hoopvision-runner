@@ -182,6 +182,95 @@ jobs:
             sleep "$n"
           done
           exit 23
+  promote-recovered-0154-full92-index:
+    needs: recover-complete-original-sdk-0154
+    if: github.event_name == 'push' && needs.recover-complete-original-sdk-0154.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Validate opaque runner transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Rebuild the native season index and original-source shot references privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion data/extensions/nba_blueprint_2026_27
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 gamepulse/fusion/igp_post56_native_index_refresh_v1.py --root . > "$RUNNER_TEMP/native-refresh.log"
+          python3 - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          p=Path("gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json")
+          add=json.loads(p.read_bytes())
+          gid="0022600154"
+          g=add["games"][gid]
+          assert g["original_source_13_part_complete"] and g["original_native_timestamps"]==32688
+          assert g["original_xyz_manifest"]
+          grade=g["source_capture_grades"]
+          assert all(grade[k]==v for k,v in {
+             "official_nba_pbp_box":"SHA_VERIFIED",
+             "official_logical_chains":"SHA_VERIFIED",
+             "original_companion":"COMPLETE_ORIGINAL_RESPONSE",
+             "original_nba_blueprint":"SOURCE_SHA_ACCEPTED"}.items())
+          grade["original_native_xyz"]="SHA_FULL_13PART"
+          g["status"]="SOURCE_LAYERS_CAPTURED_AND_SHA_INDEXED"
+          add["original_xyz_currently_indexed_for_slate"]=sum(
+              bool(x.get("original_source_13_part_complete")) for x in add["games"].values())
+          p.write_bytes((json.dumps(add,sort_keys=True,indent=2)+"\n").encode())
+          print("IGP_NATIVE_0154_92GAME_SOURCE_GRADE_PROMOTED",g["original_native_timestamps"])
+          PY
+          python3 gamepulse/fusion/igp_fullx_incremental_release_manifest_v1.py --root . > "$RUNNER_TEMP/fullx-manifest.log"
+          python3 gamepulse/fusion/igp_fullx_rolling_shot_event_multiview_v2.py --root . --clips-game-key gameId --clips-schema GAME_ID_QUERY_UNVERIFIED_EVENT_NUM_PROBED > "$RUNNER_TEMP/private-92-join.log"
+          python3 - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          b=Path("gamepulse/fusion")
+          native=json.loads((b/"materialized/igp_all_original_xyz/0022600154/index.json").read_bytes())
+          ptr=json.loads((b/"qa/igp_fullx/shot_event_multiview_fullx_v2_latest.json").read_bytes())
+          p=Path(ptr["index_path"]);raw=p.read_bytes()
+          assert hashlib.sha256(raw).hexdigest()==ptr["index_sha256"]
+          obj=json.loads(raw);a=obj["games"]["0022600154"]
+          assert obj["game_count"]==92 and a["original_native_source_present"]
+          assert a["counts"]["native_official_event_250ms"]>0
+          assert native["original_frame_counts"]["unique_original_native_timestamps"]==32688
+          assert a["counts"]["official_fga"]==165
+          print("IGP_FULL92_0154_ORIGINAL_NATIVE_SHOT_EVENT_JOIN_ACCEPTED",
+                a["counts"]["native_official_event_250ms"],a["counts"]["official_fga"])
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_event_multiview_fullx_v2 gamepulse/fusion/qa/igp_progress_20261030/igp_oct28_native_source_12_game_refresh_v1.json gamepulse/fusion/qa/igp_fullx
+          git diff --cached --check
+          if git diff --cached --quiet; then echo IGP_NATIVE_0154_ROLLING_ALIGNED; exit 0; fi
+          git commit -q -m "data(igp): source-grade 0154 native XYZ and update rolling Full92 shot event views"
+          for n in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            git fetch -q origin "$BRANCH"
+            current="$(git show "origin/$BRANCH:gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json" | sha256sum | cut -d' ' -f1)"
+            expected="$(git show "HEAD:gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json" | sha256sum | cut -d' ' -f1)"
+            if test "$current" != "$expected"; then
+              echo IGP_ADDITIVE_SOURCE_CHANGED_REBUILD_REQUIRED
+              exit 24
+            fi
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo IGP_FULL92_0154_NATIVE_AND_SHOT_JOIN_PRIVATE_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 23
   private-season:
     if: (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'
     needs: preflight
