@@ -46,7 +46,21 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           python3 gamepulse/fusion/igp_full81_possession_terminal_rootcause_v1.py > "$RUNNER_TEMP/private-p2-log" 2>&1 || {
-            echo "FULL81_PRIVATE_NBA_PBP_TERMINAL_AUDIT_FAILED"
+            python3 - <<'PY'
+          import os,json
+          from pathlib import Path
+          log=(Path(os.environ['RUNNER_TEMP'])/'private-p2-log').read_text()
+          p=Path('gamepulse/fusion/qa/igp_fullx/full81_possession_terminal_private_failure_20261102.json')
+          p.parent.mkdir(parents=True,exist_ok=True)
+          p.write_text(json.dumps({'status':'PRIVATE_ORIGINAL_PBP_REPLAY_FAILED',
+              'private_traceback':log[-12000:]},sort_keys=True,indent=2)+'\\n')
+          PY
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add --sparse -f gamepulse/fusion/qa/igp_fullx/full81_possession_terminal_private_failure_20261102.json
+            git commit -qm 'qa(private): preserve NBA PBP terminal replay failure [skip ci]'
+            git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH" || true
+            echo "FULL81_PRIVATE_NBA_PBP_TERMINAL_AUDIT_FAILED_DETAILS_PRIVATE"
             exit 1
           }
           python3 - <<'PY'
