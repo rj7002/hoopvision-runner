@@ -897,13 +897,6 @@ jobs:
           assert hashlib.sha256(blob).hexdigest()==d['image_sha256']
           print('ORIGINAL_NBA_PORTRAIT_STRIP_PASS',len(blob),len(d['players']))
           PY
-      - name: Publish public NBA headshot-only asset as Actions artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: rockets-9-nba-cdn-alpha-headshots
-          path: ${{ runner.temp }}/private/gamepulse/fusion/qa/igp_fullx/houston_rockets_full92_9_original_nba_cutouts.webp
-          if-no-files-found: error
-          retention-days: 1
       - name: Preserve authentic NBA image and source receipts in private repo only
         run: |
           set -euo pipefail
