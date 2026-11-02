@@ -1,0 +1,55 @@
+name: Game Pulse SDK-only source partition synthetic QA (PR1030)
+# Free public CPU runner; private source code is ephemeral and never committed or uploaded.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/gamepulse-sdk-only-partition-pr1030-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-source-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce public/private boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}" || { echo 'PRIVATE_READ_TOKEN_UNAVAILABLE'; exit 3; }
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Fetch only pinned private source blobs into ephemeral runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          work="$RUNNER_TEMP/sdk-only-pr1030"
+          mkdir -p "$work"
+          fetch_pinned() {
+            local sha="$1" name="$2"
+            gh api "repos/timeedmonds-maker/104/git/blobs/$sha" --jq .content |
+              base64 --decode > "$work/$name"
+            test -s "$work/$name"
+            test "$(git hash-object "$work/$name")" = "$sha" ||
+              { echo 'PINNED_PRIVATE_BLOB_MISMATCH'; exit 4; }
+          }
+          fetch_pinned 652830c5f5877f5b927a9a6644892700fd61c69d sdk_only_native_label_partition_2026.py
+          fetch_pinned 47b7dfe7799cdc50390c90f4fe9ade7e7e01091f test_sdk_only_native_label_partition_2026.py
+          fetch_pinned 9436ed5d7badc87645175182a261b411ed7c5b9c gamepulse_ball_dynamics.py
+          fetch_pinned 52968cc4c1faa6389a9f3cda6b44ab0aa4f72245 gamepulse_ball_control.py
+          echo 'PRIVATE_SOURCE_BLOBS_SHA_VERIFIED'
+      - name: Execute synthetic provenance and negative controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/sdk-only-pr1030"
+          python3 -m py_compile sdk_only_native_label_partition_2026.py
+          python3 -m unittest -v test_sdk_only_native_label_partition_2026
+          echo 'PR1030_SYNTHETIC_SOURCE_QA_PASS_NOT_REAL_SDK_ACCEPTANCE'
