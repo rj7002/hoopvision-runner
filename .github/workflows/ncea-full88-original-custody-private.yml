@@ -16,7 +16,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       SOURCE_REF: research/ncea-all88-custody-shadow-20261102
-      SOURCE_SHA: 2495d5b6cbdddc3d58e9afe504f3c631181e34b6
+      SOURCE_SHA: 6cfe07ff905b9ecc3fbd702fef26606eb2e470d9
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
