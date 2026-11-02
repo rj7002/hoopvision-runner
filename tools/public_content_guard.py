@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full92-new4-masked-holdout-private-20261102.yml",  # SHA-pinned unseen game source masking; no private rows public
     ".github/workflows/igp-full92-native-census-private-20261102.yml",  # SHA-pinned private 92-game intake census; aggregate pass only public
     ".github/workflows/igp-full88-guard-discrepancy-pilot-20261102.yml",  # pinned private one-game source forensic; aggregate-only public output
     ".github/workflows/igp-full88-v4-single-p2b-promote-private-20261102.yml",  # private-source full88 5904 single-player v4 release/rollback gate; public PASSFAIL only
