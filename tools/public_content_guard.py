@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full88-natural-gap-enriched-private-20261102.yml",  # private SHA original NBA sparse-anchor masked source holdout, no individual stats public
     ".github/workflows/igp-full88-natural-gap-new17-masked-private-20261102.yml",  # source-masked 17-game original NBA actor/ball private accuracy QA; aggregate-only public
     ".github/workflows/igp-full88-natural-gap-qualified-private-20261102.yml",  # private Full88 exact marginal original anchor-gap classification; no NBA data in public logs
     ".github/workflows/igp-full88-parallel-exact-marginal-private-20261102.yml",  # exact four-way Full88 private NBA original source scene overlap, aggregate CI only
