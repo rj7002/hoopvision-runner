@@ -24,7 +24,7 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_HEAD_SHA: 19691c1cebc25e27480041b9cac538d6ccb911b5
+      PRIVATE_HEAD_SHA: 784f954b9bc85777f6e0e2d2249e23b90ec7a3f4
       PRIVATE_SOURCE_BRANCH: research/courtcoder-v31-native-gap-promotion-falsification-20261102
     steps:
       - uses: actions/checkout@v4
