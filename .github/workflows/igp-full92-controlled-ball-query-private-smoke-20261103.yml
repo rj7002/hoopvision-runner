@@ -1,0 +1,72 @@
+name: Full92 private original-first bounded controlled ball query readback
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full92-controlled-ball-query-private-smoke-20261103.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  private-query-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/full92-ball-control-persistence-shadow-20261103
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Public privacy guard and private NBA data checkout
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: Source-free observed-original priority and candidate tests
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_query_igp_full92_controlled_ball_shadow_v1.py'
+      - name: One real game source SHA and naturally missing ball query
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 - <<'PY'
+          from pathlib import Path
+          from igp_full92_all_event_rebound_tracking_v1 import original_release
+          from igp_full92_ball_control_persistence_shadow_v1 import load_native,raw_anchor
+          from igp_full92_ball_control_forward_shadow_v2 import forward
+          from query_igp_full92_controlled_ball_shadow_v1 import query
+          gid="0022600001"
+          idx,_,_=original_release(".")
+          rows,sha=load_native(Path("."),gid,idx)
+          previous=[]
+          eligible=[]
+          observed=0
+          for t,positions in rows:
+              a=raw_anchor((t,positions))
+              if a is not None:
+                  observed+=1
+                  previous.append(a)
+                  previous=previous[-3:]
+              elif len(previous)==3:
+                  result,grade=forward(previous,t,{k:v for k,v in positions.items() if k!="ball"})
+                  if result is not None:
+                      eligible.append(t)
+          assert observed>0 and len(eligible)>0
+          first=query(".",gid,eligible[0])
+          assert first["grade"]=="RESEARCH_CAUSAL_PLAYER_BALL_BOUNDED_SOURCE_PROXY"
+          assert len(first["candidate_ball_xyz_native_units"])==3
+          assert first["original_native_manifest_sha256"]==sha
+          assert first["accepted_default_tracking_ball_change"] is False
+          direct_t=next(t for t,p in rows if "ball" in p)
+          original=query(".",gid,direct_t)
+          assert original["grade"]=="DIRECT_ORIGINAL_OBSERVED"
+          assert original["candidate_ball_xyz_native_units"] is None
+          print("FULL92_ORIGINAL_FIRST_BALL_QUERY_SOURCE_READBACK_PASS",
+                "original_observed",observed,"natural_candidates",len(eligible),
+                "candidate_accepted_default",False,"original_preserved",True)
+          PY
