@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full88-v2-official-176-team-poss-acceptance-20261102.yml",  # protected private SHA-pinned FULL88 statistical v2 test, aggregate logs only
     ".github/workflows/igp-full88-176-published-team-poss-private-gate-20261102.yml",  # opaque official NBA 176 team-game published POSS and PBP score verification
     ".github/workflows/igp-full88-176team-official-poss-private-20261102.yml",  # SHA-locked private NBA source-only 176 team-game published-POSS gate; public aggregates only
     ".github/workflows/igp-full88-two-game-blueprint-source-recheck-20261102.yml",  # reviewed original Blueprint two-game private SHA recheck; aggregate-only public logs
