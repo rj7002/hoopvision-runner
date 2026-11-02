@@ -6,6 +6,7 @@ on:
     branches:
       - research/courtcoder-p1-public-safe-controls-20261102
       - research/courtcoder-p1-dual-gate-controls-20261102
+      - research/courtcoder-p1-strict-protected-controls-20261102
       - main
     paths:
       - .github/workflows/courtcoder-p1-protected-control-tests.yml
@@ -18,8 +19,8 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_HEAD_SHA: 1774b7eb2381124d4a2177b16d3d9c6c4b001165
-      PRIVATE_SOURCE_BRANCH: research/courtcoder-p1-trusted-certificate-worker-path-20261102
+      PRIVATE_HEAD_SHA: 8f7ae268a50a7d4be0546cf38c5a1bdf9d9425a5
+      PRIVATE_SOURCE_BRANCH: research/courtcoder-v26-strict-fourpath-eval-20261102
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,13 +41,45 @@ jobs:
             tools/diagnostics tools/github_first hoopvision/core hoopvision/tests
           test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PRIVATE_HEAD_SHA"
           cd "$RUNNER_TEMP/private"
-          if python3 -m unittest -v \
+          python3 -m py_compile \
+            tools/diagnostics/cc_full81_p1_strict_original_artifact_replay.py \
+            tools/diagnostics/cc_full81_p1_strict_h1_private_score.py \
+            > "$RUNNER_TEMP/courtcoder-private-compile.log" 2>&1 || { echo "COURTCODER_PRIVATE_COMPILE_FAILED"; exit 3; }
+          failed=0
+          for module in \
             hoopvision.tests.test_p1_ocr_source_triage \
             hoopvision.tests.test_p1_worker_output_adapter \
             hoopvision.tests.test_p1_identity_replay \
             hoopvision.tests.test_p1_analytics_adapter \
             hoopvision.tests.test_p1_certified_worker_path \
-            > "$RUNNER_TEMP/courtcoder-private-tests.log" 2>&1; then
+            hoopvision.tests.test_p1_strict_evidence_gate; do
+            if python3 -m unittest "$module" > "$RUNNER_TEMP/courtcoder-private-tests.log" 2>&1; then
+              echo "COURTCODER_SUITE_OK ${module##*.}"
+            else
+              echo "COURTCODER_SUITE_FAILED ${module##*.}"
+              if [ "$module" = hoopvision.tests.test_p1_strict_evidence_gate ]; then
+                n=0
+                for case in \
+                  test_supported_remains_provisional_and_incumbents_immutable \
+                  test_nonobservable_abstains \
+                  test_nearby_conflicting_incumbent_abstains \
+                  test_cross_path_root_abstains \
+                  test_no_certifications_allowed \
+                  test_no_forged_provisional_renderer_flag \
+                  test_duplicate_and_mismatched_frame_rejected \
+                  test_bad_window_and_far_root_abstain; do
+                  n=$((n+1))
+                  if python3 -m unittest "$module.StrictP1Tests.$case" > "$RUNNER_TEMP/courtcoder-private-case.log" 2>&1; then
+                    echo "COURTCODER_STRICT_CASE_${n}_PASS"
+                  else
+                    echo "COURTCODER_STRICT_CASE_${n}_FAIL"
+                  fi
+                done
+              fi
+              failed=1
+            fi
+          done
+          if [ "$failed" -eq 0 ]; then
             echo "COURTCODER_PINNED_PRIVATE_CPU_TESTS_PASS"
           else
             echo "COURTCODER_PINNED_PRIVATE_CPU_TESTS_FAIL_DIAGNOSTICS_PRIVATE_ONLY"
@@ -61,9 +94,32 @@ jobs:
             +"\n\n"+log.read_text(errors="replace")[-16000:]
           )
           PY
-            gh api --method POST repos/timeedmonds-maker/104/issues/1003/comments \
+            gh api --method POST repos/timeedmonds-maker/104/issues/1005/comments \
               -F body=@"$RUNNER_TEMP/courtcoder-private-comment.txt" >/dev/null || true
             rm -f "$RUNNER_TEMP/courtcoder-private-tests.log" "$RUNNER_TEMP/courtcoder-private-comment.txt"
             exit 1
           fi
           rm -f "$RUNNER_TEMP/courtcoder-private-tests.log"
+          # Original 15,614-row frozen producer archive stays ephemeral,
+          # never published to this public repository or its artifacts/logs.
+          if curl -fsSL --retry 1 --connect-timeout 20 --max-time 120 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/timeedmonds-maker/104/actions/artifacts/13113878628/zip" \
+            -o "$RUNNER_TEMP/courtcoder-private-frozen.zip" 2> "$RUNNER_TEMP/private-artifact-access.log"; then
+            if python3 -m tools.diagnostics.cc_full81_p1_strict_original_artifact_replay \
+               --archive "$RUNNER_TEMP/courtcoder-private-frozen.zip" \
+               --out "$RUNNER_TEMP/courtcoder-private-original-shadow" \
+               > "$RUNNER_TEMP/courtcoder-private-replay.log" 2>&1; then
+              echo "COURTCODER_15614_FROZEN_SHA_WORKER_SHADOW_PASS"
+            else
+              echo "COURTCODER_FROZEN_ORIGINAL_PRIVATE_REPLAY_FAILED"
+              exit 7
+            fi
+          else
+            echo "COURTCODER_FROZEN_ARTIFACT_ACTIONS_READ_NOT_AUTHORIZED_OR_UNAVAILABLE_REPLAY_NOT_RUN"
+          fi
+          rm -rf "$RUNNER_TEMP/courtcoder-private-frozen.zip" \
+            "$RUNNER_TEMP/courtcoder-private-original-shadow" \
+            "$RUNNER_TEMP/courtcoder-private-replay.log" \
+            "$RUNNER_TEMP/private-artifact-access.log"
