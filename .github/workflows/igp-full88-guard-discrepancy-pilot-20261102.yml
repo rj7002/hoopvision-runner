@@ -1,4 +1,4 @@
-# Opaque public bridge. Detailed source diagnostics stay in private 104.
+# Opaque public bridge. Private source only; first run after exact path guard review.
 name: Full88 guard discrepancy private pilot
 on:
   push:
