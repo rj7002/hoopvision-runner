@@ -1,0 +1,145 @@
+name: Full92 player-controlled ball persistence against original tracking
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full92-controlled-ball-persistence-private-20261103.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full92-ball-control-shadow6
+  cancel-in-progress: false
+jobs:
+  private-source-control-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/full92-ball-control-persistence-shadow-20261103
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Privacy guard and private original NBA source clone
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: Source-free ball-held and release unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full92_ball_control_persistence_shadow_v1.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests \
+            -p 'test_igp_full92_ball_control_persistence_shadow_v1.py'
+          echo CONTROLLED_BALL_SOURCEFREE_PASS
+      - name: Run 3 dev games source-masked plus naturally missing ball
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 gamepulse/fusion/igp_full92_ball_control_persistence_shadow_v1.py \
+            --root . --games 0022600001 0022600002 0022600009 \
+            --output gamepulse/fusion/qa/igp_fullx/full92_ball_control_dev3_20261103.json \
+            >"$RUNNER_TEMP/igp-control-dev.log" 2>&1 || {
+              python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          s=(Path(os.environ["RUNNER_TEMP"])/"igp-control-dev.log").read_text(errors="replace").splitlines()
+          hit=next((x for x in reversed(s) if re.match(r"^(?:AssertionError|ValueError|KeyError|TypeError|IndexError|FileNotFoundError):",x)),None)
+          if hit:
+              kind,_,msg=hit.partition(":")
+              code=msg.strip().split(":",1)[0].split(" ",1)[0]
+              print("PRIVATE_IGP_CONTROL_DEV_FAILED",kind,code if re.fullmatch(r"[A-Z0-9_]{5,90}",code) else "REDACTED")
+          else:print("PRIVATE_IGP_CONTROL_DEV_FAILED UNKNOWN")
+          PY
+              exit 41
+            }
+      - name: Run 3 unseen games same preregistered model
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 gamepulse/fusion/igp_full92_ball_control_persistence_shadow_v1.py \
+            --root . --games 0022600086 0022600111 0022600141 \
+            --output gamepulse/fusion/qa/igp_fullx/full92_ball_control_unseen3_20261103.json \
+            >"$RUNNER_TEMP/igp-control-unseen.log" 2>&1 || {
+              python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          s=(Path(os.environ["RUNNER_TEMP"])/"igp-control-unseen.log").read_text(errors="replace").splitlines()
+          hit=next((x for x in reversed(s) if re.match(r"^(?:AssertionError|ValueError|KeyError|TypeError|IndexError|FileNotFoundError):",x)),None)
+          if hit:
+              kind,_,msg=hit.partition(":")
+              code=msg.strip().split(":",1)[0].split(" ",1)[0]
+              print("PRIVATE_IGP_CONTROL_UNSEEN_FAILED",kind,code if re.fullmatch(r"[A-Z0-9_]{5,90}",code) else "REDACTED")
+          else:print("PRIVATE_IGP_CONTROL_UNSEEN_FAILED UNKNOWN")
+          PY
+              exit 42
+            }
+      - name: Verify sample equality and emit source-safe aggregate only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          d=Path("gamepulse/fusion/qa/igp_fullx")
+          src=[d/"full92_ball_control_dev3_20261103.json",d/"full92_ball_control_unseen3_20261103.json"]
+          a,b=[json.loads(x.read_bytes()) for x in src]
+          assert a["schema"]==b["schema"] and a["game_count"]==b["game_count"]==3
+          assert set(a["game_ids"]).isdisjoint(b["game_ids"])
+          assert all(z["no_default_promotion"] and z["original_sdk_unchanged"] for z in (a,b))
+          for z in (a,b):
+              for k,p in z["by_block"].items():
+                  assert p["owner_relative"]["n"]==p["matched_source_linear"]["n"]==p["evaluated_points"]
+                  assert p["eligible_blocks"]<=p["masked_opportunities"]
+              assert z["counts"].get("natural_same_player_candidate_frames",0)<=z["counts"].get("natural_original_no_ball_frames",0)
+          receipt={"schema":"igp.full92.ball-persistence-disjoint6-source-shadow-decision.v1",
+              "private_dev_source_sha256":hashlib.sha256(src[0].read_bytes()).hexdigest(),
+              "private_unseen_source_sha256":hashlib.sha256(src[1].read_bytes()).hexdigest(),
+              "dev":a["by_block"],"unseen":b["by_block"],
+              "dev_natural_source_gaps":a["counts"].get("natural_original_no_ball_frames",0),
+              "dev_natural_candidates":a["counts"].get("natural_same_player_candidate_frames",0),
+              "unseen_natural_source_gaps":b["counts"].get("natural_original_no_ball_frames",0),
+              "unseen_natural_candidates":b["counts"].get("natural_same_player_candidate_frames",0),
+              "source_observations_not_independent_video":True,
+              "certified_ball_custody":0,"decision":"SHADOW_ONLY_PRE_PHYSICAL_VALIDATION"}
+          (d/"full92_ball_control_disjoint6_decision_20261103.json").write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\n")
+          print("IGP_FULL92_BALL_CONTROL_SOURCE_MASK_AGGREGATE",json.dumps({
+              "dev":receipt["dev"],"unseen":receipt["unseen"],
+              "natural_missing_dev":receipt["dev_natural_source_gaps"],
+              "natural_candidates_dev":receipt["dev_natural_candidates"],
+              "natural_missing_unseen":receipt["unseen_natural_source_gaps"],
+              "natural_candidates_unseen":receipt["unseen_natural_candidates"]},sort_keys=True))
+          PY
+      - name: Commit verified QA privately, never public proprietary coordinate data
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_fullx/full92_ball_control_*_20261103.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo FULL92_CONTROL_QA_ALREADY_PRIVATE; exit 0; fi
+          git commit -qm 'qa(igp): private Full92 ball-control shadow dev and disjoint unseen masked source'
+          gh auth setup-git
+          for n in 1 2 3 4; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH" || exit 43
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo IGP_FULL92_CONTROL_DISJOINT_PRIVATE_QA_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 44
