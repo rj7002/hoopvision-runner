@@ -916,3 +916,5 @@ jobs:
             sleep "$n"
           done
           exit 44
+
+# 2026-11-03 Rockets original CDN portrait delivery QA replay
