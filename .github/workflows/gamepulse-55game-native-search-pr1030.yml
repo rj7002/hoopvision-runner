@@ -1,0 +1,137 @@
+name: Game Pulse 55-game source-native search research acceptance (PR1030)
+# Free CPU, private source bytes ephemeral. Never uploads original SDK labels.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/gamepulse-55game-native-search-pr1030.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-search-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce private source boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}" || { echo 'PRIVATE_READ_TOKEN_UNAVAILABLE'; exit 3; }
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Verify private research 55-game source-native search end to end
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/source-search-55"
+          cd "$RUNNER_TEMP/source-search-55"
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          import importlib.util
+          import json
+          import subprocess
+          from concurrent.futures import ThreadPoolExecutor
+          from pathlib import Path
+          repo = "timeedmonds-maker/104"
+          research = "research/gamepulse-sdk-only-source-quarantine-20261103"
+          root = Path.cwd()
+          def api_content(path, ref):
+              p = subprocess.run(
+                  ["gh", "api", f"repos/{repo}/contents/{path}?ref={ref}",
+                   "--jq", ".content"], capture_output=True, text=True)
+              if p.returncode:
+                  raise RuntimeError("PRIVATE_SOURCE_FETCH_FAILED " + path)
+              return base64.b64decode(p.stdout)
+          def write(path, raw):
+              dest = root / path
+              dest.parent.mkdir(parents=True, exist_ok=True)
+              if dest.exists():
+                  assert dest.read_bytes() == raw, "DUPLICATE_SOURCE_FILE_CONFLICT"
+              else:
+                  dest.write_bytes(raw)
+          code_sha = "19eac782fdd57e890416a2adbcba1ef173ee4759"
+          p = subprocess.run(
+              ["gh", "api", f"repos/{repo}/git/blobs/{code_sha}",
+               "--jq", ".content"], capture_output=True, text=True, check=True)
+          code = base64.b64decode(p.stdout)
+          git_sha = hashlib.sha1(
+              b"blob " + str(len(code)).encode() + b"\\0" + code).hexdigest()
+          assert git_sha == code_sha, "PRIVATE_SOURCE_SEARCH_CODE_GIT_SHA_MISMATCH"
+          (root / "native_label_season_search_2026.py").write_bytes(code)
+          spec = importlib.util.spec_from_file_location(
+              "source_search", root / "native_label_season_search_2026.py")
+          mod = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          sources = [
+              (mod.CATALOG, "main"),
+              (mod.INTERACTION, "main"),
+              (mod.UNASSIGNED, "main"),
+              (mod.QUARANTINED, research),
+          ]
+          manifests = {}
+          for path, ref in sources:
+              raw = api_content(path, ref)
+              write(path, raw)
+              manifests[path] = json.loads(raw)
+          catalog = manifests[mod.CATALOG]
+          joined = manifests[mod.INTERACTION]
+          unassigned = manifests[mod.UNASSIGNED]
+          quarantined = manifests[mod.QUARANTINED]
+          assert catalog["game_count"] == 55
+          assert joined["game_count"] == unassigned["game_count"] == 43
+          assert quarantined["game_count"] == 14
+          assert set(joined["games"]) == set(unassigned["games"])
+          assert len(set(joined["games"]) & set(quarantined["games"])) == 2
+          assert set(joined["games"]) | set(quarantined["games"]) == set(catalog["games"])
+          jobs = []
+          for manifest, ref in [(joined, "main"), (unassigned, "main"),
+                                (quarantined, research)]:
+              for game, entry in manifest["games"].items():
+                  jobs.append((game, entry["path"], entry["sha256"], ref))
+          def fetch_one(job):
+              game, path, sha, ref = job
+              raw = api_content(path, ref)
+              assert hashlib.sha256(raw).hexdigest() == sha, (
+                  "SOURCE_NATIVE_PARTITION_SHA_MISMATCH " + game)
+              doc = json.loads(raw)
+              assert doc["game_id"] == game
+              return path, raw
+          with ThreadPoolExecutor(max_workers=6) as pool:
+              for path, raw in pool.map(fetch_one, jobs):
+                  write(path, raw)
+          result = mod.search(root, limit=1)
+          assert result["captured_season_total_games"] == 55
+          assert result["captured_season_games_checked"] == 55
+          assert result["source_join_tier_games"] == 43
+          assert result["source_clock_quarantine_games"] == 12
+          assert result["archived_source_clock_quarantine_games"] == 2
+          assert result["physical_possessions_certified"] == 0
+          rocket = mod.search(root, game_id="0022600009", limit=1)
+          assert rocket["matched_source_labels"] == 879
+          assert rocket["physical_possessions_certified"] == 0
+          new_labels = 0
+          for n in range(119, 131):
+              game = f"002260{n:04d}"
+              game_result = mod.search(root, game_id=game, limit=1)
+              expected = quarantined["games"][game]["native_labels"]
+              assert game_result["matched_source_labels"] == expected
+              assert game_result["physical_possessions_certified"] == 0
+              new_labels += expected
+          assert new_labels == 10411
+          print("PRIVATE_RESEARCH_55_GAME_UNIFIED_SOURCE_SEARCH_PASS")
+          print("SOURCE_SEARCH_GAMES", 55, "JOINED", 43, "SOURCE_ONLY", 12,
+                "ARCHIVED_OVERLAP", 2)
+          print("NEW_ORIGINAL_SOURCE_LABELS", new_labels)
+          print("ROCKETS_SOURCE_LABELS", rocket["matched_source_labels"])
+          print("TOTAL_SOURCE_LABELS", result["matched_source_labels"])
+          print("CERTIFIED_PHYSICAL_POSSESSIONS", 0)
+          print("NOT_PRODUCTION_SEARCH_NOT_LIVE_GAMEPLAY_CERTIFICATION")
+          PY
