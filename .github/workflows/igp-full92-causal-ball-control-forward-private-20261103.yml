@@ -1,0 +1,112 @@
+name: Full92 forward persistent player controlled ball private source masked
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full92-causal-ball-control-forward-private-20261103.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  original-private-controlled-ball:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/full92-ball-control-persistence-shadow-20261103
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Public-source boundary and SHA-private clone
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: Source-free causal ball motion and leak-proof tests
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_full92_ball_control_forward_shadow_v2.py' -v
+      - name: Original masked 3-game development QA
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 gamepulse/fusion/igp_full92_ball_control_forward_shadow_v2.py --root . \
+            --games 0022600001 0022600002 0022600009 \
+            --out gamepulse/fusion/qa/igp_fullx/full92_ball_forward_dev3_20261103.json \
+            > "$RUNNER_TEMP/control-forward-dev.log" 2>&1 || {
+              echo FORWARD_CONTROL_DEV_PRIVATE_ERROR
+              grep -E '^((AssertionError|ValueError|TypeError|KeyError|IndexError):)' "$RUNNER_TEMP/control-forward-dev.log" | sed -E 's/[: ].*$//' | tail -1 || true
+              exit 41
+            }
+      - name: Original masked unseen 3-game QA
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 gamepulse/fusion/igp_full92_ball_control_forward_shadow_v2.py --root . \
+            --games 0022600086 0022600111 0022600141 \
+            --out gamepulse/fusion/qa/igp_fullx/full92_ball_forward_unseen3_20261103.json \
+            > "$RUNNER_TEMP/control-forward-unseen.log" 2>&1 || {
+              echo FORWARD_CONTROL_UNSEEN_PRIVATE_ERROR
+              grep -E '^((AssertionError|ValueError|TypeError|KeyError|IndexError):)' "$RUNNER_TEMP/control-forward-unseen.log" | sed -E 's/[: ].*$//' | tail -1 || true
+              exit 42
+            }
+      - name: Private SHA decision and safe aggregate
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          base=Path('gamepulse/fusion/qa/igp_fullx')
+          p=[base/'full92_ball_forward_dev3_20261103.json',base/'full92_ball_forward_unseen3_20261103.json']
+          a,b=[json.loads(x.read_bytes()) for x in p]
+          assert a['schema']==b['schema'] and a['games']==b['games']==3
+          assert set(a['game_ids']).isdisjoint(b['game_ids'])
+          assert a['original_NBA_XYZ_unchanged'] and b['original_NBA_XYZ_unchanged']
+          for d in (a,b):
+              for c in d['by_block'].values():
+                  assert c['owner']['n']==c['static_last_ball']['n']==c['linear_forward_ball']['n']==c['eligible_points']
+                  assert c['eligible_blocks']<=c['masked_blocks']
+          out={'schema':'igp.full92.causal-player-ball-forward-disjoint6.source-shadow.v2',
+               'private_source_qa_sha256':[hashlib.sha256(x.read_bytes()).hexdigest() for x in p],
+               'dev':a['by_block'],'unseen':b['by_block'],
+               'dev_natural':a['counts'].get('natural_forward_player_control_candidates',0),
+               'unseen_natural':b['counts'].get('natural_forward_player_control_candidates',0),
+               'natural_missing_dev':a['counts'].get('natural_no_original_ball',0),
+               'natural_missing_unseen':b['counts'].get('natural_no_original_ball',0),
+               'physical_possession_certified':0,
+               'status':'RESEARCH_ONLY_REQUIRE_PHYSICAL_SOURCE_VALIDATION'}
+          (base/'full92_ball_forward_disjoint6_decision_20261103.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print('FULL92_FORWARD_CONTROL_QA',json.dumps({
+              'dev':out['dev'],'unseen':out['unseen'],
+              'dev_natural_candidates':out['dev_natural'],
+              'unseen_natural_candidates':out['unseen_natural'],
+              'dev_natural_missing':out['natural_missing_dev'],
+              'unseen_natural_missing':out['natural_missing_unseen']},sort_keys=True))
+          PY
+      - name: Save original-source QA to private repository
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_fullx/full92_ball_forward_*_20261103.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo ALREADY_PRIVATE; exit 0; fi
+          git commit -qm 'qa: full92 causal forward owner-ball original-source six-game shadow'
+          gh auth setup-git
+          for n in 1 2 3 4; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH" || exit 43
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo FULL92_FORWARD_BALL_ORIGINAL_QA_PRIVATE
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 44
