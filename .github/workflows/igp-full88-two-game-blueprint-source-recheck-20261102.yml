@@ -36,6 +36,7 @@ jobs:
           git sparse-checkout set --no-cone \
             /scripts/update_nba_blueprint_daily_2026_27.py \
             /scripts/build_nba_blueprint_2026_27.py \
+            /scripts/build_nba_blueprint_2026_27.py \
             /data/extensions/nba_blueprint_2026_27/games/0022600111/ \
             /data/extensions/nba_blueprint_2026_27/games/0022600143/ \
             /gamepulse/fusion/igp_full88_default_engine_v1.py \
@@ -51,7 +52,20 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           python3 gamepulse/fusion/igp_full88_blueprint_source_recheck_v1.py --root . > "$RUNNER_TEMP/private-source-log" 2>&1 || {
-            echo "IGP_FULL88_PRIVATE_SOURCE_RECHECK_FAILED"
+            python3 - <<'PY'
+          from pathlib import Path
+          import json,os
+          folder=Path("gamepulse/fusion/qa/igp_fullx/blueprint_fresh_recheck_20261102")
+          folder.mkdir(parents=True,exist_ok=True)
+          log=(Path(os.environ["RUNNER_TEMP"])/"private-source-log").read_text()
+          (folder/"private_failure_diagnostic.json").write_text(json.dumps({"status":"FAILED","private_log_tail":log[-12000:]},sort_keys=True,indent=2)+"\n")
+          PY
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add --sparse -f gamepulse/fusion/qa/igp_fullx/blueprint_fresh_recheck_20261102/private_failure_diagnostic.json
+            git commit -qm 'qa(private): retain FULL88 original-source diagnostic [skip ci]'
+            git push -q origin "HEAD:refs/heads/$SOURCE_BRANCH" || true
+            echo "IGP_FULL88_PRIVATE_SOURCE_RECHECK_FAILED_SEE_PRIVATE_QA"
             exit 1
           }
           python3 - <<'PY'
