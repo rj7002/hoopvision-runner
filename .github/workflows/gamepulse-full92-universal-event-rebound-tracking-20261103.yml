@@ -557,3 +557,71 @@ jobs:
             sleep "$n"
           done
           exit 44
+
+
+  private-full92-release-components-top30:
+    name: Full92 release + roster head height + source shot jump effective extension
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/full92-all-event-rebound-tracking-20261103
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Protect public/private NBA source boundary
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: Same-shot release and jump paired 30-player stature decomposition
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full92_release_components_top30_v1.py
+          python3 gamepulse/fusion/igp_full92_release_components_top30_v1.py \
+            --out gamepulse/fusion/qa/igp_fullx/full92_release_components_top30_v1.json \
+            > "$RUNNER_TEMP/paired-private.log" 2>&1 || {
+              echo FULL92_COMPONENT_DECOMPOSITION_PRIVATE_FAILURE
+              exit 42
+            }
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('gamepulse/fusion/qa/igp_fullx/full92_release_components_top30_v1.json').read_bytes())
+          assert len(d['top30'])==30
+          assert len(set(x['player_id'] for x in d['top30']))==30
+          assert all(x['paired_shots']>=18 for x in d['top30'])
+          assert all(abs(x['same_shot_release_in']-x['nba_roster_height_in']-
+            x['source_jump_native_inch_equivalent']-
+            x['effective_release_above_nominal_head_in'])<.03 for x in d['top30'])
+          assert d['decomposition_provisional'] and not d['source_jump_at_ball_hand_departure_independently_verified']
+          print('FULL92_RELEASE_COMPONENTS_SAME_SHOT_PRIVATE_QA_PASS',
+             json.dumps({'players':30,'paired_shots':d['counts']['paired_release_and_jump'],
+             'provisional':d['decomposition_provisional'],
+             'source_ranking_leader':d['top30'][0]['player']},sort_keys=True))
+          PY
+      - name: Commit aggregate derived top30 only to private project
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_fullx/full92_release_components_top30_v1.json
+          git diff --cached --check
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -qm 'qa(igp): Full92 30-player original-shot release-height body-jump residual proxy'
+          for n in 1 2 3 4 5 6 7; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo FULL92_COMPONENTS_TOP30_PRIVATE_RELEASED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 44
