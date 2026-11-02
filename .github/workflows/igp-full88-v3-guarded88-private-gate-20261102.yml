@@ -18,8 +18,8 @@ jobs:
     timeout-minutes: 55
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_BRANCH: release/igp-full88-v3-guarded-evidence-20261102
-      PRIVATE_SHA: 34da161285c709bd6ab92e84a59d6b7cdde81318
+      PRIVATE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+      PRIVATE_SHA: d9bd6458ffa07aa24a3c19baa112e9bdf18e4d39
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
