@@ -45,14 +45,22 @@ jobs:
             tools/diagnostics/cc_full81_p1_strict_original_artifact_replay.py \
             tools/diagnostics/cc_full81_p1_strict_h1_private_score.py \
             > "$RUNNER_TEMP/courtcoder-private-compile.log" 2>&1 || { echo "COURTCODER_PRIVATE_COMPILE_FAILED"; exit 3; }
-          if python3 -m unittest -v \
+          failed=0
+          for module in \
             hoopvision.tests.test_p1_ocr_source_triage \
             hoopvision.tests.test_p1_worker_output_adapter \
             hoopvision.tests.test_p1_identity_replay \
             hoopvision.tests.test_p1_analytics_adapter \
             hoopvision.tests.test_p1_certified_worker_path \
-            hoopvision.tests.test_p1_strict_evidence_gate \
-            > "$RUNNER_TEMP/courtcoder-private-tests.log" 2>&1; then
+            hoopvision.tests.test_p1_strict_evidence_gate; do
+            if python3 -m unittest "$module" > "$RUNNER_TEMP/courtcoder-private-tests.log" 2>&1; then
+              echo "COURTCODER_SUITE_OK ${module##*.}"
+            else
+              echo "COURTCODER_SUITE_FAILED ${module##*.}"
+              failed=1
+            fi
+          done
+          if [ "$failed" -eq 0 ]; then
             echo "COURTCODER_PINNED_PRIVATE_CPU_TESTS_PASS"
           else
             echo "COURTCODER_PINNED_PRIVATE_CPU_TESTS_FAIL_DIAGNOSTICS_PRIVATE_ONLY"
