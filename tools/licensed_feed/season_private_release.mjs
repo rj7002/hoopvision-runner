@@ -31,10 +31,24 @@ function call(args){
  return result.out;
 }
 function names(tag){
- const r=gh(['release','view',tag,'--repo',REPO,'--json','assets']);
- if(!r.ok){if(r.category==='RATE_LIMIT')throw Error('private_github_rate_limited');return null;}
- try{return new Set(JSON.parse(r.out).assets.map(x=>x.name));}
- catch{throw Error('private_asset_listing_invalid');}
+ // GitHub CLI "release view" can transiently return nonzero during a
+ // parallel private Release initialization even when REST reads the Release.
+ const candidates=[
+  gh(['release','view',tag,'--repo',REPO,'--json','assets']),
+  gh(['api','repos/'+REPO+'/releases/tags/'+tag])
+ ];
+ for(const r of candidates){
+  if(!r.ok){
+   if(r.category==='RATE_LIMIT')throw Error('private_github_rate_limited');
+   if(r.category==='FORBIDDEN')throw Error('private_github_release_read_forbidden');
+   continue;
+  }
+  try {
+   const doc=JSON.parse(r.out);
+   if(Array.isArray(doc.assets))return new Set(doc.assets.map(x=>x.name));
+  } catch {throw Error('private_asset_listing_invalid');}
+ }
+ return null;
 }
 function ensure(tag){
  if(names(tag)!==null)return;
