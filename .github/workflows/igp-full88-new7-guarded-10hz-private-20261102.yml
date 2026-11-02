@@ -1,0 +1,121 @@
+# Only public opaque orchestration. Source NBA XYZ, official PBP, original
+# box, models and detailed holdouts are fetched and persisted in private 104.
+name: FULL88 seven-game original guarded P2B 10Hz masked-source shadow
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full88-new7-guarded-10hz-private-20261102.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: full88-new7-original-sdk-guarded-10hz-sourcegate-20261102
+  cancel-in-progress: false
+jobs:
+  original-seven-game-research-shadow:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: analysis/igp-full88-new7-guarded-p2b-shadow-20261102
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify source-opaque GitHub public bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Clone minimal protected original SDK, PBP, box and frozen original P2B model
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          git sparse-checkout set --no-cone \
+            '/gamepulse/fusion/*.py' \
+            /gamepulse/fusion/qa/igp81_nba_team_offrtg_reporting_default_v1.json \
+            /gamepulse/fusion/qa/igp_fullx/shot_event_multiview_full88_v1.json \
+            /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600147/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600148/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600149/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600150/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600151/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600152/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600153/ \
+            /gamepulse/fusion/official_pbp_timing/games/0022600147.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600148.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600149.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600150.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600151.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600152.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600153.json \
+            /gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600147/boxscore.json \
+            /gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600148/boxscore.json \
+            /gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600149/boxscore.json \
+            /gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600150/boxscore.json \
+            /gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600151/boxscore.json \
+            /gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600152/boxscore.json \
+            /gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600153/boxscore.json
+          python3 -m py_compile gamepulse/fusion/igp_full88_new7_p2b_source_masked_shadow_v1.py
+          python3 gamepulse/fusion/igp_full88_new7_p2b_source_masked_shadow_v1.py --self-test
+      - name: Evaluate exact frozen guarded algorithm against 7 new original NBA games
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 gamepulse/fusion/igp_full88_new7_p2b_source_masked_shadow_v1.py > "$RUNNER_TEMP/private-shadow-log" 2>&1 || {
+            python3 - <<'PY'
+          import os,json
+          from pathlib import Path
+          p=Path('gamepulse/fusion/qa/igp_fullx/full88_new7_guarded_p2b_shadow_private_failure_20261102.json')
+          p.parent.mkdir(parents=True,exist_ok=True)
+          log=(Path(os.environ['RUNNER_TEMP'])/'private-shadow-log').read_text()
+          p.write_text(json.dumps({'status':'FAILED','private_traceback':log[-14000:]},sort_keys=True,indent=2)+'\n')
+          PY
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add --sparse -f gamepulse/fusion/qa/igp_fullx/full88_new7_guarded_p2b_shadow_private_failure_20261102.json
+            git commit -qm 'qa(private): preserve full88 seven original guarded shadow failure [skip ci]'
+            git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH" || true
+            echo FULL88_NEW7_ORIGINAL_GUARDED_10HZ_PRIVATE_FAILURE
+            exit 1
+          }
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('gamepulse/fusion/qa/igp_fullx/full88_new7_guarded_p2b_shadow_20261102.json').read_bytes())
+          assert d['new7_games']==7 and len(d['per_game'])==7
+          assert d['frozen81_reconciled_guarded_complete_samples']==1171507
+          assert d['frozen81_reconciled_guarded_denominator_samples']==1340811
+          assert d['promoted_new_games']==0
+          assert d['original_XYZ_PBP_BOX_AND_FULL88_STAT_DEFAULT_UNMODIFIED']
+          c=d['new7_source_grade_counts']
+          print('IGP_FULL88_NEW7_GUARDED_SHADOW_AGGREGATE',c.get('full_p2b_original_shadows',0),
+                c.get('shadow_admission_eligible',0),c.get('strict_S1_10hz_samples',0),
+                c.get('union_guarded_plus_baseline_complete',0),
+                d['new7_guarded_10hz_rate_pct'])
+          PY
+      - name: Commit detailed masked-source error and eligibility privately only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f gamepulse/fusion/qa/igp_fullx/full88_new7_guarded_p2b_shadow_20261102.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo FULL88_NEW7_PRIVATE_SHADOW_QA_ALREADY_IDENTICAL; exit 0; fi
+          git commit -qm 'qa(private): preserve full88 new-seven original guarded P2B holdouts [skip ci]'
+          for attempt in 1 2 3 4 5; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo PRIVATE_FULL88_NEW7_P2B_SHADOW_QA_COMMITTED
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 28
