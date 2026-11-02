@@ -37,17 +37,17 @@ jobs:
             /gamepulse/fusion/igp_full88_default_engine_v1.py \
             /gamepulse/fusion/qa/igp_fullx/shot_event_multiview_full88_v1.json \
             /gamepulse/fusion/universal_possession_alignment_2026.py \
-            /gamepulse/fusion/igp_full81_possession_terminal_rootcause_v1.py \
+            /gamepulse/fusion/igp_full81_possession_terminal_rootcause_v2.py \
             /gamepulse/fusion/qa/igp81_nba_team_offrtg_reporting_default_v1.json \
             /gamepulse/fusion/official_pbp_timing/games/
-          python3 -m py_compile gamepulse/fusion/igp_full81_possession_terminal_rootcause_v1.py
-          python3 gamepulse/fusion/igp_full81_possession_terminal_rootcause_v1.py --self-test
+          python3 -m py_compile gamepulse/fusion/igp_full81_possession_terminal_rootcause_v2.py
+          python3 gamepulse/fusion/igp_full81_possession_terminal_rootcause_v2.py --self-test
       - name: Rebuild source-defined original logical chains for all 81 games privately
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          python3 gamepulse/fusion/igp_full81_possession_terminal_rootcause_v1.py > "$RUNNER_TEMP/private-p2-log" 2>&1 || {
+          python3 gamepulse/fusion/igp_full81_possession_terminal_rootcause_v2.py > "$RUNNER_TEMP/private-p2-log" 2>&1 || {
             python3 - <<'PY'
           import os,json
           from pathlib import Path
@@ -68,7 +68,7 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-          p=Path('gamepulse/fusion/qa/igp_fullx/full81_possession_terminal_rootcause_20261102.json')
+          p=Path('gamepulse/fusion/qa/igp_fullx/full81_possession_terminal_sourcegraded_v2_20261102.json')
           x=json.loads(p.read_bytes())
           assert x['games']==81 and x['team_games']==162
           assert x['totals']['nba']==16508 and x['totals']['candidate']==16484
@@ -76,6 +76,13 @@ jobs:
           assert x['frozen81_original_sha_exact_game_count']==71
           assert x['new_full88_source_version_shadow_game_count']==10
           assert x['source_version_shadow_not_frozen81_reproduction']
+          c=x['independent_original_chain_replay_conservation']
+          assert c['original_chain_count_total_frozen']==16581
+          assert c['original_chain_count_replayed']==16581
+          assert c['replay_minus_original_frozen_team_games']==0
+          assert c['continuation_corrections_total']==97
+          assert c['team_games_with_continuation_corrections']==73
+          assert c['final_candidate_minus_nba_published']==-24
           assert x['not_certified_physical_possessions']
           print('FULL81_P2_PRIVATE_TERMINAL_SOURCE_AUDIT',x['games'],
                 x['source_replay_games_succeeded'],
@@ -88,7 +95,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add --sparse -f gamepulse/fusion/qa/igp_fullx/full81_possession_terminal_rootcause_20261102.json
+          git add --sparse -f gamepulse/fusion/qa/igp_fullx/full81_possession_terminal_sourcegraded_v2_20261102.json
           git diff --cached --check
           if git diff --cached --quiet; then echo FULL81_PRIVATE_PBP_TERMINAL_QA_IDENTICAL; exit 0; fi
           git commit -qm 'qa(private): preserve original PBP terminal-vs-NBA POSS diagnostic [skip ci]'
