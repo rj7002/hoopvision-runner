@@ -1,5 +1,6 @@
 # Opaque public-to-private Full88 v3 source/scene release validation.
 # No licensed coordinates, private files or player-level outputs enter public logs.
+# Reviewed allowlist gate: only aggregate acceptance status may enter public logs.
 name: Full88 v3 guarded 88-game original-source release candidate
 on:
   push:
