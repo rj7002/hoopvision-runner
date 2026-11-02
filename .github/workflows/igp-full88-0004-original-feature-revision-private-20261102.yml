@@ -39,29 +39,30 @@ jobs:
             /gamepulse/fusion/igp_full88_default_engine_v1.py \
             /gamepulse/fusion/igp_full88_blueprint_three_gap_source_recheck_v2.py \
             /gamepulse/fusion/igp_full88_blueprint_feature_revision_probe_v1.py \
+            /gamepulse/fusion/igp_full88_blueprint_all_section_revision_v2.py \
             /gamepulse/fusion/qa/igp_fullx/shot_event_multiview_full88_v1.json
           python3 -m py_compile gamepulse/fusion/igp_full88_blueprint_feature_revision_probe_v1.py
           python3 gamepulse/fusion/igp_full88_blueprint_feature_revision_probe_v1.py --self-test
+          python3 gamepulse/fusion/igp_full88_blueprint_all_section_revision_v2.py --self-test
       - name: Compare original first-party Blueprint feature fields
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          python3 gamepulse/fusion/igp_full88_blueprint_feature_revision_probe_v1.py > "$RUNNER_TEMP/private-probe" 2>&1 || {
+          python3 gamepulse/fusion/igp_full88_blueprint_all_section_revision_v2.py > "$RUNNER_TEMP/private-probe" 2>&1 || {
             echo FULL88_GAME0004_PRIVATE_ORIGINAL_FEATURE_PROBE_FAILED
             exit 1
           }
           python3 - <<'PY'
           import json
           from pathlib import Path
-          p=Path('gamepulse/fusion/qa/igp_fullx/blueprint_feature_revision_game0004_20261102/summary.json')
+          p=Path('gamepulse/fusion/qa/igp_fullx/blueprint_game0004_changed_all_sections_20261102/summary.json')
           d=json.loads(p.read_bytes())
           assert d['game_id']=='0022600004'
-          assert d['same_exact_shot_identity_population']
-          assert d['original_immutable'] and not d['independent_feature_promotion']
+          assert d['published_shot_rows']==145 and d['shot_row_field_revisions']==0
+          assert d['default_full88_original_or_published_shot_unchanged'] and d['other_section_changes_not_promoted_as_per_shot_features']
           print('FULL88_GAME0004_ORIGINAL_FEATURE_REVISIONS_AGGREGATE_ONLY',
-                d['old_published_shot_rows'],d['published_shot_rows_with_any_changed_field'],
-                d['fresh_source_metadata_only_or_format_only'])
+                d['published_shot_rows'], d['shot_row_field_revisions'],len(d['changed_sections']))
           PY
       - name: Commit only to private source branch
         shell: bash
@@ -70,7 +71,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add --sparse -f gamepulse/fusion/qa/igp_fullx/blueprint_feature_revision_game0004_20261102/
+          git add --sparse -f gamepulse/fusion/qa/igp_fullx/blueprint_game0004_changed_all_sections_20261102/
           git diff --cached --check
           if git diff --cached --quiet; then echo ORIGINAL_FEATURE_PROBE_QA_UNCHANGED; exit 0; fi
           git commit -qm 'qa(private): verify exact Blueprint source shot-feature revision [skip ci]'
