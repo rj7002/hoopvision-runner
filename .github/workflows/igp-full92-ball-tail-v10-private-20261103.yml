@@ -137,6 +137,15 @@ jobs:
             'source_only_accepted':d['source_masked_promotable_given_preregistered_equivalence'],
             'scene_count_promoted':0},sort_keys=True))
           PY
+      - name: Prove accepted v11 actual missing native ball and original-first rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest discover -v -s gamepulse/fusion/tests \
+            -p 'test_igp_full92_ball_position_source_accepted_v11.py'
+          echo FULL92_V11_ORIGINAL_SOURCE_TAIL_READER_PASS
       - name: Save SHA-backed original-source QA privately
         shell: bash
         run: |
