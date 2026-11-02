@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/ncea-full88-original-custody-private.yml",  # private 4616-event NCEA original SDK shadow and controls; public aggregate counters only
     ".github/workflows/assist-pair-chart-private-smoke.yml",  # reviewed: source-locked private Full88 assist pair exact QA, no private event data in public logs
     ".github/workflows/full88-private-lateclock-interior-v2.yml",  # opaque Full88 inter-event Time#show PBP clock joined privately; aggregate-only public status
     ".github/workflows/igp-full88-all-official-assists-private.yml",  # reviewed: original NBA PBP/box and derived assist ledger written to private 104 only; public aggregate counts
