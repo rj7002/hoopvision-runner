@@ -16,7 +16,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       SOURCE_REF: research/ncea-full88-rebound-physical-shadow-20261102
-      SOURCE_SHA: 4b1e29c9417b9edeb52e95e5a2a252122e263fc4
+      SOURCE_SHA: e688a315b39e31de127282467c437ab82473e54f
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -40,9 +40,9 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          python3 -m py_compile gamepulse/fusion/analysis/ncea_full88_rebounds_evidence_tiers_v1.py
-          python3 gamepulse/fusion/analysis/ncea_full88_rebounds_evidence_tiers_v1.py --self-test
-          python3 gamepulse/fusion/analysis/ncea_full88_rebounds_evidence_tiers_v1.py --root .
+          python3 -m py_compile gamepulse/fusion/analysis/ncea_full88_rebounds_evidence_tiers_v2.py
+          python3 gamepulse/fusion/analysis/ncea_full88_rebounds_evidence_tiers_v2.py --self-test
+          python3 gamepulse/fusion/analysis/ncea_full88_rebounds_evidence_tiers_v2.py --root .
       - name: Enforce official action census and no physical promotion
         shell: bash
         run: |
@@ -51,12 +51,13 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-          a=Path("gamepulse/fusion/qa/igp_fullx/ncea_full88_rebounds_evidence_tiers_v1.json")
-          b=Path("gamepulse/fusion/qa/igp_fullx/ncea_full88_rebounds_evidence_tiers_v1.jsonl")
+          a=Path("gamepulse/fusion/qa/igp_fullx/ncea_full88_rebounds_evidence_tiers_v2.json")
+          b=Path("gamepulse/fusion/qa/igp_fullx/ncea_full88_rebounds_evidence_tiers_v2.jsonl")
           q=json.loads(a.read_text());tr=q["new_vs_old_matched_event_transitions"]
           assert q["games"]==88 and q["official_rebounds"]==9523
           assert q["eligible_player_rebounds"]==7809
-          assert q["new_window_candidates"]==6724
+          assert q["new_window_candidates"]==6724 and q["source_conservative_union"]==6728
+          assert q["preserved_previous_window_only"]==4
           assert tr["old_new"]==6342 and tr["no_old_new"]==382 and tr["old_no_new"]==4
           assert sum(1 for _ in b.open())==9523
           assert q["independent_video_validated_rebounds"]==0 and q["default_engine_promoted"] is False
@@ -69,7 +70,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/qa/igp_fullx/ncea_full88_rebounds_evidence_tiers_v1.json gamepulse/fusion/qa/igp_fullx/ncea_full88_rebounds_evidence_tiers_v1.jsonl
+          git add -f gamepulse/fusion/qa/igp_fullx/ncea_full88_rebounds_evidence_tiers_v2.json gamepulse/fusion/qa/igp_fullx/ncea_full88_rebounds_evidence_tiers_v2.jsonl
           git diff --cached --check
           if git diff --cached --quiet; then echo PRIVATE_TIER_QA_IDENTICAL; exit 0; fi
           git commit -q -m "qa(private): full88 source-first rebound evidence tier and old/new paired audit"
