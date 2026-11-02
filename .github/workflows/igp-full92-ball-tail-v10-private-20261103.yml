@@ -104,6 +104,39 @@ jobs:
               "fresh_candidate":chosen,"strict_tail_nonregression":q["fresh_strict_tail_pass"],
               "accepted_scene_delta":0},sort_keys=True))
           PY
+      - name: Verify fixed 20-game out-of-sample 3mm equivalence safety rule
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_full92_ball_position_tail_new20_v11.py' -v
+          python3 gamepulse/fusion/igp_full92_ball_position_tail_new20_v11.py \
+            --root . --out gamepulse/fusion/qa/igp_fullx/full92_ball_position_tail_new20_v11_20261103.json \
+            >"$RUNNER_TEMP/source-v11-results.log" 2>&1 || {
+              echo SOURCE_GRADED_NEW20_PRIVATE_VALIDATION_FAILED
+              exit 46
+            }
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('gamepulse/fusion/qa/igp_fullx/full92_ball_position_tail_new20_v11_20261103.json').read_bytes())
+          assert len(d['new_games'])==20 and d['no_training_or_weight_tuning_on_this_new20']
+          assert d['source_masked_original_ball_and_player_at_target']
+          assert d['original_NBA_tracking_and_PBP_unchanged']
+          assert d['accepted_scene_increase']==0
+          a=d['same_original_target_metrics']['by_policy']
+          assert a['causal']['n']==a[d['frozen_policy']]['n']
+          print('IGP_FULL92_BALL_NEW20_PREDECLARED_TAIL_SOURCE',json.dumps({
+            'n':a['causal']['n'],
+            'baseline':a['causal'],
+            'candidate':a[d['frozen_policy']],
+            'game_cluster_mean_improvement_ft':d['paired_game_cluster_bootstrap'],
+            'strict_max_gate_pass':d['strict_zero_max_nonregression'],
+            'predeclared_3mm_max_gate_pass':d['practical_3mm_max_nonregression'],
+            'source_only_accepted':d['source_masked_promotable_given_preregistered_equivalence'],
+            'scene_count_promoted':0},sort_keys=True))
+          PY
       - name: Save SHA-backed original-source QA privately
         shell: bash
         run: |
@@ -111,7 +144,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/qa/igp_fullx/full92_ball_position_tail_guard_v10_20261103.json
+          git add -f gamepulse/fusion/qa/igp_fullx/full92_ball_position_tail_guard_v10_20261103.json gamepulse/fusion/qa/igp_fullx/full92_ball_position_tail_new20_v11_20261103.json
           git diff --cached --check
           if git diff --cached --quiet; then echo V10_SOURCE_QA_ALREADY_PRIVATE; exit 0; fi
           git commit -qm 'qa(igp): source-safe Full92 original ball-tail 18-game independent confirmation'
