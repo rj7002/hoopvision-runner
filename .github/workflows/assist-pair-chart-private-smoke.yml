@@ -1,0 +1,68 @@
+# Public control shell only; all source and event rows remain in private repo 104.
+name: Assist Pair Chart private read-only Full88 source smoke
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/assist-pair-chart-private-smoke.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: assist-pair-chart-private-read-only-smoke
+  cancel-in-progress: false
+jobs:
+  qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      SOURCE_REF: feature/assist-pair-chart-20261102
+      SOURCE_COMMIT: 9d1cacffec4ea0b7bdb377a3d3b3d124089aefa1
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Public content guard and private access
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Checkout private immutable source
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$SOURCE_REF" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$SOURCE_COMMIT"
+      - name: Source-locked tests and private Full88 pair extraction
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess, sys
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"private"
+          tool=root/"gamepulse/fusion/assist_pair_chart"
+          def run(args):
+              p=subprocess.run(args,cwd=root,capture_output=True,text=True,timeout=240)
+              if p.returncode:
+                  # No private tracebacks or event rows in public logs.
+                  print("ASSIST_PAIR_CHART_PRIVATE_READ_ONLY_TEST_FAILED")
+                  sys.exit(5)
+          run([sys.executable,str(tool/"test_assist_pair_chart.py")])
+          output=pathlib.Path(os.environ["RUNNER_TEMP"])/"pair.json"
+          run([sys.executable,str(tool/"full88_pair_extract.py"),
+               "--root",str(root),"--assister-id","1630578","--scorer-id","201142","--out",str(output)])
+          z=json.loads(output.read_text())
+          assert z["schema"]=="assist-pair-chart.v1"
+          assert z["team"]=="HOU" and len(z["shots"])==8
+          assert all(s["average_xfg"] is not None and s["shot_xy_ft"] is not None for s in z["shots"])
+          assert all(s["player_xfg"] is None for s in z["shots"])  # raw pair has no unverified historical comparison
+          poster=pathlib.Path(os.environ["RUNNER_TEMP"])/"poster"
+          run([sys.executable,str(tool/"assist_pair_chart.py"),
+               "--input",str(output),"--out",str(poster),"--png-only"])
+          qa=json.loads((poster/"Assist_Pair_Chart_QA.json").read_text())
+          assert qa["official_assists"]==8 and qa["player_xefg_all"] is None
+          assert abs(qa["avg_xefg_all"]-63.6875)<1e-6
+          print("ASSIST_PAIR_CHART_PRIVATE_SOURCE_QA_PASS",qa["official_assists"],len(qa["pages"]))
+          PY
