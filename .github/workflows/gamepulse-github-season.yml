@@ -106,6 +106,82 @@ jobs:
           done
           exit 23
 
+  recover-complete-original-sdk-0154:
+    # Independent of the large 13-part season fanout; verify an existing
+    # completed source Release before materializing its native timebase.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 80
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+      GAME: '0022600154'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Public bridge guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Private 13-part readback and native XYZ materialization
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          cd "$RUNNER_TEMP/private"
+          dest="gamepulse/fusion/materialized/igp_all_original_xyz/$GAME"
+          if test ! -f "$dest/index.json"; then
+            mkdir -p "$RUNNER_TEMP/native-sdk"
+            gh api "repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-$GAME" > "$RUNNER_TEMP/release.json"
+            python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          r=json.loads((Path(os.environ["RUNNER_TEMP"])/"release.json").read_bytes())
+          names={x["name"] for x in r["assets"]}
+          expected={f"sdk-part-{i:02d}.{ext}" for i in range(13) for ext in ("tar.gz","json")}
+          assert expected<=names and "sdk-COMPLETE.json" in names,"FULL_ORIGINAL_ARCHIVE_NOT_READY"
+          print("IGP_0154_ORIGINAL_SOURCE_MANIFEST_13_PART_VERIFIED")
+          PY
+            gh release download "gamepulse-sdk-$GAME" --repo timeedmonds-maker/104 --pattern 'sdk-part-*.tar.gz' --dir "$RUNNER_TEMP/native-sdk"
+            test "$(find "$RUNNER_TEMP/native-sdk" -name 'sdk-part-*.tar.gz' | wc -l)" -eq 13
+            python3 gamepulse/fusion/igp_extract_all_original_sdk_xyz_2026.py --game-id "$GAME" --archive-dir "$RUNNER_TEMP/native-sdk" --release-manifest "$RUNNER_TEMP/release.json" --out-dir "$dest"
+          fi
+          python3 - <<'PY'
+          import json,hashlib,os
+          from pathlib import Path
+          gid=os.environ["GAME"]
+          m=Path("gamepulse/fusion/materialized/igp_all_original_xyz")/gid/"index.json"
+          x=json.loads(m.read_bytes())
+          assert x["game_id"]==gid and x["capture_archive_all_13_parts_verified"] and x["original_archive_part_count_verified"]==13
+          assert x["physical_possessions_certified"]==0
+          n=0
+          for ch in x["chunks"]:
+            raw=(m.parent/ch["path"]).read_bytes()
+            assert hashlib.sha256(raw).hexdigest()==ch["sha256"]
+            n+=ch["original_native_timestamps"]
+          assert n==x["original_frame_counts"]["unique_original_native_timestamps"]
+          print("IGP_0154_FULL_NATIVE_SHA_VERIFIED",n)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$dest"
+          git diff --cached --check
+          if git diff --cached --quiet; then echo IGP_0154_NATIVE_ALREADY_INDEXED; exit 0; fi
+          git commit -q -m "data(igp): materialize verified original native SDK game 0022600154"
+          for n in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo IGP_0154_PRIVATE_ORIGINAL_NATIVE_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 23
   private-season:
     if: (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'
     needs: preflight
