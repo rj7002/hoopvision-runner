@@ -143,3 +143,64 @@ jobs:
           print("CERTIFIED_PHYSICAL_POSSESSIONS", 0)
           print("NOT_PRODUCTION_SEARCH_NOT_LIVE_GAMEPLAY_CERTIFICATION")
           PY
+
+  rockets-original-qa-receipt:
+    # Independent of source-label search; do not conflate metadata with gameplay certification.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read latest protected Rockets gameplay QA without publishing source data
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}" || { echo 'PRIVATE_QA_READ_TOKEN_UNAVAILABLE'; exit 3; }
+          python3 - <<'PY'
+          import hashlib, json, subprocess, tempfile
+          from pathlib import Path
+          repo = "timeedmonds-maker/104"
+          game = "0022600009"
+          tag = f"gamepulse-sdk-{game}"
+          name = f"gameplay-QA-original-{game}.json"
+          def gh(*args):
+              p = subprocess.run(["gh", *args], capture_output=True, check=False)
+              if p.returncode:
+                  raise RuntimeError("PRIVATE_ORIGINAL_QA_READBACK_FAILED")
+              return p.stdout
+          release = json.loads(gh("api", f"repos/{repo}/releases/tags/{tag}"))
+          matches = [a for a in release["assets"] if a["name"] == name]
+          assert len(matches) == 1, "PRIVATE_ORIGINAL_QA_ASSET_MISSING"
+          asset = matches[0]
+          expected = asset.get("digest", "")
+          assert expected.startswith("sha256:") and len(expected) == 71, (
+              "PRIVATE_ORIGINAL_QA_DIGEST_MISSING")
+          with tempfile.TemporaryDirectory() as d:
+              gh("release", "download", tag, "-R", repo, "-p", name, "-D", d)
+              raw = (Path(d) / name).read_bytes()
+          digest = hashlib.sha256(raw).hexdigest()
+          assert "sha256:" + digest == expected, "PRIVATE_ORIGINAL_QA_BYTES_SHA_MISMATCH"
+          doc = json.loads(raw)
+          assert doc.get("game_id") == game, "PRIVATE_ORIGINAL_QA_WRONG_GAME"
+          keys = ("tracking_gameplay_certified",
+                  "independent_player_team_id_certified",
+                  "possession_lineup_chain_certified", "video_pts_certified")
+          flags = {k: doc.get(k) for k in keys}
+          assert all(type(v) is bool for v in flags.values()), (
+              "PRIVATE_ORIGINAL_QA_CERTIFICATION_SCHEMA_UNRECOGNIZED")
+          q4 = doc.get("independent_nba_quarter_action_coverage", {}).get("4", {})
+          print("ROCKETS_ORIGINAL_QA_RELEASE_ASSET_SHA256", digest)
+          print("ROCKETS_ORIGINAL_QA_RELEASE_ASSET_UPDATED_AT", asset.get("updated_at"))
+          print("ROCKETS_ORIGINAL_QA_CERTIFICATION_FLAGS", json.dumps(flags, sort_keys=True))
+          print("ROCKETS_ORIGINAL_QA_TEMPORAL_STATUS",
+                doc.get("temporal_source_coverage", "UNKNOWN"))
+          print("ROCKETS_ORIGINAL_QA_VERIFIED_ARCHIVES",
+                doc.get("source_parts_sha256_verified", "UNKNOWN"))
+          print("ROCKETS_ORIGINAL_QA_Q4_TERMINAL_FRAME_GAP_MS",
+                q4.get("last_action_nearest_player_frame_gap_ms", "UNKNOWN"))
+          print("QA_RECEIPT_READBACK_ONLY_NOT_GAMEPLAY_CERTIFICATION")
+          PY
