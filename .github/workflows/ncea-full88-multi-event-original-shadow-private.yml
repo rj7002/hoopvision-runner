@@ -17,7 +17,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       SOURCE_REF: research/ncea-all88-custody-shadow-20261102
-      SOURCE_SHA: f9c6b3caa33e2c2264df6302040560836215a57b
+      SOURCE_SHA: 5d4bb42ff1400de9de3b087ad2df9afe441e59a7
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -70,6 +70,22 @@ jobs:
               assert c[k+"_official"]>0
               assert c[k+"_mask_trials"]>0
           print("NCEA_MULTI_EVENT_PRIVATE_GATES_PASS",j["games"],"games",j["events_count"],"events")
+          PY
+      - name: Smoke-test SHA-pinned private opt-in multi-event query
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/analysis/ncea_full88_multi_event_query_v1.py
+          python3 gamepulse/fusion/analysis/ncea_full88_multi_event_query_v1.py --self-test
+          python3 gamepulse/fusion/analysis/ncea_full88_multi_event_query_v1.py --root . --event-type REBOUND --candidate-only
+          python3 - <<'PY'
+          from gamepulse.fusion.analysis.ncea_full88_multi_event_query_v1 import query
+          q=query(".",event_type="REBOUND",only_candidates=True,limit=2)
+          assert q["total_matches"]==6346 and len(q["events"])==2
+          assert not any("player_anchor" in e for e in q["events"])
+          assert all(e["certified_physical_contact"] is False for e in q["events"])
+          print("NCEA_MULTI_EVENT_OPTIN_SOURCE_GRADE_QUERY_PASS",q["total_matches"])
           PY
       - name: Store per-event evidence inside private GitHub only
         shell: bash
