@@ -16,7 +16,7 @@ jobs:
     timeout-minutes: 40
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_BRANCH: analysis/igp-full88-two-game-original-source-recheck-20261102
+      PRIVATE_BRANCH: release/igp-full88-advanced176-routing-candidate-20261102
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -41,7 +41,7 @@ jobs:
             /gamepulse/fusion/igp81_default_team_offrtg.py \
             /gamepulse/fusion/qa/igp_fullx/shot_event_multiview_full88_v1.json \
             /gamepulse/fusion/qa/igp81_nba_team_offrtg_reporting_default_v1.json \
-            /gamepulse/fusion/qa/igp_fullx/new7_nba_team_advanced_poss_probe_20261102/ \
+            /gamepulse/fusion/qa/igp_fullx/new7_nba_advanced_snapshot_41393755149_v1/ \
             /gamepulse/fusion/official_pbp_timing/games/0022600147.json \
             /gamepulse/fusion/official_pbp_timing/games/0022600148.json \
             /gamepulse/fusion/official_pbp_timing/games/0022600149.json \
@@ -156,7 +156,7 @@ jobs:
             /gamepulse/fusion/igp81_default_team_offrtg.py \
             /gamepulse/fusion/qa/igp_fullx/shot_event_multiview_full88_v1.json \
             /gamepulse/fusion/qa/igp81_nba_team_offrtg_reporting_default_v1.json \
-            /gamepulse/fusion/qa/igp_fullx/new7_nba_team_advanced_poss_probe_20261102/ \
+            /gamepulse/fusion/qa/igp_fullx/new7_nba_advanced_snapshot_41393755149_v1/ \
             /gamepulse/fusion/official_pbp_timing/games/0022600147.json \
             /gamepulse/fusion/official_pbp_timing/games/0022600148.json \
             /gamepulse/fusion/official_pbp_timing/games/0022600149.json \
