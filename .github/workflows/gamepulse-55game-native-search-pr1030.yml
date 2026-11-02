@@ -92,10 +92,18 @@ jobs:
           assert len(set(joined["games"]) & set(quarantined["games"])) == 2
           assert set(joined["games"]) | set(quarantined["games"]) == set(catalog["games"])
           jobs = []
-          for manifest, ref in [(joined, "main"), (unassigned, "main"),
-                                (quarantined, research)]:
+          for manifest, ref, tier in [
+              (joined, "main", "interactions"),
+              (unassigned, "main", "unassigned_native_labels"),
+              (quarantined, research, "quarantined_native_labels"),
+          ]:
               for game, entry in manifest["games"].items():
-                  jobs.append((game, entry["path"], entry["sha256"], ref))
+                  # Historical joined manifests omit path by design.
+                  # Derive the canonical private path and reject overrides.
+                  canonical = f"gamepulse/fusion/index/{tier}/{game}.json"
+                  assert entry.get("path", canonical) == canonical, (
+                      "SOURCE_NATIVE_PARTITION_PATH_MISMATCH " + game)
+                  jobs.append((game, canonical, entry["sha256"], ref))
           def fetch_one(job):
               game, path, sha, ref = job
               raw = api_content(path, ref)
