@@ -356,3 +356,82 @@ jobs:
             sleep "$n"
           done
           exit 44
+
+
+  private-release-height-jump-robustness-v2:
+    name: Full92 release heights statistical robustness and jump decomposition guard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/full92-all-event-rebound-tracking-20261103
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Strict public guard and private clone
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: Full92 reproducible private source-backed statistical study
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full92_release_height_jump_robustness_v2.py
+          python3 gamepulse/fusion/igp_full92_release_height_jump_robustness_v2.py \
+            --root . --out gamepulse/fusion/qa/igp_fullx/full92_release_height_jump_robustness_v2.json \
+            > "$RUNNER_TEMP/v2-private.log" 2>&1 || {
+              echo FULL92_RELEASE_HEIGHT_JUMP_V2_FAILED
+              python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          lines=(Path(os.environ['RUNNER_TEMP'])/'v2-private.log').read_text(errors='replace').splitlines()
+          err=next((x for x in reversed(lines) if re.match(r'^(ValueError|TypeError|KeyError|FileNotFoundError|AssertionError|AttributeError|ImportError|ZeroDivisionError):',x)),None)
+          print('PRIVATE_FAILURE',err.split(':')[0] if err else 'UNCLASSIFIED')
+          PY
+              exit 42
+            }
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('gamepulse/fusion/qa/igp_fullx/full92_release_height_jump_robustness_v2.json').read_bytes())
+          c=d['counts']
+          assert d['full92_games']==92 and c['all_fga']==16254 and c['distance_over12']==8055
+          assert c['feature_accepted']>=7000
+          assert c['ballistic_accepted']>=7000
+          assert len(d['temporal_release_offset_stress'])==7
+          assert d['bootstrap_repetitions']==1600
+          assert d['jump_field']['may_decompose_into_nonjump_release_plus_jump'] is False
+          print('FULL92_RELEASE_JUMP_V2_PRIVATE_QA_PASS',json.dumps({
+            'feature_shots':c['feature_accepted'],
+            'ballistic_shots':c['ballistic_accepted'],
+            'jumplift_source_shots':c['jump_present'],
+            'primary_top3':[x['player'] for x in d['primary_top20'][:3]],
+            'wemby_vs_durant_ci_ft':d['pairwise_game_cluster_bootstrap'].get('1641705-201142',{}).get('95ci_ft'),
+            'error_source_unresolved':not d['joint_video_validated_release'],
+            'problem_games':len(d['problem_games_excluded'])},sort_keys=True))
+          PY
+      - name: Publish private-only statistical QA and prevent raw provider leakage
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_fullx/full92_release_height_jump_robustness_v2.json
+          git diff --cached --check
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -qm 'qa(igp): full92 release and vertical jump stat timing and cluster robust v2'
+          for n in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo FULL92_RELEASE_HEIGHT_JUMP_V2_PRIVATE_ACCEPTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 44
