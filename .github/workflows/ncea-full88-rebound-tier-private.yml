@@ -12,11 +12,11 @@ concurrency:
 jobs:
   rebound-private-tier:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 85
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       SOURCE_REF: research/ncea-full88-rebound-physical-shadow-20261102
-      SOURCE_SHA: 134cddf9946776ea8453f895acb7fde174981518
+      SOURCE_SHA: 6e53867fe61420c192bdaf6cb6de0a0290209e67
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -81,6 +81,29 @@ jobs:
           assert y["total_matches"]==1737
           print("NCEA_REBOUND_OPTIN_PRIVATE_QUERY_ACCEPTED",z["total_matches"],"union candidates",y["total_matches"],"offensive source candidates")
           PY
+      - name: Run frozen71 rebound-aware 10Hz player-slot and ten-plus-ball challenger
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/analysis/ncea_rebound_to_p2b_71_10hz_challenger_v1.py
+          python3 gamepulse/fusion/analysis/ncea_rebound_to_p2b_71_10hz_challenger_v1.py --self-test
+          python3 gamepulse/fusion/analysis/ncea_rebound_to_p2b_71_10hz_challenger_v1.py --root . --limit-games 71 --mask-per-game 32
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          q=json.loads(Path("gamepulse/fusion/qa/igp_fullx/ncea_rebound_to_p2b_71_10hz_challenger_v1.json").read_text())
+          assert q["evaluated_games"]==71
+          assert q["frozen_10hz_samples_all71"]==1159651
+          assert q["frozen_complete_ten_ball_all71"]==1015072
+          assert q["challenger_new_complete_on_evaluated_games"]>=0
+          assert q["physical_first_touch_certified"] is False
+          assert q["promoted_to_default"] is False
+          assert len(q["by_game"])>0
+          print("NCEA_REBOUND_TO_P2B_FROZEN71_10HZ_QA_PASS",
+                q["challenger_new_complete_on_evaluated_games"],
+                q["counts"].get("source_only_extra_player_slots",0))
+          PY
       - name: Persist source tiers in private repository only
         shell: bash
         run: |
@@ -88,7 +111,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/qa/igp_fullx/ncea_full88_rebounds_evidence_tiers_v2.json gamepulse/fusion/qa/igp_fullx/ncea_full88_rebounds_evidence_tiers_v2.jsonl
+          git add -f gamepulse/fusion/qa/igp_fullx/ncea_full88_rebounds_evidence_tiers_v2.json gamepulse/fusion/qa/igp_fullx/ncea_full88_rebounds_evidence_tiers_v2.jsonl gamepulse/fusion/qa/igp_fullx/ncea_rebound_to_p2b_71_10hz_challenger_v1.json
           git diff --cached --check
           if git diff --cached --quiet; then echo PRIVATE_TIER_QA_IDENTICAL; exit 0; fi
           git commit -q -m "qa(private): full88 source-first rebound evidence tier and old/new paired audit"
