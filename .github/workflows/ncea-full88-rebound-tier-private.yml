@@ -16,7 +16,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       SOURCE_REF: research/ncea-full88-rebound-physical-shadow-20261102
-      SOURCE_SHA: 6e53867fe61420c192bdaf6cb6de0a0290209e67
+      SOURCE_SHA: 9605f3fa39034b9ed668a2b191031afa74c897b1
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
