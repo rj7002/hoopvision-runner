@@ -1,4 +1,4 @@
-# Public control shell only; all source and event rows remain in private repo 104.
+# Guard-registered control shell only; all source and event rows remain in private repo 104.
 name: Assist Pair Chart private read-only Full88 source smoke
 on:
   push:
