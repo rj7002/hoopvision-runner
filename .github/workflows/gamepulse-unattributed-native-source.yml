@@ -1,6 +1,6 @@
-name: Integrated Pulse complete 36-game unassigned source-label search
+name: Integrated Pulse complete 43-game unassigned source-label search
 # Free public CPU only; no licensed player data or search output written publicly.
-# Extend the frozen 28-game unmatched-source index to eight new final games; preserve per-game SHA receipts.
+# Extend the frozen 36-game unmatched-source index to seven additional final games; preserve original per-game SHA receipts.
 on:
   push:
     branches: [main]
@@ -20,14 +20,13 @@ jobs:
       max-parallel: 4
       matrix:
         game:
-          - '0022600104'
-          - '0022600105'
-          - '0022600106'
-          - '0022600107'
-          - '0022600108'
-          - '0022600109'
-          - '0022600110'
-          - '0022600111'
+          - '0022600112'
+          - '0022600113'
+          - '0022600114'
+          - '0022600115'
+          - '0022600116'
+          - '0022600117'
+          - '0022600118'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
@@ -168,7 +167,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Assemble full private 36-game unmatched-source-label search manifest
+      - name: Assemble full private 43-game unmatched-source-label search manifest
         shell: bash
         run: |
           set -euo pipefail
@@ -200,11 +199,11 @@ jobs:
                  "unassigned_native_labels":native,
                  "source_labels":doc["source_native_distinct_labels"]}
               total+=native;observed+=doc["source_native_distinct_labels"]
-          assert len(records)==36,"EXPECTED_ALL_36_VERIFIED_PBP_RUN_GAMES"
+          assert len(records)==43,"EXPECTED_ALL_43_VERIFIED_PBP_RUN_GAMES"
           previous,_=read("gamepulse/fusion/index/unassigned_native_labels/index-2026-27.json")
-          assert previous["game_count"]==28,"ORIGINAL_28_UNASSIGNED_MANIFEST_COUNT_CHANGED"
-          assert set(previous["games"]).issubset(records),"ORIGINAL_28_UNASSIGNED_MANIFEST_MISSING"
-          assert all(records[gid]==v for gid,v in previous["games"].items()), "ORIGINAL_28_UNASSIGNED_SHA_MUTATED"
+          assert previous["game_count"]==36,"ORIGINAL_36_UNASSIGNED_MANIFEST_COUNT_CHANGED"
+          assert set(previous["games"]).issubset(records),"ORIGINAL_36_UNASSIGNED_MANIFEST_MISSING"
+          assert all(records[gid]==v for gid,v in previous["games"].items()), "ORIGINAL_36_UNASSIGNED_SHA_MUTATED"
           result={"schema":"gamepulse.unassigned-original-native-season-index.v1",
                   "season":"2026-27","game_count":len(records),"games":records,
                   "unassigned_source_native_labels":total,
@@ -215,7 +214,7 @@ jobs:
           endpoint="repos/"+repo+"/contents/gamepulse/fusion/index/unassigned_native_labels/index-2026-27.json"
           for attempt in range(12):
               old=gh(endpoint,check=False)
-              payload={"branch":"main","message":"data(gamepulse): original native unassigned touch search across 36 games",
+              payload={"branch":"main","message":"data(gamepulse): original native unassigned touch search across 43 games",
                        "content":base64.b64encode(data).decode()}
               if old.returncode==0:
                   prev=json.loads(old.stdout)
