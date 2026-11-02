@@ -58,10 +58,7 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
-          python3 - <<'PY' > "$RUNNER_TEMP/private-176-qa" 2>&1 || {
-          echo 'FULL88_176_SOURCE_RELEASE_GATE_FAILED'
-          exit 1
-          }
+          python3 - <<'PY' > "$RUNNER_TEMP/private-176-qa" 2>&1
           import json,hashlib
           from pathlib import Path
           from igp_full88_team_offrtg_accepted_v1 import query,load_full88,EXPECTED_FULL
