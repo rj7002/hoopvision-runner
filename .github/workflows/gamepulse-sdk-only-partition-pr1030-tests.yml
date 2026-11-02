@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/gamepulse-sdk-only-partition-pr1030-tests.yml'
+      - 'tools/public_content_guard.py'
   workflow_dispatch:
 permissions:
   contents: read
