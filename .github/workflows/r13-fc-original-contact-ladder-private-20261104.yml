@@ -1,4 +1,4 @@
-name: R13 independent frontcourt original contact gate ladder private
+name: R13 Houston frontcourt contact gate development replay private
 # Source-pinned isolation approved by the explicit public-content guard allowlist.
 on:
   push:
@@ -15,12 +15,12 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        game: ['0022600001','0022600003','0022600004','0022600005']
+        game: ['0022600091','0022600125','0022600138','0022600021','0022600153']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-source-onset-frontcourt-v3-20261104
-      PRIVATE_TASK_SOURCE_SHA: 54519e0386b27fe80d5002339afb6db35e48817e
+      PRIVATE_TASK_SOURCE_SHA: e64258d08330b4ad114fcb6ac89c8b50a88ef8d9
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
           pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
           branch=os.environ["PRIVATE_BRANCH"]
           game=os.environ["R13_GAME_ID"]
-          path="gamepulse/fusion/analysis/r13_original_contact_gate_replay_v2.py"
+          path="gamepulse/fusion/analysis/r13_original_contact_gate_houston_replay_v3.py"
           source=None
           for retry in range(8):
               r=subprocess.run(["gh","api",f"repos/{repo}/contents/{path}?ref={pin}"],capture_output=True,text=True)
