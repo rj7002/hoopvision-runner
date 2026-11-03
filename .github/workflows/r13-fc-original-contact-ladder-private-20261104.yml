@@ -20,7 +20,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-source-onset-frontcourt-v3-20261104
-      PRIVATE_TASK_SOURCE_SHA: e59ddccb9e89a2ae3dd7ef1f50db36bf1b70996f
+      PRIVATE_TASK_SOURCE_SHA: 49680dfa2c4696ba1d9eeaa0de2a2a3413d287f2
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
