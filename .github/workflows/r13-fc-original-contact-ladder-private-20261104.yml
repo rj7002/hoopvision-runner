@@ -1,4 +1,4 @@
-name: R13 preregistered four-game frontcourt champion holdout
+name: R13 stale-original-handler identity challenger private
 # Source-pinned isolation approved by the explicit public-content guard allowlist.
 on:
   push:
@@ -15,12 +15,12 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        game: ['0022600017','0022600018','0022600019','0022600020']
+        game: ['0022600091','0022600125']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-source-onset-frontcourt-v3-20261104
-      PRIVATE_TASK_SOURCE_SHA: fc8f4cd1e28c13b1239dc989fa7c00ff8028c712
+      PRIVATE_TASK_SOURCE_SHA: c802692a5bf13148372334734280b2201d9b1ba8
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
           pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
           branch=os.environ["PRIVATE_BRANCH"]
           game=os.environ["R13_GAME_ID"]
-          path="gamepulse/fusion/analysis/r13_new_four_holdout_single_champion_v1.py"
+          path="gamepulse/fusion/analysis/r13_stale_source_conflict_veto_replay_v1.py"
           source=None
           for retry in range(8):
               r=subprocess.run(["gh","api",f"repos/{repo}/contents/{path}?ref={pin}"],capture_output=True,text=True)
