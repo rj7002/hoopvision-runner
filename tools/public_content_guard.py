@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/r13-official-snapshot-qa-private-20261104.yml",  # private, SHA-pinned public-NBA-count ingestion QA; only non-sensitive counts logged
     ".github/workflows/protected-private-source-stats.yml",  # generic pinned private CPU source task; no private payload or results public
     ".github/workflows/full92-private-unique-touch-ledger-v1.yml",  # reviewed: original SDK Full92 20-game private-only backfill and aggregate source-graded ledger QA
     ".github/workflows/gamepulse-55game-native-search-pr1030.yml",  # ephemeral SHA-verified private 55-game source-only search; public aggregate counts only
