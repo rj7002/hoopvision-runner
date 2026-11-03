@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        game: ['0022600091','0022600125']
+        game: ['0022600091','0022600125','0022600138','0022600021','0022600153','0022600001','0022600003','0022600004','0022600005']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
