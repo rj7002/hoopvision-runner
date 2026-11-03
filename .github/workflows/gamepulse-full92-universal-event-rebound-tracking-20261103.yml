@@ -987,3 +987,58 @@ jobs:
             sleep "$n"
           done
           exit 44
+
+
+  private-full92-lamelo-same-shot-source-components:
+    name: Full92 LaMelo Ball same-shot release component source QA
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/full92-all-event-rebound-tracking-20261103
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Source guard and protected repository clone
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: Calculate paired original LaMelo shot release and jump
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          PYTHONPATH=gamepulse/fusion python3 gamepulse/fusion/igp_full92_lamelo_ball_release_components_v1.py > "$RUNNER_TEMP/private_lamelo.log" 2>&1 || {
+            echo LAMELO_PRIVATE_SOURCE_QA_FAILURE
+            exit 42
+          }
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path("gamepulse/fusion/qa/igp_fullx/full92_lamelo_ball_shot_height_components_v1.json").read_bytes())
+          assert r["player_id"]==1630163
+          assert r["paired_shots"]>15
+          assert r["all_valid_source_release_shots"]>=r["paired_shots"]
+          assert abs(r["paired_source_release_mean_inches"]-(r["body_listed_nba_inches"]+r["paired_jump_native_mean_inches_assumed"]+r["paired_derived_above_nominal_head_mean_inches"]))<0.01
+          print("LAMELO_SOURCE_PAIRED_QA",json.dumps({k:r[k] for k in ("paired_shots","all_valid_source_release_shots","paired_source_release_mean_inches","paired_jump_native_mean_inches_assumed","paired_derived_above_nominal_head_mean_inches")},sort_keys=True))
+          PY
+      - name: Commit protected aggregate QA to private only
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_fullx/full92_lamelo_ball_shot_height_components_v1.json
+          git diff --cached --check
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -qm 'qa(igp): full92 LaMelo original paired shot height source measurements'
+          for n in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then exit 0; fi
+            sleep "$n"
+          done
+          exit 44
