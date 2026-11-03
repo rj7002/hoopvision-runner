@@ -329,3 +329,4 @@ jobs:
 
 # Full92 R15 replay: frozen private reference and user-provided aggregate benchmark.
 # R15 private only source-native original Durant-Sengun 13 event development replay; no raw labels public.
+# Protected private Full92 R16 R13-vs-R15 same-touch transitions; source-free combined regressions, original source-only.
