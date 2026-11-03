@@ -323,3 +323,4 @@ jobs:
 # Retry R15: Python source syntax corrected; no NBA private data in public logs.
 # R15 third attempt: 20-case source-free repaired missing-screener abstention; private SHA-only full81 comparator.
 # Source-verified Full92 R15 shadow: private source and private-only original event evidence; selected via private task.
+# Full92 R15: replay pinned historical 92-game source, independent of Full107 latest.
