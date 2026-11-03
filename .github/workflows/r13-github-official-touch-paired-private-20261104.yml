@@ -1,4 +1,4 @@
-name: R13 five-game source replay vs official GitHub touch reference (private)
+name: R13 Celtics Durant frontcourt prior official NBA Clips crosswalk (private)
 on:
   push:
     branches: [main]
@@ -14,12 +14,12 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        game: ['0022600091','0022600125']
+        game: ['0022600167']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PRIVATE_BRANCH: research/r13-source-radius4-geometry35-20261104
-      PRIVATE_TASK_SOURCE_SHA: 8fb1bd2635588f3d42bdb9ce6f6ae351fba913b1
+      PRIVATE_BRANCH: research/r13-0167-durant-frontcourt-prior-clips-20261104
+      PRIVATE_TASK_SOURCE_SHA: d5b039b9db038e3042399205dae684ffd9f182e0
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +27,7 @@ jobs:
           persist-credentials: false
       - name: Verify public content guard
         run: python3 tools/public_content_guard.py
-      - name: Run unchanged R13 v2 on SHA-original player-ball source; private QA only
+      - name: Run private SHA-verified original R13 frontcourt episode to prior official NBA Clips event join
         shell: bash
         run: |
           set -euo pipefail
@@ -36,7 +36,7 @@ jobs:
           import base64,hashlib,json,os,pathlib,subprocess,sys,time
           repo=os.environ["PRIVATE_REPO"];pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
           branch=os.environ["PRIVATE_BRANCH"];gid=os.environ["R13_GAME_ID"]
-          path="gamepulse/fusion/analysis/r13_frontcourt_error_atlas_houston_replay_v1.py"
+          path="gamepulse/fusion/analysis/r13_0167_durant_prior_clips_extract_v1.py"
           d=None
           for attempt in range(8):
               response=subprocess.run(
@@ -85,8 +85,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PRIVATE_BRANCH: research/r13-source-radius4-geometry35-20261104
-      PRIVATE_TASK_SOURCE_SHA: 8fb1bd2635588f3d42bdb9ce6f6ae351fba913b1
+      PRIVATE_BRANCH: research/r13-0167-durant-frontcourt-prior-clips-20261104
+      PRIVATE_TASK_SOURCE_SHA: d5b039b9db038e3042399205dae684ffd9f182e0
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
