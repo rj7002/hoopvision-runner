@@ -1,0 +1,76 @@
+name: R13 independent frontcourt original contact gate ladder private
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/r13-fc-original-contact-ladder-private-20261104.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        game: ['0022600001','0022600003','0022600004','0022600005']
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: research/r13-source-onset-frontcourt-v3-20261104
+      PRIVATE_TASK_SOURCE_SHA: 54519e0386b27fe80d5002339afb6db35e48817e
+      R13_GAME_ID: ${{ matrix.game }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify no private content in public repository
+        run: python3 tools/public_content_guard.py
+      - name: Run pinned private source against original NBA and official audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          python3 - <<'PY'
+          import base64,hashlib,json,os,pathlib,subprocess,sys,time
+          repo=os.environ["PRIVATE_REPO"]
+          pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
+          branch=os.environ["PRIVATE_BRANCH"]
+          game=os.environ["R13_GAME_ID"]
+          path="gamepulse/fusion/analysis/r13_original_contact_gate_replay_v2.py"
+          source=None
+          for retry in range(8):
+              r=subprocess.run(["gh","api",f"repos/{repo}/contents/{path}?ref={pin}"],capture_output=True,text=True)
+              if r.returncode==0:
+                  source=json.loads(r.stdout)
+                  break
+              time.sleep(min(retry+1,6))
+          if source is None:
+              print("PRIVATE_R13_PINNED_SCRIPT_UNAVAILABLE")
+              sys.exit(1)
+          raw=base64.b64decode(source["content"])
+          git_sha=hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()
+          assert git_sha==source["sha"],"PRIVATE_BLOB_SHA_MISMATCH"
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/("r13-frontcourt-ladder-"+game)
+          root.mkdir()
+          script=root/"replay.py"
+          script.write_bytes(raw)
+          run=subprocess.run([sys.executable,str(script)],cwd=root,env=os.environ.copy(),capture_output=True,text=True)
+          if run.returncode:
+              endpoint=f"repos/{repo}/contents/gamepulse/fusion/qa/r13_contact_gate_ladder_20261104/private_failure_{game}.json"
+              payload={"branch":branch,"message":"qa(private): R13 original gate ladder failure [skip ci]",
+                       "content":base64.b64encode(json.dumps({
+                           "game_id":game,"pin":pin,"return_code":run.returncode,
+                           "stderr_tail":run.stderr[-12000:],
+                           "stdout_tail":run.stdout[-1200:]},sort_keys=True).encode()).decode()}
+              for retry in range(6):
+                  old=subprocess.run(["gh","api",endpoint+"?ref="+branch],capture_output=True,text=True)
+                  if old.returncode==0:payload["sha"]=json.loads(old.stdout)["sha"]
+                  put=subprocess.run(["gh","api","-X","PUT",endpoint,"--input","-"],input=json.dumps(payload),capture_output=True,text=True)
+                  if put.returncode==0:break
+                  time.sleep(min(retry+1,6))
+              print("R13_FRONTCOURT_LADDER_PRIVATE_REPLAY_REQUIRES_REVIEW game="+game)
+              sys.exit(1)
+          print("R13_FRONTCOURT_LADDER_PRIVATE_REPLAY_SAVED game="+game)
+          PY
