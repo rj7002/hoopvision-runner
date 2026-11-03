@@ -256,99 +256,64 @@ jobs:
           done
           exit 27
 
-  reconcile-official-pbp-and-blueprint:
+  refresh-full107-original-source-index:
+    needs: original-sdk-retry
+    if: always()
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 100
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      TARGET_BRANCH: research/igp81-all-layers-source-grade-20261101
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: Preserve canonical original NBA action semantics, never rewrite source
+      - name: Independently refresh private native/companion/Blueprint and official-chain source grades
         shell: bash
         run: |
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
           gh auth setup-git
-          git clone -q --filter=blob:none --depth=1 --sparse -b "$TARGET_BRANCH" \
-            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
-          git -C "$RUNNER_TEMP/private" sparse-checkout set \
-            gamepulse/fusion/official_pbp_timing \
-            gamepulse/fusion/qa/igp_v32 \
-            gamepulse/fusion/qa/igp_progress_20261029 \
-            gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all81_v1
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion data/extensions/nba_blueprint_2026_27
           cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion:scripts
+          python3 gamepulse/fusion/igp_post56_original_companion_index_v1.py --root .
+          python3 gamepulse/fusion/igp_post56_blueprint_original_index_v1.py --root .
+          python3 gamepulse/fusion/igp_post56_official_logical_chain_index_v1.py --root .
+          python3 gamepulse/fusion/igp_post56_native_index_refresh_v1.py --root .
+          python3 gamepulse/fusion/igp_post56_allgames_official_ten_native_chain_v1.py --root .
           python3 - <<'PY'
-          import json,hashlib
+          import json
           from pathlib import Path
-          def h(b):return hashlib.sha256(b).hexdigest()
-          def ld(p):return json.loads(p.read_bytes())
-          base=Path("gamepulse/fusion")
-          qa=base/"qa/igp_v32"
-          idx=ld(qa/"igp81_unified_native_possession_tracking_registry_run_41231284682.json")
-          d=ld(base/"materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all81_v1/index.json")
-          assert idx["counts"]["games"]==len(d["games"])==81
-          out=[]
-          for n in range(15,25):
-              gid=f"00226000{n}"
-              g=idx["games"][gid]
-              src=base/"official_pbp_timing/pbp_only_oct21_10/games"/(gid+".json")
-              cur=base/"official_pbp_timing/games"/(gid+".json")
-              old=ld(src);new=ld(cur)
-              assert h(src.read_bytes())==g["nba_official_PBP_SHA256"],"FROZEN81_CANONICAL_ORIGINAL_SHA_CHANGED:"+gid
-              assert new["game_id"]==old["game_id"]==gid
-              assert old["actions"]==new["actions"],"ORIGINAL_OFFICIAL_EVENT_CONTENT_CHANGED:"+gid
-              assert old["official_final"]==new["official_final"],"ORIGINAL_FINAL_SCORE_CHANGED:"+gid
-              assert not (old.get("timing_authority") and new.get("timing_authority")) or old["timing_authority"]==new["timing_authority"],"ORIGINAL_CLOCK_AUTHORITY_CHANGED:"+gid
-              fga=sum(x["action_type"] in ("2pt","3pt") for x in old["actions"])
-              assert fga==d["games"][gid]["official_FGA"]
-              out.append({"game_id":gid,"accepted_81_sha256":h(src.read_bytes()),
-                  "current_mirror_sha256":h(cur.read_bytes()),
-                  "all_official_actions_identical":True,
-                  "all_official_action_times_identical":True,
-                  "timing_authority_identical_if_both_published":(old.get("timing_authority")==new.get("timing_authority") if old.get("timing_authority") and new.get("timing_authority") else None),
-                  "final_score_identical":True,
-                  "official_field_goal_attempts_identical":True,
-                  "distinct_source_file_sha256":h(src.read_bytes())!=h(cur.read_bytes()),
-                  "official_pbp_actions":len(old["actions"]),"official_fga":fga})
-          observed=d["totals"]["frozen56_current_blueprint_revision_drift"]
-          assert observed==13
-          assert d["totals"]["frozen56_blueprint_shot_records_not_matching_current_version"]==0
-          assert d["totals"]["frozen56_blueprint_shot_records_matching_current_version"]==9221
-          receipt={"schema":"igp81-original-pbp-blueprint-versions-reconciled.v1",
-            "official_81_games_unmodified":81,
-            "ten_new_games_original_pbp_SHA_preserved":True,
-            "ten_new_games_official_action_sequences_and_times_identical":True,
-            "ten_new_games_official_final_scores_identical":True,
-            "ten_new_games_version_diff_is_metadata_or_serialization_not_action_change":True,
-            "thirteen_prior_blueprint_file_SHA_variants":observed,
-            "prior_blueprint_9221_accepted_shot_records_match_current":True,
-            "prior_blueprint_56_immutable_shot_ledgers":56,
-            "source_raw_29joint_60hz_pose_not_certified":True,
-            "rows":out}
-          p=qa/"igp81_official_pbp_blueprint_semantic_reconciliation_v1.json"
-          raw=(json.dumps(receipt,indent=2,sort_keys=True)+"\n").encode()
-          if p.exists():
-              assert p.read_bytes()==raw,"REFUSE_OVERWRITE_SAVED_PBP_AUDIT"
-          else:p.write_bytes(raw)
-          print("IGP81_CANONICAL_PBP_10_SOURCE_VERSIONS_SEMANTICALLY_IDENTICAL",len(out))
-          print("IGP81_FROZEN_BLUEPRINT_9221_MATCH",observed)
+          index=json.loads(Path('gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json').read_bytes())
+          add=json.loads(Path(index['post56_additive_oct28']['index']).read_bytes())
+          ids=[f'0022600{i:03d}' for i in range(158,173)]
+          assert index['official_games']==56 and len(index['per_game_model'])==56
+          assert index['total_indexed_games_including_additive']==107
+          assert all(i in add['games'] for i in ids)
+          for i in ids:
+              g=add['games'][i]
+              assert g['source_capture_grades']['official_nba_pbp_box']=='SHA_VERIFIED'
+              assert g['source_capture_grades']['official_logical_chains']=='SHA_VERIFIED'
+              if g.get('original_source_13_part_complete'):
+                  assert g['source_capture_grades']['original_native_xyz']=='SHA_FULL_13PART'
+          print('IGP_FULL107_SOURCE_GRADES_REFRESHED',
+                'native_13_verified',sum(bool(add['games'][i].get('original_source_13_part_complete')) for i in ids),
+                'companion_full',sum(add['games'][i]['source_capture_grades']['original_companion']=='COMPLETE_ORIGINAL_RESPONSE' for i in ids))
           PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/qa/igp_v32/igp81_official_pbp_blueprint_semantic_reconciliation_v1.json
+          git add -f gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json
+          git add -f gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/official_ten_native_chains
+          git add -f gamepulse/fusion/qa/igp_progress_20261030
           git diff --cached --check
-          if git diff --cached --quiet; then echo IGP81_PBP_SEMANTIC_RECON_ALREADY_COMPLETE; exit 0; fi
-          git commit -q -m 'qa(igp81): reconcile ten original PBP SHA versions and thirteen Blueprint variants'
-          for n in $(seq 1 12); do
-            git fetch -q origin "$TARGET_BRANCH"
-            git rebase -q "origin/$TARGET_BRANCH"
-            if git push -q origin "HEAD:refs/heads/$TARGET_BRANCH"; then
-              echo IGP81_PRIVATE_ORIGINAL_PBP_SEMANTIC_RECONCILED
-              exit 0
-            fi
+          if git diff --cached --quiet; then echo IGP_FULL107_ORIGINAL_SOURCE_ALREADY_CURRENT; exit 0; fi
+          git commit -q -m "data(igp): grade recovered Full107 original native and companion sources"
+          for n in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then echo IGP_FULL107_SOURCE_INDEX_READBACK_READY; exit 0; fi
             sleep "$n"
           done
-          exit 28
+          exit 23
