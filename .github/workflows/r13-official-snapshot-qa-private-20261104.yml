@@ -14,7 +14,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-github-official-touch-snapshots-20261104
-      PRIVATE_PIN: 1f2bb4a90263a0d927f4312f2e4067e4f93ccd2a
+      PRIVATE_PIN: 32834ef65cd4a4426182d6e91164f88dff001cbe
     steps:
       - uses: actions/checkout@v4
         with:
@@ -49,6 +49,30 @@ jobs:
           script.write_bytes(get("gamepulse/fusion/analysis/nba_github_snapshot_touch_qa_v1.py"))
           data=root/"nba_touch.json"
           data.write_bytes(get("gamepulse/fusion/benchmarks/nba_2026_27_github_snapshot_touch_game_deltas_v1.json"))
+          importer=root/"importer.py"
+          importer.write_bytes(get("gamepulse/fusion/analysis/nba_github_snapshot_touch_import_v1.py"))
+          reproduced=root/"reproduced.json"
+          rep=subprocess.run([sys.executable,str(importer),"--output",str(reproduced)],
+                             capture_output=True,text=True)
+          if rep.returncode:
+              print("NBA_GITHUB_REPRODUCTION_FAILED")
+              sys.exit(1)
+          original=json.loads(data.read_text())
+          rebuilt=json.loads(reproduced.read_text())
+          assert rebuilt["released_game_count"]==original["released_game_count"]==107
+          assert rebuilt["qualified_both_teams_games"]==original["qualified_both_teams_games"]==68
+          assert rebuilt["exact_team_game_references"]==original["exact_team_game_references"]==151
+          assert original["schedule_git_blob_sha"]==rebuilt["schedule_git_blob_sha"]
+          for gid,g in original["games"].items():
+              compare=rebuilt["games"].get(gid)
+              assert compare and set(g["teams"])==set(compare["teams"]),"GAME_TEAM_DRIFT"
+              for tid,t in g["teams"].items():
+                  rec=compare["teams"][tid]
+                  assert rec["status"]==t["status"],"GAME_SOURCE_GRADE_DRIFT"
+                  if t["status"]=="EXACT_SINGLE_GAME_COUNT_DIFF":
+                      assert rec["players"]==t["players"],"PLAYER_GAME_COUNTS_DRIFT"
+                      assert rec["team_totals"]==t["team_totals"],"TEAM_GAME_COUNTS_DRIFT"
+          print("NBA_GITHUB_HISTORICAL_SNAPSHOT_REPRODUCTION_PASSED")
           output=root/"qa_result.json"
           p=subprocess.run([sys.executable,str(script),"--ledger",str(data),"--output",str(output)],
                            capture_output=True,text=True)
