@@ -1,4 +1,5 @@
 name: R13 independent frontcourt original contact gate ladder private
+# Source-pinned isolation approved by the explicit public-content guard allowlist.
 on:
   push:
     branches: [main]
