@@ -100,6 +100,13 @@ jobs:
               data=src.read_bytes()
               assert hashlib.sha256(data).hexdigest()==new["original_body_sha256"]
               if not body.exists():
+                  if receipt.exists():
+                      previous=receipt.read_bytes()
+                      history=out/"source_revision_history"
+                      history.mkdir(exist_ok=True)
+                      preserved=history/("previous-unavailable-"+hashlib.sha256(previous).hexdigest()+".receipt.json")
+                      if preserved.exists():assert preserved.read_bytes()==previous
+                      else:preserved.write_bytes(previous)
                   shutil.copyfile(src,body)
                   receipt.write_text(json.dumps(new,sort_keys=True,indent=2)+"\n")
               else:
