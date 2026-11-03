@@ -1,4 +1,4 @@
-name: R13 fresh source handler radius frontcourt validation private
+name: R13 original event atlas source-verified private development
 # Source-pinned isolation approved by the explicit public-content guard allowlist.
 on:
   push:
@@ -15,12 +15,12 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        game: ['0022600091','0022600125','0022600138','0022600021','0022600153','0022600001','0022600003','0022600004','0022600005']
+        game: ['0022600091','0022600125']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-source-onset-frontcourt-v3-20261104
-      PRIVATE_TASK_SOURCE_SHA: eb29648f0d6e16ed5615ff7810c0b8a5ccf0ed70
+      PRIVATE_TASK_SOURCE_SHA: e59ddccb9e89a2ae3dd7ef1f50db36bf1b70996f
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
           pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
           branch=os.environ["PRIVATE_BRANCH"]
           game=os.environ["R13_GAME_ID"]
-          path="gamepulse/fusion/analysis/r13_fresh_extended_radius_nba_multi_game_replay_v1.py"
+          path="gamepulse/fusion/analysis/r13_original_source_event_atlas_replay_v1.py"
           source=None
           for retry in range(8):
               r=subprocess.run(["gh","api",f"repos/{repo}/contents/{path}?ref={pin}"],capture_output=True,text=True)
