@@ -1,4 +1,4 @@
-name: NBA Clips event24 camera HLS resolution verification (source only)
+name: R13 Durant Celtics 5FG and FTA episode crosswalk (private)
 on:
   push:
     branches: [main]
@@ -19,7 +19,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-0167-durant-frontcourt-prior-clips-20261104
-      PRIVATE_TASK_SOURCE_SHA: 858db991bc784aca91af100cf68d4eed05209a8d
+      PRIVATE_TASK_SOURCE_SHA: 82da7c8c8debd65b9431feca297194563b907dd1
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +36,7 @@ jobs:
           import base64,hashlib,json,os,pathlib,subprocess,sys,time
           repo=os.environ["PRIVATE_REPO"];pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
           branch=os.environ["PRIVATE_BRANCH"];gid=os.environ["R13_GAME_ID"]
-          path="gamepulse/fusion/analysis/r13_event24_clips_hls_quality_probe_v1.py"
+          path="gamepulse/fusion/analysis/r13_0167_durant_fg_ft_crosswalk_v1.py"
           d=None
           for attempt in range(8):
               response=subprocess.run(
@@ -86,7 +86,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-0167-durant-frontcourt-prior-clips-20261104
-      PRIVATE_TASK_SOURCE_SHA: 858db991bc784aca91af100cf68d4eed05209a8d
+      PRIVATE_TASK_SOURCE_SHA: 82da7c8c8debd65b9431feca297194563b907dd1
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
