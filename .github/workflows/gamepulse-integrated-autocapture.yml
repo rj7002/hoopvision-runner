@@ -10,6 +10,7 @@ on:
     paths:
       - .github/workflows/gamepulse-integrated-autocapture.yml
       - tools/licensed_feed/igp_complete_season_plan.mjs
+      - tools/licensed_feed/season_private_release.mjs
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
@@ -83,7 +84,7 @@ jobs:
     timeout-minutes: 100
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 1
       matrix: ${{ fromJSON(needs.preflight.outputs.games) }}
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
@@ -118,7 +119,7 @@ jobs:
     timeout-minutes: 150
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 1
       matrix: ${{ fromJSON(needs.preflight.outputs.games) }}
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
@@ -203,7 +204,7 @@ jobs:
     timeout-minutes: 44
     strategy:
       fail-fast: false
-      max-parallel: 8
+      max-parallel: 2
       matrix: ${{ fromJSON(needs.preflight.outputs.apps) }}
     env:
       NBA_GAME_ID: ${{ matrix.id }}
