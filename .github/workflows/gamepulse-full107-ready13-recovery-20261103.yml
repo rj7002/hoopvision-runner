@@ -5,7 +5,7 @@ name: IGP Full107 ready-13-part SDK certification and private native source reco
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/gamepulse-full107-ready13-recovery-20261103.yml', 'tools/public_content_guard.py']
+    paths: ['.github/workflows/gamepulse-full107-ready13-recovery-20261103.yml', 'tools/public_content_guard.py', 'tools/licensed_feed/season_private_release.mjs']
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
