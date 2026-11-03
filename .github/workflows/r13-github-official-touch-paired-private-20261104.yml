@@ -19,7 +19,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-github-official-touch-snapshots-20261104
-      PRIVATE_TASK_SOURCE_SHA: 3514d39b0d8ab62b13d96417065e356a21bd50ed
+      PRIVATE_TASK_SOURCE_SHA: ce69aa29f145e287c0f77786ec425bf9e7e987e4
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
