@@ -64,6 +64,7 @@ ALLOWED_STATIC = {
     ".github/workflows/igp-full88-multiangle-shots-private-20261101.yml",  # private-only 88game source SHA event, biomechanics, original native and NBA clip-ID join; public counts only
     ".github/workflows/gamepulse-full88-0153-verified-original-backfill.yml",  # reviewed official-final NBA 0153 bounded SDK 13part capture, SHA private release + companion source and FULL88 index
     ".github/workflows/gamepulse-full88-ready13-certify-20261101.yml",  # source-private existing 13-part SDK readback for verified 31 Oct games; no original XYZ public
+    ".github/workflows/gamepulse-full107-ready13-recovery-20261103.yml",  # reviewed: original 13-part SHA-only Full107 repair; licensed coordinates confined to private 104
     ".github/workflows/igp81-opponent3-prior-shooters-v2.yml",  # SHA-locked public 2025-26 prior plus private original NBA FULL81; aggregate public
     "tools/licensed_feed/igp81_opponent3_prior_shooters_v2.py",  # historical shooter priors, no licensed source rows in public output
     ".github/workflows/igp81-opponent3-luck-source-audit-v1.yml",  # private full81 SHA PBP and Blueprint exploratory output, public aggregate only
