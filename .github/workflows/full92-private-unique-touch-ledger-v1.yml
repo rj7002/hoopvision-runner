@@ -216,48 +216,55 @@ jobs:
           ROOT="$RUNNER_TEMP/private-full92-ledger"
           python3 -m unittest discover -s "$ROOT/gamepulse/fusion/tests" -p test_full92_unique_touch_ledger_v1.py
           python3 "$ROOT/gamepulse/fusion/full92_unique_touch_ledger_v1.py" --root "$ROOT"
-      - name: Commit compressed Full92 evidence package only to private research branch
+      - name: Commit compressed Full92 evidence ledgers only to private research branch
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import base64,gzip,hashlib,io,json,os,subprocess,tarfile
+          import base64,gzip,hashlib,json,os,subprocess,time
           from pathlib import Path
           root=Path(os.environ["RUNNER_TEMP"])/"private-full92-ledger"
           source=root/"gamepulse/fusion/materialized/igp_full92_unique_touch_v1"
           index=json.loads(gzip.decompress((source/"index.json.gz").read_bytes()))
           if index["games"]!=92 or index["games_with_both_touch_sources"]!=92:
               raise ValueError("FULL92_92_GAME_TOUCH_BACKFILL_NOT_COMPLETE")
-          payload=io.BytesIO()
-          with tarfile.open(fileobj=payload,mode="w") as archive:
-              for f in sorted(source.rglob("*")):
-                  if not f.is_file():continue
-                  rel=str(f.relative_to(root))
-                  data=f.read_bytes()
-                  meta=tarfile.TarInfo(rel)
-                  meta.size=len(data);meta.mtime=0;meta.mode=0o600
-                  archive.addfile(meta,io.BytesIO(data))
-          packed=gzip.compress(payload.getvalue(),compresslevel=9,mtime=0)
-          endpoint=("repos/"+os.environ["PRIVATE_REPO"]+
-                    "/contents/gamepulse/fusion/qa/igp_fullx/full92_unique_touch_ledger_sourcegraded_20261103.tar.gz")
-          body={"branch":os.environ["PRIVATE_BRANCH"],
-                "message":"qa: preserve private Full92 unique-touch 92 game evidence package",
-                "content":base64.b64encode(packed).decode()}
-          old=subprocess.run(["gh","api",endpoint+"?ref="+os.environ["PRIVATE_BRANCH"]],
-                             capture_output=True,text=True)
-          if old.returncode==0:body["sha"]=json.loads(old.stdout)["sha"]
-          result=subprocess.run(["gh","api","-X","PUT",endpoint,"--input","-"],
-                                 input=json.dumps(body),capture_output=True,text=True)
-          if result.returncode:
-              raise RuntimeError("FULL92_PRIVATE_QA_PACKAGE_COMMIT_FAILED")
-          got=json.loads(subprocess.check_output(["gh","api",endpoint+"?ref="+os.environ["PRIVATE_BRANCH"]]))
-          if hashlib.sha256(base64.b64decode(got["content"])).hexdigest()!=hashlib.sha256(packed).hexdigest():
-              raise ValueError("FULL92_QA_PRIVATE_READBACK_MISMATCH")
+          files=sorted(source.rglob("*.gz"))
+          if len(files)!=93:
+              raise ValueError("FULL92_PRIVATE_LEDGER_EXPECT_92_GAMES_PLUS_INDEX")
+          import urllib.parse
+          branch=os.environ["PRIVATE_BRANCH"]
+          repo=os.environ["PRIVATE_REPO"]
+          shas=[]
+          for f in files:
+              raw=f.read_bytes()
+              if len(raw)>950000:
+                  raise ValueError("COMPRESSED_FULL92_PRIVATE_GAME_LEDGER_TOO_LARGE")
+              path=str(f.relative_to(root))
+              endpoint="repos/"+repo+"/contents/"+path
+              query=endpoint+"?ref="+urllib.parse.quote(branch,safe="")
+              for retry in range(25):
+                  old=subprocess.run(["gh","api",query],capture_output=True,text=True)
+                  body={"branch":branch,
+                        "message":"qa: privately preserve Full92 SHA touch evidence ledger",
+                        "content":base64.b64encode(raw).decode()}
+                  if old.returncode==0:
+                      body["sha"]=json.loads(old.stdout)["sha"]
+                  done=subprocess.run(["gh","api","-X","PUT",endpoint,"--input","-"],
+                                       input=json.dumps(body),capture_output=True,text=True)
+                  if done.returncode==0:break
+                  time.sleep(min(8,0.5+retry*.4))
+              else:
+                  raise RuntimeError("FULL92_PRIVATE_LEDGER_COMMIT_FAILED")
+              check=json.loads(subprocess.check_output(["gh","api",query]))
+              if hashlib.sha256(base64.b64decode(check["content"])).hexdigest()!=hashlib.sha256(raw).hexdigest():
+                  raise ValueError("FULL92_LEDGER_READBACK_MISMATCH")
+              shas.append(hashlib.sha256(raw).hexdigest())
           print("FULL92_PRIVATE_TOUCH_LEDGER_SHA_ACCEPTED",
                 "GAMES",index["games"],
                 "BOTH",index["games_with_both_touch_sources"],
                 "OFFICIAL_EVENTS",index["counts"]["official_actions"],
-                "PACKAGE_SHA256",hashlib.sha256(packed).hexdigest())
+                "INDEX_SHA256",hashlib.sha256((source/"index.json.gz").read_bytes()).hexdigest(),
+                "VERIFIED_LEDGER_OBJECTS",len(shas))
           PY
       - name: Assert public outputs contain no licensed touch payload
         if: always()
