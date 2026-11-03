@@ -177,19 +177,30 @@ jobs:
           root=Path(os.environ["RUNNER_TEMP"])/"private-full92-ledger"
           branch=os.environ["PRIVATE_BRANCH"]
           repo=os.environ["PRIVATE_REPO"]
+          def fetch_with_retry(url):
+              import time
+              for attempt in range(8):
+                  r=subprocess.run(["gh","api",url],capture_output=True,text=True)
+                  if r.returncode == 0:return r
+                  err=r.stderr.lower()
+                  if any(x in err for x in ("rate limit","http 403","http 429","http 500","http 502","http 503","http 504")):
+                      time.sleep(min(55,4*(attempt+1)))
+                      continue
+                  return r
+              return r
           def get(path, required=True):
               url="repos/"+repo+"/contents/"+path+"?ref="+urllib.parse.quote(branch,safe="")
-              r=subprocess.run(["gh","api",url],capture_output=True,text=True)
+              r=fetch_with_retry(url)
               if r.returncode and not required and ("404" in r.stderr or "Not Found" in r.stderr):
-                  # Branch 776 holds fewer live sidecars than private main.
-                  # Main is permitted ONLY for optional sidecars of a game ID
-                  # already proven a member of the exact frozen Full92 manifest.
+                  # The canonical Full92 branch has fewer historical live
+                  # sidecars than private main. Fall back ONLY within the
+                  # exact frozen source manifest game-id membership.
                   alt="repos/"+repo+"/contents/"+path+"?ref=main"
-                  r=subprocess.run(["gh","api",alt],capture_output=True,text=True)
+                  r=fetch_with_retry(alt)
               if r.returncode:
                   if not required and ("404" in r.stderr or "Not Found" in r.stderr):
                       return None
-                  raise RuntimeError("PRIVATE_SOURCE_FETCH_FAILED_"+path)
+                  raise RuntimeError("PRIVATE_SOURCE_FETCH_FAILED_"+path+"_API_FETCH_RETRY_EXHAUSTED")
               doc=json.loads(r.stdout)
               data=base64.b64decode(doc["content"])
               dest=root/path
@@ -205,8 +216,11 @@ jobs:
           for gid,record in sorted(idx["by_game"].items()):
               get(record["path"])
               for sub in ("touches","tracking_touches","original_sdk_handler_touches"):
-                  get("gamepulse/live/"+sub+"/"+gid+".json",required=False)
-                  get("gamepulse/live/"+sub+"/"+gid+".json.gz",required=False)
+                  base="gamepulse/live/"+sub+"/"+gid+".json"
+                  # Never request an absent compressed alternative when the
+                  # uncompressed source has already been SHA-read and saved.
+                  if get(base,required=False) is None:
+                      get(base+".gz",required=False)
           print("PRIVATE_FULL92_SOURCE_EVENT_AND_TOUCH_FETCH_FINISHED")
           PY
       - name: Run private source-free tests and SHA-conserved Full92 ledger
