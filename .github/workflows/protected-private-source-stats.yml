@@ -57,3 +57,5 @@ jobs:
 # Replay the pinned private task; retain all details privately.
 
 # Recheck pinned private accounting and displayed-value precision.
+
+# Validate pinned integrated entry point and retained source-free regressions.
