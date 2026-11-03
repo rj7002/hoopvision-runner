@@ -16,6 +16,7 @@ env:
 
 jobs:
   full92-ledger:
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, 'nba-probe-only:')
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     env:
@@ -163,3 +164,98 @@ jobs:
         run: |
           test ! -d artifacts
           echo "Private-source Full92 touch QA only; no player-level or original tracking data published." >> "$GITHUB_STEP_SUMMARY"
+
+  official-nba-touch-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: research/full92-unique-touch-ledger-v1-20261103
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Guard public-to-private boundary before source-restricted probe
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+      - name: Retrieve SHA-frozen cohort manifest and source-free NBA parser from PRIVATE
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/private-nba-reference-probe"
+          mkdir -p "$ROOT/gamepulse/fusion/tests" "$ROOT/gamepulse/fusion/materialized/igp_full92_pbp_event_tracking_v1"
+          gh api "repos/$PRIVATE_REPO/contents/gamepulse/fusion/materialized/igp_full92_pbp_event_tracking_v1/index.json?ref=$PRIVATE_BRANCH" \
+            --jq .content | base64 -d > "$ROOT/gamepulse/fusion/materialized/igp_full92_pbp_event_tracking_v1/index.json"
+          for item in \
+             gamepulse/fusion/nba_official_full92_player_touches_source.py \
+             gamepulse/fusion/tests/test_nba_official_full92_player_touches_source.py; do
+            gh api "repos/$PRIVATE_REPO/contents/$item?ref=$PRIVATE_BRANCH" --jq .content | \
+              base64 -d > "$ROOT/$item"
+          done
+          python3 -m unittest discover -s "$ROOT/gamepulse/fusion/tests" -p 'test_nba_official_full92_player_touches_source.py' -v
+          echo "PRIVATE_NBA_TOUCH_SOURCE_PARSER_TESTS_PASS"
+      - name: Probe official NBA per-game touch reference without inventing missing results
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/private-nba-reference-probe"
+          set +e
+          python3 "$ROOT/gamepulse/fusion/nba_official_full92_player_touches_source.py" \
+            --root "$ROOT" --probe 0022600009 0022600138 --timeout 16 --sleep 1.2
+          probe_rc=$?
+          set -e
+          test "$probe_rc" -eq 0 -o "$probe_rc" -eq 3
+          test -f "$ROOT/gamepulse/fusion/materialized/nba_official_touches_full92_v1/status.json"
+          echo "PRIVATE_NBA_TOUCH_PROBE_EXECUTED status_code=$probe_rc"
+      - name: Preserve only independent NBA reference response hashes and probe results in PRIVATE
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,hashlib,json,os,subprocess,time,urllib.parse
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])/"private-nba-reference-probe"
+          folder=root/"gamepulse/fusion/materialized/nba_official_touches_full92_v1"
+          files=[folder/"status.json"]+sorted((folder/"games").rglob("*")) if (folder/"games").exists() else [folder/"status.json"]
+          files=[x for x in files if x.is_file()]
+          branch=os.environ["PRIVATE_BRANCH"]
+          repo=os.environ["PRIVATE_REPO"]
+          for f in files:
+              raw=f.read_bytes()
+              blob_sha=hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()
+              dest=str(f.relative_to(root))
+              endpoint="repos/"+repo+"/contents/"+dest
+              qry=endpoint+"?ref="+urllib.parse.quote(branch,safe="")
+              for retry in range(7):
+                  old=subprocess.run(["gh","api",qry],capture_output=True,text=True)
+                  prior=json.loads(old.stdout) if old.returncode==0 else {}
+                  if prior.get("sha")==blob_sha:break
+                  body={"branch":branch,
+                        "message":"qa: private independent official NBA tracking touches probe",
+                        "content":base64.b64encode(raw).decode()}
+                  if prior.get("sha"):body["sha"]=prior["sha"]
+                  put=subprocess.run(["gh","api","-X","PUT",endpoint,"--input","-"],
+                                     input=json.dumps(body),capture_output=True,text=True)
+                  if put.returncode==0:
+                      if json.loads(put.stdout).get("content",{}).get("sha")!=blob_sha:
+                          raise ValueError("PRIVATE_NBA_REFERENCE_GIT_BLOB_MISMATCH")
+                      break
+                  time.sleep(2+retry)
+              else:raise RuntimeError("PRIVATE_NBA_REFERENCE_STATUS_PUBLISH_FAILED")
+          s=json.loads((folder/"status.json").read_text())
+          print("PRIVATE_NBA_OFFICIAL_PROBE_RECEIPT",
+                "REQUESTED",s["requested"],
+                "AVAILABLE",s["requested_available"],
+                "ERROR_GAMES",len(s["errors"]),
+                "FULL92_REFERENCE_COMPLETE",s["official_reference_complete"],
+                "STATUS_SHA256",hashlib.sha256((folder/"status.json").read_bytes()).hexdigest())
+          PY
+      - name: Confirm no protected tracking data in public artifacts
+        if: always()
+        run: |
+          set -euo pipefail
+          test ! -d artifacts
+          echo "Official NBA reference probe only; any player-level responses and raw data were saved privately." >> "$GITHUB_STEP_SUMMARY"
