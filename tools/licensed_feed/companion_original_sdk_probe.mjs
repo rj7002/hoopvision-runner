@@ -104,7 +104,7 @@ try{
    await new Promise(resolve=>setTimeout(resolve,3200));
  }
  await Promise.allSettled([...pending]);
- const winners=candidateBodies.filter(x=>x.shots>0 || (sourceVariant==='positions' && x.full && x.events>0)).sort((a,b)=>
+ const winners=candidateBodies.filter(x=>x.shots>0 || ((sourceVariant==='positions'||process.env.IGP_CAPTURE_ZERO_SHOT_FULL_EVENTS==='true') && x.full && x.events>0)).sort((a,b)=>
       (b.full?1:0)-(a.full?1:0)||b.shots-a.shots||b.buffer.length-a.buffer.length);
  if(winners.length){
    const best=winners[0];
@@ -117,7 +117,7 @@ try{
    result.original_body_event_count=best.events;
    result.original_body_shot_details_count=best.shots;
    result.full_original_events_endpoint_observed=best.full;
-   result.status=best.full?'FULL_EVENT_RESPONSE_OBSERVED':'ORIGINAL_PARTIAL_SDK_EVENT_SLOT_OBSERVED';
+   result.status=best.full?(best.shots>0?'FULL_EVENT_RESPONSE_OBSERVED':'FULL_EVENT_RESPONSE_NO_SHOTDETAILS_OBSERVED'):'ORIGINAL_PARTIAL_SDK_EVENT_SLOT_OBSERVED';
  } else result.status=result.initialization_result==='ready'?
     'SDK_PROGRAM_READY_BUT_NO_SHOTDETAIL_RESPONSE':'SDK_PROGRAM_NOT_READY';
  await page.close();
