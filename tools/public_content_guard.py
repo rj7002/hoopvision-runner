@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/r13-github-official-touch-paired-private-20261104.yml",  # private SHA-pinned five-game R13 original-source evaluation; zero private tracking public
     ".github/workflows/r13-official-snapshot-qa-private-20261104.yml",  # private, SHA-pinned public-NBA-count ingestion QA; only non-sensitive counts logged
     ".github/workflows/protected-private-source-stats.yml",  # generic pinned private CPU source task; no private payload or results public
     ".github/workflows/full92-private-unique-touch-ledger-v1.yml",  # reviewed: original SDK Full92 20-game private-only backfill and aggregate source-graded ledger QA
