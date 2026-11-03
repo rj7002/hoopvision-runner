@@ -126,6 +126,16 @@ jobs:
                       # Keep previously accepted QA receipt authoritative; do
                       # not duplicate it or alter original immutable records.
                       print("IGP81_COMPANION_FROZEN56_ACCEPTED_SOURCE_CONSERVED",gid)
+          elif new["status"]=="FULL_EVENT_RESPONSE_NO_SHOTDETAILS_OBSERVED":
+              raw=(root/"recheck/companion_original_sdk_response.json").read_bytes()
+              assert hashlib.sha256(raw).hexdigest()==new["original_body_sha256"]
+              hist=out/"source_revision_history"
+              hist.mkdir(exist_ok=True)
+              target=hist/(new["original_body_sha256"]+".json")
+              if target.exists():assert target.read_bytes()==raw
+              else:target.write_bytes(raw)
+              (hist/(new["original_body_sha256"]+".receipt.json")).write_text(json.dumps(new,sort_keys=True,indent=2)+"\n")
+              print("FULL107_ZERO_SHOT_ORIGINAL_FULL_BODY_SAVED_PRIVATELY",gid,new.get("original_body_event_count",0))
           elif not receipt.exists():
               receipt.write_text(json.dumps(new,sort_keys=True,indent=2)+"\n")
           safe={k:new.get(k) for k in ("game_id","status","initialization_result",
