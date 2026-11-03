@@ -19,7 +19,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-frontcourt-continuous-control-v2-20261104
-      PRIVATE_TASK_SOURCE_SHA: 16901ab241d9d1342467e868ca70da3ae245ed61
+      PRIVATE_TASK_SOURCE_SHA: be4d1d8e9b265d272958b5552a86a02585f902aa
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -86,7 +86,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-frontcourt-continuous-control-v2-20261104
-      PRIVATE_TASK_SOURCE_SHA: 16901ab241d9d1342467e868ca70da3ae245ed61
+      PRIVATE_TASK_SOURCE_SHA: be4d1d8e9b265d272958b5552a86a02585f902aa
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
