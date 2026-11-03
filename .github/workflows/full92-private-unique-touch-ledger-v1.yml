@@ -119,23 +119,38 @@ jobs:
               path=str(f.relative_to(root))
               endpoint="repos/"+repo+"/contents/"+path
               query=endpoint+"?ref="+urllib.parse.quote(branch,safe="")
+              sha256=hashlib.sha256(raw).hexdigest()
+              git_sha=hashlib.sha1(
+                  b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()
+              old=subprocess.run(["gh","api",query],capture_output=True,text=True)
+              prior=json.loads(old.stdout) if old.returncode==0 else {}
+              if prior.get("sha")==git_sha:
+                  shas.append(sha256)
+                  continue
               for retry in range(25):
-                  old=subprocess.run(["gh","api",query],capture_output=True,text=True)
                   body={"branch":branch,
                         "message":"qa: privately preserve Full92 SHA touch evidence ledger",
                         "content":base64.b64encode(raw).decode()}
-                  if old.returncode==0:
-                      body["sha"]=json.loads(old.stdout)["sha"]
+                  if prior.get("sha"):
+                      body["sha"]=prior["sha"]
                   done=subprocess.run(["gh","api","-X","PUT",endpoint,"--input","-"],
                                        input=json.dumps(body),capture_output=True,text=True)
-                  if done.returncode==0:break
-                  time.sleep(min(8,0.5+retry*.4))
+                  if done.returncode==0:
+                      receipt=json.loads(done.stdout)
+                      if receipt.get("content",{}).get("sha")!=git_sha:
+                          raise ValueError("FULL92_PRIVATE_GIT_BLOB_HASH_MISMATCH")
+                      break
+                  time.sleep(min(12,2+retry*.5))
+                  old=subprocess.run(["gh","api",query],capture_output=True,text=True)
+                  if old.returncode==0: prior=json.loads(old.stdout)
               else:
-                  raise RuntimeError("FULL92_PRIVATE_LEDGER_COMMIT_FAILED")
-              check=json.loads(subprocess.check_output(["gh","api",query]))
-              if hashlib.sha256(base64.b64decode(check["content"])).hexdigest()!=hashlib.sha256(raw).hexdigest():
-                  raise ValueError("FULL92_LEDGER_READBACK_MISMATCH")
-              shas.append(hashlib.sha256(raw).hexdigest())
+                  raise RuntimeError("FULL92_PRIVATE_LEDGER_COMMIT_FAILED_"+path)
+              shas.append(sha256)
+          # Per-game source SHA-256 was validated during the build; each
+          # accepted Git Contents write now also verifies the exact canonical
+          # Git blob hash from the server-side PUT response. Avoid the immediate
+          # GET of a newly created file: GitHub's Contents reads can lag writes
+          # and return a false 404 even after a successful commit.
           print("FULL92_PRIVATE_TOUCH_LEDGER_SHA_ACCEPTED",
                 "GAMES",index["games"],
                 "BOTH",index["games_with_both_touch_sources"],
