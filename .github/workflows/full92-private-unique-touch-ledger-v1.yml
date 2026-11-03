@@ -266,13 +266,23 @@ jobs:
               raise ValueError("FULL92_SOURCE_COHORT_DRIFT")
           get("gamepulse/fusion/full92_unique_touch_ledger_v1.py")
           get("gamepulse/fusion/tests/test_full92_unique_touch_ledger_v1.py")
+          compressed_by_sub={}
+          for sub in ("touches","tracking_touches","original_sdk_handler_touches"):
+              loc="repos/"+repo+"/contents/gamepulse/live/"+sub+"?ref="+urllib.parse.quote(branch,safe="")
+              listed=fetch_with_retry(loc)
+              if listed.returncode:
+                  raise RuntimeError("FULL92_COMPRESSED_SOURCE_DIRECTORY_UNAVAILABLE_"+sub)
+              compressed_by_sub[sub]={item["name"] for item in json.loads(listed.stdout)
+                                       if item["name"].endswith(".json.gz")}
           for gid,record in sorted(idx["by_game"].items()):
               get(record["path"])
               for sub in ("touches","tracking_touches","original_sdk_handler_touches"):
                   base="gamepulse/live/"+sub+"/"+gid+".json"
-                  # Never request an absent compressed alternative when the
-                  # uncompressed source has already been SHA-read and saved.
-                  if get(base,required=False) is None:
+                  # A complete recovered compressed source may coexist with
+                  # stale partial live .json; its SHA-original source wins.
+                  if gid+".json.gz" in compressed_by_sub[sub]:
+                      get(base+".gz",required=True)
+                  elif get(base,required=False) is None:
                       get(base+".gz",required=False)
           print("PRIVATE_FULL92_SOURCE_EVENT_AND_TOUCH_FETCH_FINISHED")
           PY
@@ -295,6 +305,14 @@ jobs:
           index=json.loads(gzip.decompress((source/"index.json.gz").read_bytes()))
           if index["games"]!=92 or index["games_with_both_touch_sources"]!=92:
               raise ValueError("FULL92_92_GAME_TOUCH_BACKFILL_NOT_COMPLETE")
+          grade_check={}
+          for gameid,meta in index["by_game"].items():
+              p=root/meta["path"]
+              g=json.loads(gzip.decompress(p.read_bytes()))
+              grade=g["native_handler_source_grade"]
+              grade_check[grade]=grade_check.get(grade,0)+1
+          if grade_check!={"FULL_ORIGINAL_SDK_HANDLER_STARTS":92}:
+              raise ValueError("FULL92_SOURCE_RECONSTRUCTION_NOT_92_ORIGINAL_SDK_GAMES")
           files=sorted(source.rglob("*.gz"))
           if len(files)!=93:
               raise ValueError("FULL92_PRIVATE_LEDGER_EXPECT_92_GAMES_PLUS_INDEX")
@@ -355,7 +373,7 @@ jobs:
           echo "Private-source Full92 touch QA only; no player-level or original tracking data published." >> "$GITHUB_STEP_SUMMARY"
 
   official-nba-touch-probe:
-    if: github.event_name == 'workflow_dispatch' || (!contains(github.event.head_commit.message, 'touch-summary-only:') && !contains(github.event.head_commit.message, 'touch-backfill70-only:'))
+    if: github.event_name == 'workflow_dispatch' || (!contains(github.event.head_commit.message, 'touch-summary-only:') && !contains(github.event.head_commit.message, 'touch-backfill70-only:') && !contains(github.event.head_commit.message, 'touch-ledger-only:'))
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     env:
@@ -452,7 +470,7 @@ jobs:
 
   full92-player-touch-source-summary:
     needs: [full92-ledger]
-    if: always() && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, 'touch-summary-only:') || contains(github.event.head_commit.message, 'touch-backfill70-only:')) && (needs.full92-ledger.result == 'success' || needs.full92-ledger.result == 'skipped')
+    if: always() && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, 'touch-summary-only:') || contains(github.event.head_commit.message, 'touch-backfill70-only:') || contains(github.event.head_commit.message, 'touch-ledger-only:')) && (needs.full92-ledger.result == 'success' || needs.full92-ledger.result == 'skipped')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
