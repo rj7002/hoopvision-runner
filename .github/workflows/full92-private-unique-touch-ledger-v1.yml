@@ -16,7 +16,7 @@ env:
 
 jobs:
   full92-ledger:
-    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, 'nba-probe-only:')
+    if: github.event_name == 'workflow_dispatch' || (!contains(github.event.head_commit.message, 'nba-probe-only:') && !contains(github.event.head_commit.message, 'touch-summary-only:'))
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     env:
@@ -166,6 +166,7 @@ jobs:
           echo "Private-source Full92 touch QA only; no player-level or original tracking data published." >> "$GITHUB_STEP_SUMMARY"
 
   official-nba-touch-probe:
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, 'touch-summary-only:')
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     env:
@@ -259,3 +260,97 @@ jobs:
           set -euo pipefail
           test ! -d artifacts
           echo "Official NBA reference probe only; any player-level responses and raw data were saved privately." >> "$GITHUB_STEP_SUMMARY"
+
+  full92-player-touch-source-summary:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, 'touch-summary-only:')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: research/full92-unique-touch-ledger-v1-20261103
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Public content guard, no direct private repository checkout
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+      - name: Fetch all 92 private SHA-graded touch ledgers and generate player source totals
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/private-touch-player-summary"
+          mkdir -p "$ROOT/gamepulse/fusion/materialized/igp_full92_unique_touch_v1/games" \
+                   "$ROOT/gamepulse/catalog"
+          source_repo="repos/$PRIVATE_REPO/contents"
+          gh api "$source_repo/gamepulse/fusion/full92_touch_player_source_summary_v1.py?ref=$PRIVATE_BRANCH" --jq .content | \
+            base64 -d > "$ROOT/full92_touch_player_source_summary_v1.py"
+          gh api "$source_repo/gamepulse/fusion/materialized/igp_full92_unique_touch_v1/index.json.gz?ref=$PRIVATE_BRANCH" --jq .content | \
+            base64 -d > "$ROOT/gamepulse/fusion/materialized/igp_full92_unique_touch_v1/index.json.gz"
+          gh api "$source_repo/gamepulse/catalog/2026-27-integrated-current.json?ref=$PRIVATE_BRANCH" --jq .content | \
+            base64 -d > "$ROOT/gamepulse/catalog/2026-27-integrated-current.json"
+          export ROOT
+          python3 - <<'PY'
+          import gzip,json,os,subprocess
+          from pathlib import Path
+          root=Path(os.environ["ROOT"])
+          blob=root/"gamepulse/fusion/materialized/igp_full92_unique_touch_v1/index.json.gz"
+          index=json.loads(gzip.decompress(blob.read_bytes()))
+          assert index["cohort"]=="FULL92" and index["games"]==92
+          assert index["games_with_both_touch_sources"]==92
+          for gid,r in sorted(index["by_game"].items()):
+              path=r["path"]
+              out=root/path
+              out.parent.mkdir(parents=True,exist_ok=True)
+              q="repos/"+os.environ["PRIVATE_REPO"]+"/contents/"+path+"?ref="+os.environ["PRIVATE_BRANCH"]
+              with out.open("wb") as fh:
+                  p=subprocess.run(["gh","api",q,"--jq",".content"],capture_output=True,text=True,check=True)
+                  import base64
+                  fh.write(base64.b64decode(p.stdout))
+          print("FULL92_PRIVATE_SOURCE_READ",len(index["by_game"]))
+          PY
+          ( cd "$ROOT" && python3 full92_touch_player_source_summary_v1.py )
+      - name: Commit individual player totals to private QA only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,hashlib,json,os,subprocess,time
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])/"private-touch-player-summary"
+          rel="gamepulse/fusion/qa/igp_fullx/full92_touch_player_source_baseline_20261103.json"
+          raw=(root/rel).read_bytes()
+          assert len(raw)<950000
+          expected=hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()
+          endpoint="repos/"+os.environ["PRIVATE_REPO"]+"/contents/"+rel
+          for trial in range(12):
+              old=subprocess.run(["gh","api",endpoint+"?ref="+os.environ["PRIVATE_BRANCH"]],
+                                 capture_output=True,text=True)
+              prior=json.loads(old.stdout) if old.returncode==0 else {}
+              if prior.get("sha")==expected:break
+              doc={"branch":os.environ["PRIVATE_BRANCH"],
+                   "message":"qa: private all-player Full92 source touch counts",
+                   "content":base64.b64encode(raw).decode()}
+              if prior.get("sha"):doc["sha"]=prior["sha"]
+              x=subprocess.run(["gh","api","-X","PUT",endpoint,"--input","-"],
+                              input=json.dumps(doc),text=True,capture_output=True)
+              if x.returncode==0:
+                  assert json.loads(x.stdout)["content"]["sha"]==expected
+                  break
+              time.sleep(3+trial)
+          else:raise RuntimeError("PRIVATE_SOURCE_PLAYER_SUMMARY_PUBLISH_FAILURE")
+          receipt=json.loads(raw)
+          print("FULL92_PLAYER_SOURCE_PRIVATE_QA_SAVED",
+                "GAMES",receipt["games"],
+                "PLAYERS",receipt["players_with_touch_evidence"],
+                "GRADES",json.dumps(receipt["source_handler_grades"],sort_keys=True),
+                "QA_SHA256",hashlib.sha256(raw).hexdigest())
+          PY
+      - name: No public player-level touch outputs
+        if: always()
+        run: |
+          test ! -d artifacts
+          echo "Full92 player-level source counts reside only in private GitHub; public log aggregate only." >> "$GITHUB_STEP_SUMMARY"
