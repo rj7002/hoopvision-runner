@@ -31,23 +31,28 @@ function call(args){
  return result.out;
 }
 function names(tag){
- // GitHub CLI "release view" can transiently return nonzero during a
- // parallel private Release initialization even when REST reads the Release.
+ // Do not issue both authenticated API calls eagerly for every release read.
+ // An alternate REST lookup is only needed when the first response fails;
+ // this halves routine source-part lookup pressure on GitHub rate limits.
  const candidates=[
-  gh(['release','view',tag,'--repo',REPO,'--json','assets']),
-  gh(['api','repos/'+REPO+'/releases/tags/'+tag])
+  ['release','view',tag,'--repo',REPO,'--json','assets'],
+  ['api','repos/'+REPO+'/releases/tags/'+tag]
  ];
- for(const r of candidates){
+ let problem=null;
+ for(const args of candidates){
+  const r=gh(args);
   if(!r.ok){
-   if(r.category==='RATE_LIMIT')throw Error('private_github_rate_limited');
-   if(r.category==='FORBIDDEN')throw Error('private_github_release_read_forbidden');
+   if(r.category==='RATE_LIMIT')problem='private_github_rate_limited';
+   else if(r.category==='FORBIDDEN')problem='private_github_release_read_forbidden';
    continue;
   }
   try {
    const doc=JSON.parse(r.out);
    if(Array.isArray(doc.assets))return new Set(doc.assets.map(x=>x.name));
-  } catch {throw Error('private_asset_listing_invalid');}
+   problem='private_asset_listing_invalid';
+  } catch {problem='private_asset_listing_invalid';}
  }
+ if(problem)throw Error(problem);
  return null;
 }
 function ensure(tag){
@@ -69,12 +74,17 @@ function ensure(tag){
 }
 function download(tag,name,directory){
  const path=join(directory,name);
- for(let attempt=0;attempt<4;attempt++){
+ let last='private_readback_missing';
+ // Retain exact original bytes and back off on eventual asset propagation
+ // and GitHub throttling; never manufacture a successful SHA readback.
+ for(let attempt=0;attempt<7;attempt++){
   const result=gh(['release','download',tag,'--pattern',name,'--dir',directory,'--repo',REPO]);
   if(result.ok&&existsSync(path))return path;
-  if(attempt<3)spawnSync('sleep',['2'],{stdio:'ignore'});
+  if(result.category==='FORBIDDEN')throw Error('private_readback_forbidden');
+  if(result.category==='RATE_LIMIT')last='private_github_rate_limited';
+  if(attempt<6)spawnSync('sleep',[String(Math.min(24,2**(attempt+1)))],{stdio:'ignore'});
  }
- throw Error('private_readback_missing');
+ throw Error(last);
 }
 function uploadOrExisting(tag,file,name){
  // A private GitHub release upload can fail transiently after the source
