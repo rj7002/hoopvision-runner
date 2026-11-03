@@ -1,0 +1,269 @@
+# Full107 source-first last-gap recovery for the 2026-11-02 US final slate.
+# The 35 selected five-minute SDK chunks are authentic missing asset IDs,
+# sourced solely through the existing licensed private 104 SHA-preserving bridge.
+name: IGP Full107 source SDK missing 35 parts private recovery
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-full107-missing35-source-20261103.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full107-source-last35-private-recovery
+  cancel-in-progress: false
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: python3 tools/public_content_guard.py
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --test tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs
+  capture:
+    needs: preflight
+    if: needs.preflight.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 105
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - {id: '0022600158', tipoff: '2026-11-03T00:00:00.000Z', part: 5}
+          - {id: '0022600158', tipoff: '2026-11-03T00:00:00.000Z', part: 6}
+          - {id: '0022600158', tipoff: '2026-11-03T00:00:00.000Z', part: 7}
+          - {id: '0022600158', tipoff: '2026-11-03T00:00:00.000Z', part: 8}
+          - {id: '0022600158', tipoff: '2026-11-03T00:00:00.000Z', part: 9}
+          - {id: '0022600158', tipoff: '2026-11-03T00:00:00.000Z', part: 10}
+          - {id: '0022600158', tipoff: '2026-11-03T00:00:00.000Z', part: 11}
+          - {id: '0022600158', tipoff: '2026-11-03T00:00:00.000Z', part: 12}
+          - {id: '0022600170', tipoff: '2026-11-03T03:00:00.000Z', part: 12}
+          - {id: '0022600171', tipoff: '2026-11-03T03:00:00.000Z', part: 0}
+          - {id: '0022600171', tipoff: '2026-11-03T03:00:00.000Z', part: 1}
+          - {id: '0022600171', tipoff: '2026-11-03T03:00:00.000Z', part: 2}
+          - {id: '0022600171', tipoff: '2026-11-03T03:00:00.000Z', part: 3}
+          - {id: '0022600171', tipoff: '2026-11-03T03:00:00.000Z', part: 4}
+          - {id: '0022600171', tipoff: '2026-11-03T03:00:00.000Z', part: 5}
+          - {id: '0022600171', tipoff: '2026-11-03T03:00:00.000Z', part: 6}
+          - {id: '0022600171', tipoff: '2026-11-03T03:00:00.000Z', part: 7}
+          - {id: '0022600171', tipoff: '2026-11-03T03:00:00.000Z', part: 8}
+          - {id: '0022600171', tipoff: '2026-11-03T03:00:00.000Z', part: 9}
+          - {id: '0022600171', tipoff: '2026-11-03T03:00:00.000Z', part: 10}
+          - {id: '0022600171', tipoff: '2026-11-03T03:00:00.000Z', part: 11}
+          - {id: '0022600171', tipoff: '2026-11-03T03:00:00.000Z', part: 12}
+          - {id: '0022600172', tipoff: '2026-11-03T03:00:00.000Z', part: 0}
+          - {id: '0022600172', tipoff: '2026-11-03T03:00:00.000Z', part: 1}
+          - {id: '0022600172', tipoff: '2026-11-03T03:00:00.000Z', part: 2}
+          - {id: '0022600172', tipoff: '2026-11-03T03:00:00.000Z', part: 3}
+          - {id: '0022600172', tipoff: '2026-11-03T03:00:00.000Z', part: 4}
+          - {id: '0022600172', tipoff: '2026-11-03T03:00:00.000Z', part: 5}
+          - {id: '0022600172', tipoff: '2026-11-03T03:00:00.000Z', part: 6}
+          - {id: '0022600172', tipoff: '2026-11-03T03:00:00.000Z', part: 7}
+          - {id: '0022600172', tipoff: '2026-11-03T03:00:00.000Z', part: 8}
+          - {id: '0022600172', tipoff: '2026-11-03T03:00:00.000Z', part: 9}
+          - {id: '0022600172', tipoff: '2026-11-03T03:00:00.000Z', part: 10}
+          - {id: '0022600172', tipoff: '2026-11-03T03:00:00.000Z', part: 11}
+          - {id: '0022600172', tipoff: '2026-11-03T03:00:00.000Z', part: 12}
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GAMEPULSE_PRIORITY_FANOUT: 'true'
+      GAMEPULSE_PRODUCTION_ENABLED: 'true'
+      GAMEPULSE_FINAL_FASTLANE: 'true'
+      GAMEPULSE_PRIORITY_ID: ${{ matrix.id }}
+      GAMEPULSE_PRIORITY_TIPOFF: ${{ matrix.tipoff }}
+      GAMEPULSE_PRIORITY_PART: ${{ matrix.part }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Original licensed SDK private part capture
+        if: matrix.id != 'none'
+        shell: bash
+        working-directory: tools/licensed_feed
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+          node season_private_release.mjs
+          echo IGP_OCT28_ORIGINAL_NATIVE_PART_PRIVATE_SOURCE_PRESERVED
+  certify:
+    needs: [preflight,capture]
+    if: always() && needs.preflight.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - {id: '0022600158', tipoff: '2026-11-03T00:00:00.000Z'}
+          - {id: '0022600170', tipoff: '2026-11-03T03:00:00.000Z'}
+          - {id: '0022600171', tipoff: '2026-11-03T03:00:00.000Z'}
+          - {id: '0022600172', tipoff: '2026-11-03T03:00:00.000Z'}
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GAMEPULSE_PRIORITY_FINALIZE: 'true'
+      GAMEPULSE_PRODUCTION_ENABLED: 'true'
+      GAMEPULSE_FINAL_FASTLANE: 'true'
+      GAMEPULSE_PRIORITY_ID: ${{ matrix.id }}
+      GAMEPULSE_PRIORITY_TIPOFF: ${{ matrix.tipoff }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify existing exact SHA private thirteen-part source
+        if: matrix.id != 'none'
+        shell: bash
+        working-directory: tools/licensed_feed
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+          node season_private_release.mjs
+          echo IGP_OCT28_NATIVE_13PART_FINALIZE_ATTEMPTED
+  materialize:
+    needs: [preflight,certify]
+    if: always() && needs.preflight.result == 'success'
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        game: ['0022600158','0022600170','0022600171','0022600172']
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GAME: ${{ matrix.game }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: SHA-preserve private native XYZ and bounded source provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          mkdir -p "$RUNNER_TEMP/native-sdk"
+          gh api "repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-$GAME" > "$RUNNER_TEMP/release.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          v=json.loads((Path(os.environ['RUNNER_TEMP'])/'release.json').read_bytes())
+          n={a['name'] for a in v['assets']}
+          assert all(f'sdk-part-{i:02d}.{ext}' in n for i in range(13) for ext in ('json','tar.gz'))
+          assert 'sdk-COMPLETE.json' in n,'SOURCE_COMPLETE_MARKER_MISSING'
+          print('FULL107_PRIVATE_13PART_SHA_GATE',os.environ['GAME'])
+          PY
+          gh release download "gamepulse-sdk-$GAME" --repo timeedmonds-maker/104 --pattern 'sdk-part-*.tar.gz' --dir "$RUNNER_TEMP/native-sdk"
+          test "$(find "$RUNNER_TEMP/native-sdk" -name 'sdk-part-*.tar.gz' | wc -l)" -eq 13
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          dest="gamepulse/fusion/materialized/igp_all_original_xyz/$GAME"
+          if test ! -f "$dest/index.json"; then
+            python3 gamepulse/fusion/igp_extract_all_original_sdk_xyz_2026.py --game-id "$GAME" --archive-dir "$RUNNER_TEMP/native-sdk" --release-manifest "$RUNNER_TEMP/release.json" --out-dir "$dest"
+          fi
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          gid=os.environ['GAME']
+          p=Path('gamepulse/fusion/materialized/igp_all_original_xyz')/gid/'index.json'
+          x=json.loads(p.read_bytes())
+          assert x['game_id']==gid and x['capture_archive_all_13_parts_verified']
+          assert x['original_archive_part_count_verified']==13
+          assert x['physical_possessions_certified']==0
+          n=0
+          for ch in x['chunks']:
+            raw=(p.parent/ch['path']).read_bytes()
+            assert hashlib.sha256(raw).hexdigest()==ch['sha256']
+            n+=ch['original_native_timestamps']
+          assert n==x['original_frame_counts']['unique_original_native_timestamps']
+          print('FULL107_PRIVATE_ORIGINAL_XYZ_NATIVE_SHA_ACCEPTED',gid,n)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$dest"
+          git diff --cached --check
+          if git diff --cached --quiet; then echo FULL107_NATIVE_ALREADY_INDEXED; exit 0; fi
+          git commit -q -m "data(igp): SHA-verified original source FULL107 $GAME"
+          for n in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo FULL107_PRIVATE_ORIGINAL_SOURCE_INDEXED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 23
+  refresh-full107-original-source-index:
+    needs: [preflight, materialize]
+    if: always() && needs.preflight.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Independently refresh private native/companion/Blueprint and official-chain source grades
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion data/extensions/nba_blueprint_2026_27
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion:scripts
+          python3 gamepulse/fusion/igp_post56_original_companion_index_v1.py --root .
+          python3 gamepulse/fusion/igp_post56_blueprint_original_index_v1.py --root .
+          python3 gamepulse/fusion/igp_post56_official_logical_chain_index_v1.py --root .
+          python3 gamepulse/fusion/igp_post56_native_index_refresh_v1.py --root .
+          python3 gamepulse/fusion/igp_post56_allgames_official_ten_native_chain_v1.py --root .
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          index=json.loads(Path('gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json').read_bytes())
+          add=json.loads(Path(index['post56_additive_oct28']['index']).read_bytes())
+          ids=[f'0022600{i:03d}' for i in range(158,173)]
+          assert index['official_games']==56 and len(index['per_game_model'])==56
+          assert index['total_indexed_games_including_additive']==107
+          assert all(i in add['games'] for i in ids)
+          for i in ids:
+              g=add['games'][i]
+              assert g['source_capture_grades']['official_nba_pbp_box']=='SHA_VERIFIED'
+              assert g['source_capture_grades']['official_logical_chains']=='SHA_VERIFIED'
+              if g.get('original_source_13_part_complete'):
+                  assert g['source_capture_grades']['original_native_xyz']=='SHA_FULL_13PART'
+          print('IGP_FULL107_SOURCE_GRADES_REFRESHED',
+                'native_13_verified',sum(bool(add['games'][i].get('original_source_13_part_complete')) for i in ids),
+                'companion_full',sum(add['games'][i]['source_capture_grades']['original_companion']=='COMPLETE_ORIGINAL_RESPONSE' for i in ids))
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json
+          git add -f gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/official_ten_native_chains
+          git add -f gamepulse/fusion/qa/igp_progress_20261030
+          git diff --cached --check
+          if git diff --cached --quiet; then echo IGP_FULL107_ORIGINAL_SOURCE_ALREADY_CURRENT; exit 0; fi
+          git commit -q -m "data(igp): grade recovered Full107 original native and companion sources"
+          for n in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then echo IGP_FULL107_SOURCE_INDEX_READBACK_READY; exit 0; fi
+            sleep "$n"
+          done
+          exit 23
