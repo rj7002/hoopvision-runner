@@ -1,4 +1,4 @@
-name: R13 original-ball physical reception rescue research
+name: R13 native teammate pass-return source test private
 # Source-pinned isolation approved by the explicit public-content guard allowlist.
 on:
   push:
@@ -20,7 +20,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-source-onset-frontcourt-v3-20261104
-      PRIVATE_TASK_SOURCE_SHA: 5c5220054765c4a0ecff216257cee5eec9aed3b3
+      PRIVATE_TASK_SOURCE_SHA: e9eb90b7c232daffb70a6ec020ee87201d4cbd9a
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
           pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
           branch=os.environ["PRIVATE_BRANCH"]
           game=os.environ["R13_GAME_ID"]
-          path="gamepulse/fusion/analysis/r13_source_physical_reception_replay_v1.py"
+          path="gamepulse/fusion/analysis/r13_native_pass_return_replay_v1.py"
           source=None
           for retry in range(8):
               r=subprocess.run(["gh","api",f"repos/{repo}/contents/{path}?ref={pin}"],capture_output=True,text=True)
