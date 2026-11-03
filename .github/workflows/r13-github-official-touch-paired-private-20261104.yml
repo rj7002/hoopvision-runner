@@ -19,7 +19,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-frontcourt-carry-validation-20261104
-      PRIVATE_TASK_SOURCE_SHA: f80703f1a1e132fe59ed7cf2303974b14dc5d8eb
+      PRIVATE_TASK_SOURCE_SHA: 1fff11c7ec2865d5fbaa09ac745e6e36b9131dfc
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
