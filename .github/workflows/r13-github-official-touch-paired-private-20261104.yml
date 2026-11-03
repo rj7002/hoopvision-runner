@@ -14,12 +14,12 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        game: ['0022600091','0022600125','0022600138','0022600021','0022600153']
+        game: ['0022600091','0022600125']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-github-official-touch-snapshots-20261104
-      PRIVATE_TASK_SOURCE_SHA: 1ab8a43b553b1217d28d7b4c46d3d2870840ed87
+      PRIVATE_TASK_SOURCE_SHA: 3514d39b0d8ab62b13d96417065e356a21bd50ed
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
