@@ -128,29 +128,29 @@ jobs:
                       else:
                           shutil.copyfile(src,revised)
                       revised_receipt.write_text(json.dumps(new,sort_keys=True,indent=2)+"\n")
-                                official=json.loads((Path("gamepulse/fusion/official_pbp_timing/games")/(gid+".json")).read_bytes())
-                                actions={str(x["nba_action_number"]):str(x["person_id"]) for x in official["actions"] if x["action_type"] in ("2pt","3pt")}
-                                def exact_shots(payload):
-                                    result=set()
-                                    for ev in json.loads(payload):
-                                        if not isinstance(ev,dict) or ev.get("event")!="ShotDetails#show":continue
-                                        m=ev.get("metadata") or {}
-                                        aid=str(m.get("playId"))
-                                        if aid in actions and actions[aid]==str(m.get("playerId")):result.add(aid)
-                                    return result
-                                accepted=exact_shots(body.read_bytes())
-                                discovered=exact_shots(data)
-                                if accepted < discovered:
-                                    oldsha=old["original_body_sha256"]
-                                    backup=history/(oldsha+".json")
-                                    if backup.exists():assert backup.read_bytes()==body.read_bytes()
-                                    else:backup.write_bytes(body.read_bytes())
-                                    (history/(oldsha+".receipt.json")).write_text(json.dumps(old,sort_keys=True,indent=2)+"\n")
-                                    body.write_bytes(data)
-                                    receipt.write_text(json.dumps(new,sort_keys=True,indent=2)+"\n")
-                                    print("FULL107_OFFICIAL_IDENTITY_VERIFIED_COMPANION_REVISION_PROMOTED",gid,len(accepted),len(discovered))
-                                else:
-                                    print("FULL107_COMPANION_SOURCE_REVISION_NOT_PROMOTED_NO_STRICT_GAIN",gid,len(accepted),len(discovered))
+                      official=json.loads((Path("gamepulse/fusion/official_pbp_timing/games")/(gid+".json")).read_bytes())
+                      actions={str(x["nba_action_number"]):str(x["person_id"]) for x in official["actions"] if x["action_type"] in ("2pt","3pt")}
+                      def exact_shots(payload):
+                          result=set()
+                          for ev in json.loads(payload):
+                              if not isinstance(ev,dict) or ev.get("event")!="ShotDetails#show":continue
+                              m=ev.get("metadata") or {}
+                              aid=str(m.get("playId"))
+                              if aid in actions and actions[aid]==str(m.get("playerId")):result.add(aid)
+                          return result
+                      accepted=exact_shots(body.read_bytes())
+                      discovered=exact_shots(data)
+                      if accepted < discovered:
+                          oldsha=old["original_body_sha256"]
+                          backup=history/(oldsha+".json")
+                          if backup.exists():assert backup.read_bytes()==body.read_bytes()
+                          else:backup.write_bytes(body.read_bytes())
+                          (history/(oldsha+".receipt.json")).write_text(json.dumps(old,sort_keys=True,indent=2)+"\n")
+                          body.write_bytes(data)
+                          receipt.write_text(json.dumps(new,sort_keys=True,indent=2)+"\n")
+                          print("FULL107_OFFICIAL_IDENTITY_VERIFIED_COMPANION_REVISION_PROMOTED",gid,len(accepted),len(discovered))
+                      else:
+                          print("FULL107_COMPANION_SOURCE_REVISION_NOT_PROMOTED_NO_STRICT_GAIN",gid,len(accepted),len(discovered))
                       print("IGP81_COMPANION_ADDITIVE_SOURCE_REVISION",gid,old["original_body_shot_details_count"],new["original_body_shot_details_count"])
                   elif not receipt.exists():
                       # Keep previously accepted QA receipt authoritative; do
