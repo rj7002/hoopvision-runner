@@ -19,7 +19,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-token-boundary-physics-20261104
-      PRIVATE_TASK_SOURCE_SHA: 2430538e9dc3fb1fb9762f7c1fcd4a4e4614de7d
+      PRIVATE_TASK_SOURCE_SHA: bd14a23e01d1003e7cc596c2459a182119218f10
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -86,7 +86,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-token-boundary-physics-20261104
-      PRIVATE_TASK_SOURCE_SHA: 2430538e9dc3fb1fb9762f7c1fcd4a4e4614de7d
+      PRIVATE_TASK_SOURCE_SHA: bd14a23e01d1003e7cc596c2459a182119218f10
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
