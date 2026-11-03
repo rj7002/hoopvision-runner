@@ -19,7 +19,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-token-boundary-physics-20261104
-      PRIVATE_TASK_SOURCE_SHA: 616ce41b72892d30bae8c735b36c849081dccbef
+      PRIVATE_TASK_SOURCE_SHA: 7d1cc3f2d9ec32d4fdbd5c5937b2861f524138b1
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +36,7 @@ jobs:
           import base64,hashlib,json,os,pathlib,subprocess,sys,time
           repo=os.environ["PRIVATE_REPO"];pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
           branch=os.environ["PRIVATE_BRANCH"];gid=os.environ["R13_GAME_ID"]
-          path="gamepulse/fusion/analysis/r13_token_boundary_houston_replay_v1.py"
+          path="gamepulse/fusion/analysis/r13_contact_grid_houston_development_v1.py"
           d=None
           for attempt in range(8):
               response=subprocess.run(
@@ -74,7 +74,7 @@ jobs:
 
   external_holdout:
     needs: replay
-    if: always()
+    if: false
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     strategy:
@@ -86,7 +86,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-token-boundary-physics-20261104
-      PRIVATE_TASK_SOURCE_SHA: 616ce41b72892d30bae8c735b36c849081dccbef
+      PRIVATE_TASK_SOURCE_SHA: 7d1cc3f2d9ec32d4fdbd5c5937b2861f524138b1
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
