@@ -1,5 +1,5 @@
 # Opaque public runner: only authorized SDK client; never store raw source on public repo.
-name: IGP81 five highest-risk companion gaps authorized recovery
+name: Full107 original companion three-gap source recovery
 on:
   schedule:
     - cron: '23 4 * * *'
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
-  group: igp81-three-gap-companion-recovery
+  group: full107-source-companion-three-gap-recovery
   cancel-in-progress: false
 jobs:
   original-sdk-retry:
@@ -17,25 +17,22 @@ jobs:
     timeout-minutes: 35
     strategy:
       fail-fast: false
-      max-parallel: 5
+      max-parallel: 1
       matrix:
         include:
-          - id: '0022600006'
-            tipoff: '2026-10-22T23:00:00Z'
-          - id: '0022600086'
-            tipoff: '2026-10-21T23:00:00Z'
           - id: '0022600142'
             tipoff: '2026-10-29T01:30:00Z'
-          - id: '0022600111'
-            tipoff: '2026-10-25T02:00:00Z'
           - id: '0022600143'
             tipoff: '2026-10-29T02:30:00Z'
+          - id: '0022600171'
+            tipoff: '2026-11-03T03:00:00Z'
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       NBA_GAME_ID: ${{ matrix.id }}
       NBA_TIPOFF_UTC: ${{ matrix.tipoff }}
       IGP_SDK_INIT_TIMEOUT_MS: '45000'
-      TARGET_BRANCH: research/igp81-all-layers-source-grade-20261101
+      IGP_CAPTURE_ZERO_SHOT_FULL_EVENTS: 'true'
+      TARGET_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -65,7 +62,7 @@ jobs:
           assert p["game_id"]==os.environ["NBA_GAME_ID"]
           assert not p["authentication_bypass_attempted"]
           assert not p["raw_29joint_pose_60hz_observed"]
-          if p["status"]=="FULL_EVENT_RESPONSE_OBSERVED":
+          if p["status"] in ("FULL_EVENT_RESPONSE_OBSERVED","FULL_EVENT_RESPONSE_NO_SHOTDETAILS_OBSERVED"):
               data=(d/"companion_original_sdk_response.json").read_bytes()
               assert hashlib.sha256(data).hexdigest()==p["original_body_sha256"]
               assert len(json.loads(data))==p["original_body_event_count"]
