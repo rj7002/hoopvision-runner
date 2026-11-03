@@ -4,7 +4,7 @@ import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 const TOKEN=process.env.GH_TOKEN;
 const NOW=Date.now();
-const MAX=10; // Bounded dynamic final-game batch; older incomplete sources retry on the next run.
+const MAX=15; // Include a complete NBA 15-game official-final slate; older incomplete sources retry on subsequent runs.
 if(!TOKEN || !process.env.GITHUB_OUTPUT)throw Error('PRIVATE_TOKEN_OR_OUTPUT_MISSING');
 async function get(url,privateRead=false){
  if(privateRead){
@@ -85,7 +85,7 @@ for(const source of ['https://cdn.nba.com/static/json/staticData/scheduleLeagueV
     for(const r of rows){
       if(!/^00226\d{5}$/.test(r.id)||!r.status||!Number.isFinite(r.start)
          ||r.start<Date.parse('2026-10-20T00:00:00Z')
-         ||r.start+315*60000>NOW)continue;
+         ||r.start>NOW)continue; // An official final is authoritative; do not delay newly final games by a fixed 315 minutes.
       if(map.has(r.id))throw Error('NBA_DUPLICATE_GAME_ID');
       map.set(r.id,{id:r.id,tipoff:new Date(r.start).toISOString(),start:r.start});
     }
