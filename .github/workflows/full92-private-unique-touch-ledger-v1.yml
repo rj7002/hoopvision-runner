@@ -1,4 +1,5 @@
 name: Full92 private original-SDK touch backfill and unique-ledger QA
+# Reviewed against the existing public-content guard allowlist; licensed outputs remain private.
 # Only source-free code and aggregate QA may enter this PUBLIC runner.
 # All licensed source archives, timestamps, coordinates and touch ledgers stay PRIVATE.
 on:
