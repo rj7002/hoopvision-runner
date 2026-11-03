@@ -1,4 +1,4 @@
-name: R13 five-game continuous-control frontcourt source validation (private)
+name: R13 dual frontcourt opt-in API original 0167 integration test (private)
 on:
   push:
     branches: [main]
@@ -14,12 +14,12 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        game: ['0022600091','0022600125','0022600138','0022600021','0022600153']
+        game: ['0022600167']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-frontcourt-continuous-control-v2-20261104
-      PRIVATE_TASK_SOURCE_SHA: 8ebc723e73025437f40e6a6286f4ff20ec196aa5
+      PRIVATE_TASK_SOURCE_SHA: 8c84ec60bcc887e6c26f655d901918a91b2a5941
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +36,7 @@ jobs:
           import base64,hashlib,json,os,pathlib,subprocess,sys,time
           repo=os.environ["PRIVATE_REPO"];pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
           branch=os.environ["PRIVATE_BRANCH"];gid=os.environ["R13_GAME_ID"]
-          path="gamepulse/fusion/analysis/r13_frontcourt_continuous_five_game_replay_v2.py"
+          path="gamepulse/fusion/analysis/r13_frontcourt_continuous_0167_replay_v2.py"
           d=None
           for attempt in range(8):
               response=subprocess.run(
@@ -86,7 +86,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-frontcourt-continuous-control-v2-20261104
-      PRIVATE_TASK_SOURCE_SHA: 8ebc723e73025437f40e6a6286f4ff20ec196aa5
+      PRIVATE_TASK_SOURCE_SHA: 8c84ec60bcc887e6c26f655d901918a91b2a5941
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
