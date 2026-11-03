@@ -1,4 +1,4 @@
-name: R13 Durant Celtics 5FG and FTA episode crosswalk (private)
+name: R13 continuous frontcourt control qualification 0167 shadow (private)
 on:
   push:
     branches: [main]
@@ -18,8 +18,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PRIVATE_BRANCH: research/r13-0167-durant-frontcourt-prior-clips-20261104
-      PRIVATE_TASK_SOURCE_SHA: 82da7c8c8debd65b9431feca297194563b907dd1
+      PRIVATE_BRANCH: research/r13-frontcourt-continuous-control-v2-20261104
+      PRIVATE_TASK_SOURCE_SHA: 16901ab241d9d1342467e868ca70da3ae245ed61
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +36,7 @@ jobs:
           import base64,hashlib,json,os,pathlib,subprocess,sys,time
           repo=os.environ["PRIVATE_REPO"];pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
           branch=os.environ["PRIVATE_BRANCH"];gid=os.environ["R13_GAME_ID"]
-          path="gamepulse/fusion/analysis/r13_0167_durant_fg_ft_crosswalk_v1.py"
+          path="gamepulse/fusion/analysis/r13_frontcourt_continuous_0167_replay_v2.py"
           d=None
           for attempt in range(8):
               response=subprocess.run(
@@ -85,8 +85,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PRIVATE_BRANCH: research/r13-0167-durant-frontcourt-prior-clips-20261104
-      PRIVATE_TASK_SOURCE_SHA: 82da7c8c8debd65b9431feca297194563b907dd1
+      PRIVATE_BRANCH: research/r13-frontcourt-continuous-control-v2-20261104
+      PRIVATE_TASK_SOURCE_SHA: 16901ab241d9d1342467e868ca70da3ae245ed61
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
