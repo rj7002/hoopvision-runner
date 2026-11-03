@@ -116,7 +116,7 @@ jobs:
                   old=json.loads(receipt.read_bytes()) if receipt.exists() else json.loads(prior.read_bytes())
                   assert hashlib.sha256(body.read_bytes()).hexdigest()==old["original_body_sha256"]
                   assert old["original_body_shot_details_count"]>=0
-                  if new["original_body_shot_details_count"]>old["original_body_shot_details_count"]:
+                  if new["original_body_sha256"]!=old["original_body_sha256"]:
                       # Never overwrite immutable original, even when better
                       # source response is observed; preserve a SHA revision.
                       history=out/"source_revision_history"
@@ -150,7 +150,7 @@ jobs:
                           receipt.write_text(json.dumps(new,sort_keys=True,indent=2)+"\n")
                           print("FULL107_OFFICIAL_IDENTITY_VERIFIED_COMPANION_REVISION_PROMOTED",gid,len(accepted),len(discovered))
                       else:
-                          print("FULL107_COMPANION_SOURCE_REVISION_NOT_PROMOTED_NO_STRICT_GAIN",gid,len(accepted),len(discovered))
+                          print("FULL107_COMPANION_SOURCE_REVISION_RETAINED",gid,len(accepted),len(discovered),"new_source_only",len(discovered-accepted))
                       print("IGP81_COMPANION_ADDITIVE_SOURCE_REVISION",gid,old["original_body_shot_details_count"],new["original_body_shot_details_count"])
                   elif not receipt.exists():
                       # Keep previously accepted QA receipt authoritative; do
