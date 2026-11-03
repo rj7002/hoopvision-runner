@@ -1,4 +1,4 @@
-name: R13 selective source-fresh high Z reception validation private
+name: R13 fresh source handler radius frontcourt validation private
 # Source-pinned isolation approved by the explicit public-content guard allowlist.
 on:
   push:
@@ -20,7 +20,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-source-onset-frontcourt-v3-20261104
-      PRIVATE_TASK_SOURCE_SHA: 0041de0d178714fd432cbff5b7fa8385b497dcd6
+      PRIVATE_TASK_SOURCE_SHA: eb29648f0d6e16ed5615ff7810c0b8a5ccf0ed70
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
           pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
           branch=os.environ["PRIVATE_BRANCH"]
           game=os.environ["R13_GAME_ID"]
-          path="gamepulse/fusion/analysis/r13_selective_high_z_nba_multi_game_replay_v1.py"
+          path="gamepulse/fusion/analysis/r13_fresh_extended_radius_nba_multi_game_replay_v1.py"
           source=None
           for retry in range(8):
               r=subprocess.run(["gh","api",f"repos/{repo}/contents/{path}?ref={pin}"],capture_output=True,text=True)
