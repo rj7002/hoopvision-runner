@@ -87,18 +87,23 @@ function download(tag,name,directory){
  throw Error(last);
 }
 function uploadOrExisting(tag,file,name){
- // A private GitHub release upload can fail transiently after the source
- // checkpoint has been captured. Keep the local archive and retry its exact
- // same asset without changing source bytes or overwriting an existing asset.
- for(let attempt=0;attempt<7;attempt++){
+ // A private release upload may be throttled AFTER authentic source bytes
+ // were captured. Retry the exact same immutable asset; never --clobber.
+ // Do not burn another private Release metadata request while rate-limited.
+ for(let attempt=0;attempt<8;attempt++){
   const result=gh(['release','upload',tag,file,'--repo',REPO]);
   if(result.ok)return;
-  if(result.category==='RATE_LIMIT')throw Error('private_github_rate_limited');
-  if(names(tag)?.has(name))return;
-  console.log('PRIVATE_UPLOAD_RETRY_REQUIRED',attempt+1,result.category);
-  if(attempt<6)spawnSync('sleep',[String(Math.min(32,2**(attempt+1)))],{stdio:'ignore'});
+  if(result.category==='FORBIDDEN')throw Error('private_upload_forbidden');
+  if(result.category!=='RATE_LIMIT'){
+   try{if(names(tag)?.has(name))return;}
+   catch(e){
+    if(e?.message!=='private_github_rate_limited')throw e;
+   }
+  }
+  console.log('PRIVATE_UPLOAD_BACKOFF_REQUIRED',attempt+1,result.category);
+  if(attempt<7)spawnSync('sleep',[String(Math.min(40,2**(attempt+1)))],{stdio:'ignore'});
  }
- throw Error('private_upload_failed');
+ throw Error('private_upload_retry_exhausted');
 }
 function readIndex(){
  ensure(INDEX);
