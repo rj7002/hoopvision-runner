@@ -14,12 +14,12 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        game: ['0022600138','0022600021','0022600153']
+        game: ['0022600091','0022600125','0022600138','0022600021','0022600153']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PRIVATE_BRANCH: research/r13-contact-radius40-holdout-20261104
-      PRIVATE_TASK_SOURCE_SHA: 3d4a37d649b15420f73da4687aa49a572af2e20c
+      PRIVATE_BRANCH: research/r13-source-radius4-geometry35-20261104
+      PRIVATE_TASK_SOURCE_SHA: 5abe5c65b1173bc529f35a8ad970a02fecafd9dd
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +36,7 @@ jobs:
           import base64,hashlib,json,os,pathlib,subprocess,sys,time
           repo=os.environ["PRIVATE_REPO"];pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
           branch=os.environ["PRIVATE_BRANCH"];gid=os.environ["R13_GAME_ID"]
-          path="gamepulse/fusion/analysis/r13_radius40_houston_holdout_v1.py"
+          path="gamepulse/fusion/analysis/r13_decoupled_radius_houston_v1.py"
           d=None
           for attempt in range(8):
               response=subprocess.run(
@@ -85,8 +85,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PRIVATE_BRANCH: research/r13-contact-radius40-holdout-20261104
-      PRIVATE_TASK_SOURCE_SHA: 3d4a37d649b15420f73da4687aa49a572af2e20c
+      PRIVATE_BRANCH: research/r13-source-radius4-geometry35-20261104
+      PRIVATE_TASK_SOURCE_SHA: 5abe5c65b1173bc529f35a8ad970a02fecafd9dd
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -103,7 +103,7 @@ jobs:
           import base64,hashlib,json,os,pathlib,subprocess,sys,time
           repo=os.environ["PRIVATE_REPO"];pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
           branch=os.environ["PRIVATE_BRANCH"];gid=os.environ["R13_GAME_ID"]
-          path="gamepulse/fusion/analysis/r13_radius40_external_holdout_v1.py"
+          path="gamepulse/fusion/analysis/r13_decoupled_radius_external_v1.py"
           d=None
           for attempt in range(8):
               response=subprocess.run(
