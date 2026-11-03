@@ -19,7 +19,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-frontcourt-carry-validation-20261104
-      PRIVATE_TASK_SOURCE_SHA: e78120b02d8eab284f1810e867f705f777fc8967
+      PRIVATE_TASK_SOURCE_SHA: f80703f1a1e132fe59ed7cf2303974b14dc5d8eb
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -49,7 +49,7 @@ jobs:
                            capture_output=True,text=True)
           if p.returncode:
               # Do not print private licensed actor/position diagnostics in a public job.
-              endpoint=f"repos/{repo}/contents/gamepulse/fusion/qa/r13_reception_refinement_20261104/private_diagnostic_{gid}.json"
+              endpoint=f"repos/{repo}/contents/gamepulse/fusion/qa/r13_short_touch_rescue_20261104/private_diagnostic_{gid}.json"
               body={"branch":branch,"message":"qa(private): R13 paired game diagnostic [skip ci]",
                     "content":base64.b64encode(json.dumps({
                       "game_id":gid,"returncode":p.returncode,
