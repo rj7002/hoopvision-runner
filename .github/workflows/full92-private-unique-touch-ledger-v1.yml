@@ -175,6 +175,12 @@ jobs:
           def get(path, required=True):
               url="repos/"+repo+"/contents/"+path+"?ref="+urllib.parse.quote(branch,safe="")
               r=subprocess.run(["gh","api",url],capture_output=True,text=True)
+              if r.returncode and not required and ("404" in r.stderr or "Not Found" in r.stderr):
+                  # Branch 776 holds fewer live sidecars than private main.
+                  # Main is permitted ONLY for optional sidecars of a game ID
+                  # already proven a member of the exact frozen Full92 manifest.
+                  alt="repos/"+repo+"/contents/"+path+"?ref=main"
+                  r=subprocess.run(["gh","api",alt],capture_output=True,text=True)
               if r.returncode:
                   if not required and ("404" in r.stderr or "Not Found" in r.stderr):
                       return None
