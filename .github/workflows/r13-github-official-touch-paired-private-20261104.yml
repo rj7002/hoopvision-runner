@@ -18,8 +18,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PRIVATE_BRANCH: research/r13-source-onset-frontcourt-v3-20261104
-      PRIVATE_TASK_SOURCE_SHA: b3ff06ce77b65177c89e3766a6ee6b0f34f48abf
+      PRIVATE_BRANCH: research/r13-token-boundary-physics-20261104
+      PRIVATE_TASK_SOURCE_SHA: 2430538e9dc3fb1fb9762f7c1fcd4a4e4614de7d
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +36,7 @@ jobs:
           import base64,hashlib,json,os,pathlib,subprocess,sys,time
           repo=os.environ["PRIVATE_REPO"];pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
           branch=os.environ["PRIVATE_BRANCH"];gid=os.environ["R13_GAME_ID"]
-          path="gamepulse/fusion/analysis/r13_github_bucks_holdout_replay_v1.py"
+          path="gamepulse/fusion/analysis/r13_token_boundary_houston_replay_v1.py"
           d=None
           for attempt in range(8):
               response=subprocess.run(
@@ -85,8 +85,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PRIVATE_BRANCH: research/r13-source-onset-frontcourt-v3-20261104
-      PRIVATE_TASK_SOURCE_SHA: b3ff06ce77b65177c89e3766a6ee6b0f34f48abf
+      PRIVATE_BRANCH: research/r13-token-boundary-physics-20261104
+      PRIVATE_TASK_SOURCE_SHA: 2430538e9dc3fb1fb9762f7c1fcd4a4e4614de7d
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -103,7 +103,7 @@ jobs:
           import base64,hashlib,json,os,pathlib,subprocess,sys,time
           repo=os.environ["PRIVATE_REPO"];pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
           branch=os.environ["PRIVATE_BRANCH"];gid=os.environ["R13_GAME_ID"]
-          path="gamepulse/fusion/analysis/r13_external_multiteam_holdout_v1.py"
+          path="gamepulse/fusion/analysis/r13_token_boundary_external_replay_v1.py"
           d=None
           for attempt in range(8):
               response=subprocess.run(
