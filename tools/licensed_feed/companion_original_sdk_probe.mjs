@@ -117,7 +117,7 @@ try{
    result.original_body_event_count=best.events;
    result.original_body_shot_details_count=best.shots;
    result.full_original_events_endpoint_observed=best.full;
-   result.status=best.full?(best.shots>0?'FULL_EVENT_RESPONSE_OBSERVED':'FULL_EVENT_RESPONSE_NO_SHOTDETAILS_OBSERVED'):'ORIGINAL_PARTIAL_SDK_EVENT_SLOT_OBSERVED';
+   result.status=best.full?(best.shots>0||sourceVariant==='positions'?'FULL_EVENT_RESPONSE_OBSERVED':'FULL_EVENT_RESPONSE_NO_SHOTDETAILS_OBSERVED'):'ORIGINAL_PARTIAL_SDK_EVENT_SLOT_OBSERVED';
  } else result.status=result.initialization_result==='ready'?
     'SDK_PROGRAM_READY_BUT_NO_SHOTDETAIL_RESPONSE':'SDK_PROGRAM_NOT_READY';
  await page.close();
