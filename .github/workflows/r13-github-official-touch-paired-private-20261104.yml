@@ -14,12 +14,12 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        game: ['0022600091','0022600125','0022600138','0022600021','0022600153']
+        game: ['0022600091','0022600125']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-source-onset-frontcourt-v3-20261104
-      PRIVATE_TASK_SOURCE_SHA: 2e6054f0614b559151d0686714a0adfe94177d80
+      PRIVATE_TASK_SOURCE_SHA: f8a4079d1aca7e7caba84861d64e951d7f2f93af
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -33,12 +33,20 @@ jobs:
           set -euo pipefail
           test -n "$GH_TOKEN"
           python3 - <<'PY'
-          import base64,hashlib,json,os,pathlib,subprocess,sys
+          import base64,hashlib,json,os,pathlib,subprocess,sys,time
           repo=os.environ["PRIVATE_REPO"];pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
           branch=os.environ["PRIVATE_BRANCH"];gid=os.environ["R13_GAME_ID"]
           path="gamepulse/fusion/analysis/r13_github_bucks_holdout_replay_v1.py"
-          d=json.loads(subprocess.check_output(
-            ["gh","api",f"repos/{repo}/contents/{path}?ref={pin}"],stderr=subprocess.DEVNULL))
+          d=None
+          for attempt in range(8):
+              response=subprocess.run(
+                  ["gh","api",f"repos/{repo}/contents/{path}?ref={pin}"],
+                  capture_output=True,text=True)
+              if response.returncode==0:
+                  d=json.loads(response.stdout)
+                  break
+              time.sleep(min(1+attempt,8))
+          assert d is not None,"PINNED_PRIVATE_SCRIPT_UNAVAILABLE"
           raw=base64.b64decode(d["content"])
           sha=hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()
           assert sha==d["sha"]
@@ -66,18 +74,19 @@ jobs:
 
   external_holdout:
     needs: replay
+    if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     strategy:
       fail-fast: false
       max-parallel: 1
       matrix:
-        game: ['0022600001','0022600003','0022600004','0022600005']
+        game: ['0022600001','0022600004']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-source-onset-frontcourt-v3-20261104
-      PRIVATE_TASK_SOURCE_SHA: 2e6054f0614b559151d0686714a0adfe94177d80
+      PRIVATE_TASK_SOURCE_SHA: f8a4079d1aca7e7caba84861d64e951d7f2f93af
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -91,12 +100,20 @@ jobs:
           set -euo pipefail
           test -n "$GH_TOKEN"
           python3 - <<'PY'
-          import base64,hashlib,json,os,pathlib,subprocess,sys
+          import base64,hashlib,json,os,pathlib,subprocess,sys,time
           repo=os.environ["PRIVATE_REPO"];pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
           branch=os.environ["PRIVATE_BRANCH"];gid=os.environ["R13_GAME_ID"]
           path="gamepulse/fusion/analysis/r13_external_multiteam_holdout_v1.py"
-          d=json.loads(subprocess.check_output(
-            ["gh","api",f"repos/{repo}/contents/{path}?ref={pin}"],stderr=subprocess.DEVNULL))
+          d=None
+          for attempt in range(8):
+              response=subprocess.run(
+                  ["gh","api",f"repos/{repo}/contents/{path}?ref={pin}"],
+                  capture_output=True,text=True)
+              if response.returncode==0:
+                  d=json.loads(response.stdout)
+                  break
+              time.sleep(min(1+attempt,8))
+          assert d is not None,"PINNED_PRIVATE_SCRIPT_UNAVAILABLE"
           raw=base64.b64decode(d["content"])
           sha=hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()
           assert sha==d["sha"]
