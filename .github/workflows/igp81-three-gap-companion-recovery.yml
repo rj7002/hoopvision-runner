@@ -75,7 +75,7 @@ jobs:
           gh auth setup-git
           git clone -q --depth=1 --filter=blob:none --sparse -b "$TARGET_BRANCH" \
              https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
-          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/evidence gamepulse/fusion/qa/igp_v32 gamepulse/fusion/qa/igp_progress_20261029 gamepulse/fusion/qa/igp_progress_20261029
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion data/extensions/nba_blueprint_2026_27 scripts
           cd "$RUNNER_TEMP/private"
           python3 - <<'PY'
           import json,hashlib,os,shutil
@@ -158,10 +158,64 @@ jobs:
           qa.write_text(json.dumps(safe,sort_keys=True,indent=2)+"\n")
           print("IGP81_RETRY_PRIVATE_RESULT",gid,safe["status"],safe.get("original_body_shot_details_count",0))
           PY
+          python3 - <<'PY'
+          import hashlib,json,os,sys
+          from pathlib import Path
+          sys.path.insert(0,str(Path('scripts').resolve()))
+          from update_nba_blueprint_daily_2026_27 import read_report,canonical
+          from build_nba_blueprint_2026_27 import validate_report
+          gid=os.environ['NBA_GAME_ID']
+          bp=Path('data/extensions/nba_blueprint_2026_27')
+          current=bp/'games'/gid/'blueprint_report_raw.json'
+          official=json.loads((Path('gamepulse/fusion/official_pbp_timing/games')/(gid+'.json')).read_bytes())
+          shots={str(x['nba_action_number']):x for x in official['actions'] if x['action_type'] in ('2pt','3pt')}
+          def verified(rep):
+              found=set()
+              for x in validate_report(gid,rep):
+                  action=shots.get(str(x.get('ngssEventId')))
+                  if action and str(action.get('person_id'))==str((x.get('shooter') or {}).get('playerId')) and action['action_type']==x.get('shotType'):
+                      found.add(str(x['ngssEventId']))
+              return found
+          old_bytes=current.read_bytes()
+          previous=verified(json.loads(old_bytes))
+          audit={'schema':'igp.full107-3gap-late-nba-blueprint-source.v1','game_id':gid,
+                 'previous_exact_official_shots':len(previous),'previous_sha256':hashlib.sha256(old_bytes).hexdigest(),
+                 'source_revision_promoted':False,'provider_shotdetails_independent':True}
+          try:
+              new,src=read_report(gid)
+              content=canonical(new).encode()
+              revised=verified(new)
+              newsha=hashlib.sha256(content).hexdigest()
+              audit.update(candidate_exact_official_shots=len(revised),candidate_sha256=newsha,provider_html_sha256=src['html_sha256'])
+              if content!=old_bytes:
+                  hist=bp/'source_revision_history'/gid
+                  hist.mkdir(parents=True,exist_ok=True)
+                  candidate=hist/(newsha+'.candidate.json')
+                  if candidate.exists():assert candidate.read_bytes()==content
+                  else:candidate.write_bytes(content)
+                  if previous < revised:
+                      backup=hist/(hashlib.sha256(old_bytes).hexdigest()+'.json')
+                      if backup.exists():assert backup.read_bytes()==old_bytes
+                      else:backup.write_bytes(old_bytes)
+                      current.write_bytes(content)
+                      audit['source_revision_promoted']=True
+          except Exception as e:
+              audit['provider_query_status']=type(e).__name__
+          out=Path('gamepulse/fusion/qa/igp_progress_20261030')/('full107_blueprint_gap_retry_'+gid+'.json')
+          out.parent.mkdir(parents=True,exist_ok=True)
+          out.write_text(json.dumps(audit,sort_keys=True,indent=2)+'\n')
+          print('FULL107_BLUEPRINT_RECOVERY',gid,'previous',len(previous),'candidate',audit.get('candidate_exact_official_shots'),
+                'promoted',int(audit['source_revision_promoted']),'status',audit.get('provider_query_status','VERIFIED'))
+          PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f "gamepulse/fusion/evidence/companion_sdk_original_$NBA_GAME_ID" \
             "gamepulse/fusion/qa/igp_v32/igp81_gap_retry_$NBA_GAME_ID.json"
+          git add -f "gamepulse/fusion/qa/igp_progress_20261030/full107_blueprint_gap_retry_$NBA_GAME_ID.json"
+          git add -f "data/extensions/nba_blueprint_2026_27/games/$NBA_GAME_ID/blueprint_report_raw.json"
+          if test -d "data/extensions/nba_blueprint_2026_27/source_revision_history/$NBA_GAME_ID"; then
+            git add -f "data/extensions/nba_blueprint_2026_27/source_revision_history/$NBA_GAME_ID"
+          fi
           git diff --cached --check
           if git diff --cached --quiet; then
             echo IGP81_SOURCE_RETRY_NO_IMPROVEMENT
