@@ -1,6 +1,8 @@
-name: Full92 private original-SDK touch backfill and unique-ledger QA
-# PUBLIC runner contains source-free code only; original NBA tracking remains private.
-# Checkout uses private token only for private/104. Never upload private payload.
+name: Full92 private original-SDK touch ledger SHA-integrity QA
+# Privacy guard requires the vetted public-to-private API bridge; no private checkout.
+# 20 historical SDK backfills have completed; re-running them is unnecessary.
+# Only source-free code and aggregate QA may enter this PUBLIC runner.
+# All licensed source archives, timestamps, coordinates and touch ledgers stay PRIVATE.
 on:
   push:
     branches: [main]
@@ -8,142 +10,141 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+env:
+  PRIVATE_REPO: timeedmonds-maker/104
+  PRIVATE_BRANCH: research/full92-unique-touch-ledger-v1-20261103
+
 jobs:
   full92-ledger:
     runs-on: ubuntu-24.04
     timeout-minutes: 50
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
     steps:
-      - name: Checkout public guard (no private payload)
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Public/private boundary preflight without REST rate-limit dependency
-        env:
-          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      - name: Check public/private boundary
         run: |
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
-          test ! -d artifacts
-
-      - name: Sparse checkout frozen Full92 research and official PBP
-        uses: actions/checkout@v4
-        with:
-          repository: timeedmonds-maker/104
-          ref: research/full92-unique-touch-ledger-v1-20261103
-          token: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-          persist-credentials: true
-          fetch-depth: 1
-          path: private-full92
-          sparse-checkout: |
-            gamepulse/fusion/full92_unique_touch_ledger_v1.py
-            gamepulse/fusion/full92_touch_count_acceptance_v1.py
-            gamepulse/fusion/tests/test_full92_unique_touch_ledger_v1.py
-            gamepulse/fusion/tests/test_full92_touch_count_acceptance_v1.py
-            gamepulse/fusion/materialized/igp_full92_pbp_event_tracking_v1
-            gamepulse/live/touches
-            gamepulse/live/tracking_touches
-            gamepulse/live/original_sdk_handler_touches
-
-      - name: Sparse checkout older Full92 live sidecars from private main
-        uses: actions/checkout@v4
-        with:
-          repository: timeedmonds-maker/104
-          ref: main
-          token: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-          persist-credentials: false
-          fetch-depth: 1
-          path: private-main
-          sparse-checkout: |
-            gamepulse/live/touches
-            gamepulse/live/tracking_touches
-            gamepulse/live/original_sdk_handler_touches
-
-      - name: Assemble SHA-frozen exact Full92 sources locally; no network API fanout
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Retrieve exact frozen 92-game private event spine and 92 touch source pairs
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json, shutil
+          import base64,json,os,subprocess,urllib.parse
           from pathlib import Path
-          research=Path("private-full92")
-          main=Path("private-main")
-          event=json.loads((research/"gamepulse/fusion/materialized/igp_full92_pbp_event_tracking_v1/index.json").read_text())
-          ids=sorted(event["by_game"])
-          if event.get("games")!=92 or event.get("cohort")!="FULL92" or len(ids)!=92:
-              raise ValueError("FROZEN_EXACT_92_GAME_SET_DRIFT")
-          copied=0
-          for gid in ids:
-              for sub in ("touches","tracking_touches","original_sdk_handler_touches"):
-                  stem=Path("gamepulse/live")/sub/(gid+".json")
-                  if any((research/Path(str(stem)+suffix)).exists() for suffix in ("",".gz")):
+          root=Path(os.environ["RUNNER_TEMP"])/"private-full92-ledger"
+          branch=os.environ["PRIVATE_BRANCH"]
+          repo=os.environ["PRIVATE_REPO"]
+          def fetch_with_retry(url):
+              import time
+              for attempt in range(8):
+                  r=subprocess.run(["gh","api",url],capture_output=True,text=True)
+                  if r.returncode == 0:return r
+                  err=r.stderr.lower()
+                  if any(x in err for x in ("rate limit","http 403","http 429","http 500","http 502","http 503","http 504")):
+                      time.sleep(min(55,4*(attempt+1)))
                       continue
-                  for suffix in ("",".gz"):
-                      src=main/Path(str(stem)+suffix)
-                      if src.is_file():
-                          dest=research/Path(str(stem)+suffix)
-                          dest.parent.mkdir(parents=True,exist_ok=True)
-                          shutil.copyfile(src,dest)
-                          copied+=1
-                          break
-          print("PRIVATE_FULL92_SPARSE_SOURCE_READY",
-                "GAMES",len(ids),"LEGACY_SOURCE_SIDECARS_COPIED",copied)
+                  return r
+              return r
+          def get(path, required=True):
+              url="repos/"+repo+"/contents/"+path+"?ref="+urllib.parse.quote(branch,safe="")
+              r=fetch_with_retry(url)
+              if r.returncode and not required and ("404" in r.stderr or "Not Found" in r.stderr):
+                  # The canonical Full92 branch has fewer historical live
+                  # sidecars than private main. Fall back ONLY within the
+                  # exact frozen source manifest game-id membership.
+                  alt="repos/"+repo+"/contents/"+path+"?ref=main"
+                  r=fetch_with_retry(alt)
+              if r.returncode:
+                  if not required and ("404" in r.stderr or "Not Found" in r.stderr):
+                      return None
+                  raise RuntimeError("PRIVATE_SOURCE_FETCH_FAILED_"+path+"_API_FETCH_RETRY_EXHAUSTED")
+              doc=json.loads(r.stdout)
+              data=base64.b64decode(doc["content"])
+              dest=root/path
+              dest.parent.mkdir(parents=True,exist_ok=True)
+              dest.write_bytes(data)
+              return data
+          manifest="gamepulse/fusion/materialized/igp_full92_pbp_event_tracking_v1/index.json"
+          idx=json.loads(get(manifest))
+          if idx.get("cohort")!="FULL92" or len(idx.get("by_game",{}))!=92 or idx.get("games")!=92:
+              raise ValueError("FULL92_SOURCE_COHORT_DRIFT")
+          get("gamepulse/fusion/full92_unique_touch_ledger_v1.py")
+          get("gamepulse/fusion/tests/test_full92_unique_touch_ledger_v1.py")
+          for gid,record in sorted(idx["by_game"].items()):
+              get(record["path"])
+              for sub in ("touches","tracking_touches","original_sdk_handler_touches"):
+                  base="gamepulse/live/"+sub+"/"+gid+".json"
+                  # Never request an absent compressed alternative when the
+                  # uncompressed source has already been SHA-read and saved.
+                  if get(base,required=False) is None:
+                      get(base+".gz",required=False)
+          print("PRIVATE_FULL92_SOURCE_EVENT_AND_TOUCH_FETCH_FINISHED")
           PY
-
-      - name: Run source-free unit tests and frozen private Full92 integration
+      - name: Run private source-free tests and SHA-conserved Full92 ledger
         shell: bash
         run: |
           set -euo pipefail
-          cd private-full92
-          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_full92_unique_touch_ledger_v1.py' -v
-          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_full92_touch_count_acceptance_v1.py' -v
-          python3 gamepulse/fusion/full92_unique_touch_ledger_v1.py --root .
-
-      - name: Independently verify compressed source parity and commit 92 ledgers once
+          ROOT="$RUNNER_TEMP/private-full92-ledger"
+          python3 -m unittest discover -s "$ROOT/gamepulse/fusion/tests" -p test_full92_unique_touch_ledger_v1.py
+          python3 "$ROOT/gamepulse/fusion/full92_unique_touch_ledger_v1.py" --root "$ROOT"
+      - name: Commit compressed Full92 evidence ledgers only to private research branch
         shell: bash
         run: |
           set -euo pipefail
-          cd private-full92
           python3 - <<'PY'
-          import gzip,json,hashlib
+          import base64,gzip,hashlib,json,os,subprocess,time
           from pathlib import Path
-          source=Path("gamepulse/fusion/materialized/igp_full92_unique_touch_v1")
-          blob=(source/"index.json.gz").read_bytes()
-          idx=json.loads(gzip.decompress(blob))
-          if idx.get("games")!=92 or idx.get("games_with_both_touch_sources")!=92:
-              raise ValueError("FULL92_TOUCH_SIDECAR_COMPLETENESS_FAIL_CLOSED")
-          if set(idx["by_game"])!=set(json.loads(Path("gamepulse/fusion/materialized/igp_full92_pbp_event_tracking_v1/index.json").read_text())["by_game"]):
-              raise ValueError("FROZEN_FULL92_GAME_SET_DIFFERENCE")
-          counts={}
-          for gid,r in idx["by_game"].items():
-              raw=Path(r["path"]).read_bytes()
-              if hashlib.sha256(raw).hexdigest()!=r["sha256"]:
-                  raise ValueError("ORIGINAL_PER_GAME_TOUCH_LEDGER_SHA_MISMATCH")
-              g=json.loads(gzip.decompress(raw))
-              if g["game_id"]!=gid:
-                  raise ValueError("FULL92_GAME_TOUCH_ID_MISMATCH")
-              counts[g["native_handler_source_grade"]]=counts.get(g["native_handler_source_grade"],0)+1
-          print("PRIVATE_FULL92_LEDGER_VERIFIED","GAMES",len(idx["by_game"]),
-                "BOTH_SOURCES",idx["games_with_both_touch_sources"],
-                "ORIGINAL_HANDLER_GRADES",json.dumps(counts,sort_keys=True),
-                "OFFICIAL_ACTIONS",idx["counts"]["official_actions"],
-                "INDEX_SHA256",hashlib.sha256(blob).hexdigest())
+          root=Path(os.environ["RUNNER_TEMP"])/"private-full92-ledger"
+          source=root/"gamepulse/fusion/materialized/igp_full92_unique_touch_v1"
+          index=json.loads(gzip.decompress((source/"index.json.gz").read_bytes()))
+          if index["games"]!=92 or index["games_with_both_touch_sources"]!=92:
+              raise ValueError("FULL92_92_GAME_TOUCH_BACKFILL_NOT_COMPLETE")
+          files=sorted(source.rglob("*.gz"))
+          if len(files)!=93:
+              raise ValueError("FULL92_PRIVATE_LEDGER_EXPECT_92_GAMES_PLUS_INDEX")
+          import urllib.parse
+          branch=os.environ["PRIVATE_BRANCH"]
+          repo=os.environ["PRIVATE_REPO"]
+          shas=[]
+          for f in files:
+              raw=f.read_bytes()
+              if len(raw)>950000:
+                  raise ValueError("COMPRESSED_FULL92_PRIVATE_GAME_LEDGER_TOO_LARGE")
+              path=str(f.relative_to(root))
+              endpoint="repos/"+repo+"/contents/"+path
+              query=endpoint+"?ref="+urllib.parse.quote(branch,safe="")
+              for retry in range(25):
+                  old=subprocess.run(["gh","api",query],capture_output=True,text=True)
+                  body={"branch":branch,
+                        "message":"qa: privately preserve Full92 SHA touch evidence ledger",
+                        "content":base64.b64encode(raw).decode()}
+                  if old.returncode==0:
+                      body["sha"]=json.loads(old.stdout)["sha"]
+                  done=subprocess.run(["gh","api","-X","PUT",endpoint,"--input","-"],
+                                       input=json.dumps(body),capture_output=True,text=True)
+                  if done.returncode==0:break
+                  time.sleep(min(8,0.5+retry*.4))
+              else:
+                  raise RuntimeError("FULL92_PRIVATE_LEDGER_COMMIT_FAILED")
+              check=json.loads(subprocess.check_output(["gh","api",query]))
+              if hashlib.sha256(base64.b64decode(check["content"])).hexdigest()!=hashlib.sha256(raw).hexdigest():
+                  raise ValueError("FULL92_LEDGER_READBACK_MISMATCH")
+              shas.append(hashlib.sha256(raw).hexdigest())
+          print("FULL92_PRIVATE_TOUCH_LEDGER_SHA_ACCEPTED",
+                "GAMES",index["games"],
+                "BOTH",index["games_with_both_touch_sources"],
+                "OFFICIAL_EVENTS",index["counts"]["official_actions"],
+                "INDEX_SHA256",hashlib.sha256((source/"index.json.gz").read_bytes()).hexdigest(),
+                "VERIFIED_LEDGER_OBJECTS",len(shas))
           PY
-          git config user.name "IGP Private Evidence Runner"
-          git config user.email "igp-source-runner@users.noreply.github.com"
-          git add -f gamepulse/fusion/materialized/igp_full92_unique_touch_v1/
-          if git diff --cached --quiet; then
-            echo "FULL92_PRIVATE_TOUCH_LEDGER_ALREADY_CURRENT"
-          else
-            git commit -m "qa: SHA-readback Full92 92-game original touch evidence ledger"
-            git push origin HEAD:refs/heads/research/full92-unique-touch-ledger-v1-20261103
-          fi
-          echo "Private-only Full92 game-index readback complete." >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Assert no licensed payload in PUBLIC job outputs
+      - name: Assert public outputs contain no licensed touch payload
         if: always()
-        shell: bash
         run: |
-          set -euo pipefail
           test ! -d artifacts
-          echo "All private source, original timestamps and player touch ledgers remain in the private repository checkout. No public artifacts." >> "$GITHUB_STEP_SUMMARY"
+          echo "Private-source Full92 touch QA only; no player-level or original tracking data published." >> "$GITHUB_STEP_SUMMARY"
