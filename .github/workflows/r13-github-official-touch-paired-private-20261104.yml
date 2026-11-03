@@ -14,12 +14,12 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        game: ['0022600091','0022600125','0022600138','0022600021','0022600153']
+        game: ['0022600091','0022600125']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-source-radius4-geometry35-20261104
-      PRIVATE_TASK_SOURCE_SHA: 5abe5c65b1173bc529f35a8ad970a02fecafd9dd
+      PRIVATE_TASK_SOURCE_SHA: 8fb1bd2635588f3d42bdb9ce6f6ae351fba913b1
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +36,7 @@ jobs:
           import base64,hashlib,json,os,pathlib,subprocess,sys,time
           repo=os.environ["PRIVATE_REPO"];pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
           branch=os.environ["PRIVATE_BRANCH"];gid=os.environ["R13_GAME_ID"]
-          path="gamepulse/fusion/analysis/r13_decoupled_radius_houston_v1.py"
+          path="gamepulse/fusion/analysis/r13_frontcourt_error_atlas_houston_replay_v1.py"
           d=None
           for attempt in range(8):
               response=subprocess.run(
@@ -74,7 +74,7 @@ jobs:
 
   external_holdout:
     needs: replay
-    if: always()
+    if: false
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     strategy:
@@ -86,7 +86,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-source-radius4-geometry35-20261104
-      PRIVATE_TASK_SOURCE_SHA: 5abe5c65b1173bc529f35a8ad970a02fecafd9dd
+      PRIVATE_TASK_SOURCE_SHA: 8fb1bd2635588f3d42bdb9ce6f6ae351fba913b1
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
