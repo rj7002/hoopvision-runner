@@ -126,7 +126,12 @@ jobs:
             ("full_handler.json","gamepulse/live/original_sdk_handler_touches/"+game+".json"),
             ("tracking.json","gamepulse/live/tracking_touches/"+game+".json")):
               raw=(p/src).read_bytes()
-              if len(raw)>950000:raise ValueError("PRIVATE_TOUCH_FILE_TOO_LARGE_SPLIT_REQUIRED")
+              if len(raw)>950000:
+                  import gzip
+                  raw=gzip.compress(raw,compresslevel=9,mtime=0)
+                  dest=dest+".gz"
+                  if len(raw)>950000:
+                      raise ValueError("PRIVATE_GZIP_TOUCH_FILE_REQUIRES_CHUNKING")
               endpoint="repos/"+os.environ["PRIVATE_REPO"]+"/contents/"+dest
               for retry in range(20):
                   old=subprocess.run(["gh","api",endpoint+"?ref="+os.environ["PRIVATE_BRANCH"]],
@@ -201,6 +206,7 @@ jobs:
               get(record["path"])
               for sub in ("touches","tracking_touches","original_sdk_handler_touches"):
                   get("gamepulse/live/"+sub+"/"+gid+".json",required=False)
+                  get("gamepulse/live/"+sub+"/"+gid+".json.gz",required=False)
           print("PRIVATE_FULL92_SOURCE_EVENT_AND_TOUCH_FETCH_FINISHED")
           PY
       - name: Run private source-free tests and SHA-conserved Full92 ledger
