@@ -142,13 +142,13 @@ jobs:
             python3 "$ROOT/tracking_touch_reconstruction.py" --game "$GAME_ID" --input "$ROOT" --output "$ROOT/tracking_touches.json"
           fi
           python3 - <<'PY'
-          import base64,json,os,subprocess
+          import base64,json,os,subprocess,time
           from pathlib import Path
           payload=(Path(os.environ["RUNNER_TEMP"])/"private-live-touch/tracking_touches.json").read_bytes()
           if len(payload)>950000:
               raise ValueError("tracking_touch_index_too_large_needs_chunked_publish")
           endpoint="repos/timeedmonds-maker/104/contents/gamepulse/live/tracking_touches/"+os.environ["GAME_ID"]+".json"
-          for _ in range(4):
+          for attempt in range(16):
               old=subprocess.run(["gh","api",endpoint],capture_output=True,text=True)
               body={"branch":"main","message":"data: publish XYZ-reconstructed NBA touch candidates",
                     "content":base64.b64encode(payload).decode()}
@@ -161,6 +161,7 @@ jobs:
                       raise ValueError("tracking_touch_readback_fail")
                   print("PRIVATE_TRACKING_RECONSTRUCTED_TOUCH_INDEX_SAVED")
                   break
+              time.sleep(min(6.0,1.0+0.5*attempt)+(int(os.environ["GAME_ID"][-2:])%7)*0.17)
           else:raise RuntimeError("tracking_touch_publish_conflict")
           PY
       - name: Build private generic live lineup ONOFF and NBA Blueprint xFG search
@@ -179,12 +180,12 @@ jobs:
           python3 -m py_compile "$ROOT/"*.py
           python3 "$ROOT/multi_live_analytics.py" --game "$GAME_ID" --input "$ROOT" --output "$ROOT/analytics.json"
           python3 - <<'PY'
-          import base64,json,os,subprocess
+          import base64,json,os,subprocess,time
           from pathlib import Path
           raw=(Path(os.environ["RUNNER_TEMP"])/"private-live-touch/analytics.json").read_bytes()
           if len(raw)>950000:raise ValueError("private_live_search_snapshot_too_large")
           endpoint="repos/timeedmonds-maker/104/contents/gamepulse/live/analytics/"+os.environ["GAME_ID"]+".json"
-          for attempt in range(4):
+          for attempt in range(16):
               old=subprocess.run(["gh","api",endpoint],capture_output=True,text=True)
               doc={"branch":"main","message":"data: update private multi-game live NBA player lineup scoring and Blueprint search",
                    "content":base64.b64encode(raw).decode()}
@@ -196,6 +197,7 @@ jobs:
                   if base64.b64decode(stored["content"])!=raw:raise RuntimeError("private_live_analytics_readback_fail")
                   print("PRIVATE_GENERIC_LIVE_ANALYTICS_SAVED")
                   break
+              time.sleep(min(6.0,1.0+0.5*attempt)+(int(os.environ["GAME_ID"][-2:])%7)*0.17)
           else:raise RuntimeError("private_live_analytics_publish_failed")
           PY
       - name: Preserve independent live source coverage QA privately
@@ -208,18 +210,22 @@ jobs:
           set -euo pipefail
           test -s "$RUNNER_TEMP/private-live-touch/live-qa.json"
           python3 - <<'PY'
-          import base64,json,os,subprocess
+          import base64,json,os,subprocess,time
           from pathlib import Path
           qa=Path(os.environ["RUNNER_TEMP"]+"/private-live-touch/live-qa.json").read_bytes()
           url="repos/timeedmonds-maker/104/contents/gamepulse/live/qa/"+os.environ["GAME_ID"]+".json"
-          for i in range(4):
+          for i in range(16):
               prior=subprocess.run(["gh","api",url],capture_output=True,text=True)
               data={"branch":"main","message":"qa: refresh private live SDK coverage",
                     "content":base64.b64encode(qa).decode()}
               if prior.returncode==0:data["sha"]=json.loads(prior.stdout)["sha"]
               result=subprocess.run(["gh","api","-X","PUT",url,"--input","-"],
                                     input=json.dumps(data),capture_output=True,text=True)
-              if result.returncode==0:break
+              if result.returncode==0:
+                  stored=json.loads(subprocess.check_output(["gh","api",url]))
+                  if base64.b64decode(stored["content"])!=qa:raise RuntimeError("private_live_qa_readback_failed")
+                  break
+              time.sleep(min(6.0,1.0+0.5*i)+(int(os.environ["GAME_ID"][-2:])%7)*0.17)
           else:raise RuntimeError("private_live_qa_write_failed")
           print("PRIVATE_LIVE_QA_PUBLISHED")
           PY
