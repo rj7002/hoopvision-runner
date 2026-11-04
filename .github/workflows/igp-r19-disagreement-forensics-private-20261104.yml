@@ -1,0 +1,82 @@
+# Independently compare source-graded R19 and frozen R13/R18 on 1,991 touches.
+# All original timestamps, touch identifiers and event evidence stay private.
+name: R19 original-source disagreement forensic four-game
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/igp-r19-disagreement-forensics-private-20261104.yml
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  forensic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: analysis/igp-r19-native-temporal-20261104
+      PIN: 71b35aa4294ccdfbddf2d22ddc5c50816732874c
+      DEST: gamepulse/fusion/qa/analysis/igp_r19_native_rebuild_20261104
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Public confidentiality boundary
+        run: python3 tools/public_content_guard.py
+      - name: Private SHA-locked original-source diagnostic, private output only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          git sparse-checkout set gamepulse/fusion
+          git fetch -q --depth=1 origin "$PIN"
+          git checkout -q --detach "$PIN"
+          test "$(git rev-parse HEAD)" = "$PIN"
+          script=gamepulse/fusion/analysis/igp_r19_private_disagreement_forensics_v1.py
+          python3 -B "$script" --root . --out "$RUNNER_TEMP/private-full.json" > "$RUNNER_TEMP/stdout" 2> "$RUNNER_TEMP/stderr" || {
+            echo R19_PRIVATE_DISAGREEMENT_RUN_FAILED_DETAILS_REDACTED
+            exit 1
+          }
+          python3 - <<'PY'
+          import json,os,pathlib
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])
+          d=json.loads((root/'private-full.json').read_bytes())
+          assert d['source_original_touches']==1991
+          assert d['original_r13_not_reproduced']==67
+          assert d['r19_new_double_candidates_not_r13']==93
+          assert d['production_promotion'] is False
+          public={k:v for k,v in d.items() if k!='private_touch_disagreement_cases'}
+          (root/'private-summary.json').write_text(json.dumps(public,sort_keys=True,indent=2)+'\n')
+          relevant={k:v for k,v in d['aggregate_diagnostic_counters'].items()
+                    if 'NATIVE_REASON_' in k or 'MODEL_REASON_' in k or
+                    k.endswith('HAS_MODEL_TICK') or k.endswith('SAME_PAIR_AND_TIME')}
+          print('R19_PRIVATE_1991_DISAGREEMENT_QA_PASS',
+                'source_touches',d['source_original_touches'],
+                'r13_pos_not_r19',d['original_r13_not_reproduced'],
+                'r19_new_candidates',d['r19_new_double_candidates_not_r13'],
+                'diagnostic_reasons',relevant)
+          PY
+          git fetch -q origin "$PRIVATE_BRANCH"
+          git checkout -q -B qa-private "origin/$PRIVATE_BRANCH"
+          mkdir -p "$DEST"
+          cp "$RUNNER_TEMP/private-full.json" "$DEST/disagreement_forensic_full_private_v1.json"
+          cp "$RUNNER_TEMP/private-summary.json" "$DEST/disagreement_forensic_summary_v1.json"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$DEST/disagreement_forensic_full_private_v1.json" "$DEST/disagreement_forensic_summary_v1.json"
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -q -m 'qa(private): exact R19 1991 touch disagreement cause forensic [skip ci]'
+            DONE=0
+            for k in 1 2 3 4 5; do
+              git fetch -q origin "$PRIVATE_BRANCH"
+              git rebase -q "origin/$PRIVATE_BRANCH"
+              if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then DONE=1; break; fi
+              sleep "$k"
+            done
+            test "$DONE" = 1
+          fi
