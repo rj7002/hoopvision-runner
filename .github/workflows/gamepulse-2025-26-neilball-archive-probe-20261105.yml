@@ -1,0 +1,40 @@
+name: IGP 2025-26 Neilball archive source and range preflight
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-2025-26-neilball-archive-probe-20261105.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  archive-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: python3 tools/public_content_guard.py
+      - name: Verify public archive HTTPS response, range and ZIP header
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://downloads.neilball.org/NBA-2025-26-Available-Tracking.zip'
+          headers="$RUNNER_TEMP/neilball-head.txt"
+          echo "IGP_2025_26_PREFLIGHT_START"
+          curl -sSIL --retry 2 --connect-timeout 15 --max-time 75 --proto '=https' --proto-redir '=https' "$url" > "$headers"
+          python3 - "$headers" <<'PY'
+          import sys
+          from pathlib import Path
+          lines=Path(sys.argv[1]).read_text(errors="replace").splitlines()
+          for line in lines:
+              if line.lower().startswith(('http/','content-length:','content-type:','accept-ranges:','last-modified:','etag:')):
+                  print('SOURCE_HEADER',line[:350])
+          PY
+          curl -sSL --retry 1 --connect-timeout 15 --max-time 60 --max-filesize 1048576 \
+            --proto '=https' --proto-redir '=https' --range 0-15 --output "$RUNNER_TEMP/zip-signature" "$url"
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          b=(Path(os.environ['RUNNER_TEMP'])/'zip-signature').read_bytes()
+          assert b[:4] == b'PK\\x03\\x04', 'ZIP_SIGNATURE_NOT_VERIFIED'
+          print('IGP_2025_26_ZIP_HEADER_VERIFIED',len(b))
+          PY
