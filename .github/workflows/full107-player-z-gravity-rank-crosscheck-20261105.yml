@@ -1,0 +1,92 @@
+# V7 original NBA source processing restricted to private 104, no source coordinates public.
+name: Full107 source player Z gravity-shaped elevation ranking crosscheck
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/full107-player-z-gravity-rank-crosscheck-20261105.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: full107-player-z-gravity-rank-crosscheck-20261105
+  cancel-in-progress: false
+jobs:
+  original-source-crosscheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/full107-player-z-airtime-calibration-20261105
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Validate public license guard and private original SHA source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
+            /gamepulse/fusion/analysis/igp_full107_player_z_airtime_calibration_pilot_20261105.py \
+            /gamepulse/fusion/analysis/igp_full107_player_z_airtime_9game_shadow_v2_20261105.py \
+            /gamepulse/fusion/analysis/igp_full107_player_z_6unseen_sealed_v4_20261105.py \
+            /gamepulse/fusion/analysis/igp_full107_player_z_ballistic_15game_v6_20261105.py \
+            /gamepulse/fusion/analysis/igp_full107_player_z_live_atlas_v5_20261105.py \
+            /gamepulse/fusion/analysis/igp_full107_player_z_live_gravity_rank_crosscheck_v7_20261105.py \
+            /gamepulse/fusion/qa/analysis/full107_player_z_live_elevation_atlas_v5_20261105.json \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/ \
+            /gamepulse/fusion/evidence/
+          echo "ORIGINAL_V7_PRIVATE_SHA_$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)"
+      - name: Compute original full107 gravity-shaped source-only elevated body cohort
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -B -m py_compile gamepulse/fusion/analysis/igp_full107_player_z_live_gravity_rank_crosscheck_v7_20261105.py
+          if test ! -f gamepulse/fusion/qa/analysis/full107_player_z_gravity_live_rank_crosscheck_v7_20261105.json; then
+            python3 -B gamepulse/fusion/analysis/igp_full107_player_z_live_gravity_rank_crosscheck_v7_20261105.py > "$RUNNER_TEMP/private-gravity107.log" 2>&1 || {
+              echo GRAVITY107_PRIVATE_SOURCE_TEST_FAILED
+              python3 - <<'PY'
+          import os,pathlib,re
+          p=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-gravity107.log"
+          x=p.read_text().splitlines() if p.exists() else []
+          m=next((z for z in reversed(x) if re.match(r"^[A-Za-z]+(?:Error|Exception|AssertionError):",z)),None)
+          print("FAILURE_CLASS",m.split(":",1)[0] if m else "UNKNOWN")
+          PY
+              exit 1
+            }
+          fi
+          python3 - <<'PY'
+          import json,pathlib,hashlib
+          p=pathlib.Path('gamepulse/fusion/qa/analysis/full107_player_z_gravity_live_rank_crosscheck_v7_20261105.json')
+          d=json.loads(p.read_bytes())
+          assert d['games']==107 and not d['physically_certified_airborne_seconds']
+          assert len(d['gravity_rank_top30'])>=20
+          print('FULL107_SOURCE_NATIVE_GRAVITY_CROSSCHECK_QA',json.dumps({
+              'games':d['games'],'eligible':d['eligible_players'],
+              'ballistic_leaders':d['gravity_rank_top30'][:8],
+              'elevation_leaders':d['original_elevation_rank_top30'][:8],
+              'top10_overlap':d['top10_ranking_overlap'],
+              'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
+              'foot_contact_certified':False},sort_keys=True))
+          PY
+      - name: Preserve research-only player-level verification privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_gravity_live_rank_crosscheck_v7_20261105.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo GRAVITY107_PRIVATE_ALREADY_SAVED; exit 0; fi
+          git commit -qm 'qa(private): Full107 original player Z live gravity shape ranking corroboration'
+          gh auth setup-git
+          for i in 1 2 3 4 5; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then echo GRAVITY107_PRIVATE_RESULT_COMMITTED; exit 0; fi
+            sleep "$i"
+          done
+          exit 31
