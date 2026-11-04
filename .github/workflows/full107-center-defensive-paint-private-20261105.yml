@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
-  group: full107-center-defensive-paint-20261105
+  group: full107-center-defensive-paint-approved-r2-20261105
   cancel-in-progress: true
 jobs:
   shards:
