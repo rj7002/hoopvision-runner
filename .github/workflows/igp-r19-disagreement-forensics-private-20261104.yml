@@ -16,7 +16,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: analysis/igp-r19-native-temporal-20261104
-      PIN: 71b35aa4294ccdfbddf2d22ddc5c50816732874c
+      PIN: f663490db826ff5f3f48b06ecc85c15b15ae3205
       DEST: gamepulse/fusion/qa/analysis/igp_r19_native_rebuild_20261104
     steps:
       - uses: actions/checkout@v4
@@ -71,6 +71,50 @@ jobs:
           git diff --cached --check
           if ! git diff --cached --quiet; then
             git commit -q -m 'qa(private): exact R19 1991 touch disagreement cause forensic [skip ci]'
+            DONE=0
+            for k in 1 2 3 4 5; do
+              git fetch -q origin "$PRIVATE_BRANCH"
+              git rebase -q "origin/$PRIVATE_BRANCH"
+              if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then DONE=1; break; fi
+              sleep "$k"
+            done
+            test "$DONE" = 1
+          fi
+          # Follow-up shadow: accepted-model-only positives must be checked
+          # against original native screen/hedge evidence, not promoted.
+          script=gamepulse/fusion/analysis/igp_r19_model_only_source_conflict_shadow_v1.py
+          python3 -B "$script" --selftest > "$RUNNER_TEMP/modeltest.out" 2> "$RUNNER_TEMP/modeltest.err" || {
+            echo R19_SOURCE_CONFLICT_SHADOW_SELFTEST_FAILED_PRIVATE
+            exit 1
+          }
+          python3 -B "$script" --root . --out "$RUNNER_TEMP/modelonly.json" > "$RUNNER_TEMP/modelqa.out" 2> "$RUNNER_TEMP/modelqa.err" || {
+            echo R19_SOURCE_CONFLICT_SHADOW_PRIVATE_FAILED
+            exit 1
+          }
+          python3 - <<'PY'
+          import json,os,pathlib
+          p=pathlib.Path(os.environ['RUNNER_TEMP'])
+          d=json.loads((p/'modelonly.json').read_bytes())
+          s=d['source_graded_summary']
+          assert s['all_double_candidates']==207
+          assert s['model_only_double_candidates']==31
+          assert d['tactical_guard_not_promoted'] is True
+          summary={k:v for k,v in d.items()
+                   if k not in ('private_model_only_cases','private_previous_user_label_check')}
+          (p/'modelonly-summary.json').write_text(json.dumps(summary,sort_keys=True,indent=2)+'\n')
+          print('R19_NATIVE_MODEL_DISAGREEMENT_SHADOW_PASS',
+                'model_only_doubles',s['model_only_double_candidates'],
+                'source_tactical_conflicts',s['model_only_with_observed_source_conflict'],
+                'human_review_notdouble_conflicts',s.get('human_review_model_only_notdouble_conflict',0))
+          PY
+          git fetch -q origin "$PRIVATE_BRANCH"
+          git checkout -q -B qa-shadow "origin/$PRIVATE_BRANCH"
+          cp "$RUNNER_TEMP/modelonly.json" "$DEST/model_only_counterevidence_shadow_v1.json"
+          cp "$RUNNER_TEMP/modelonly-summary.json" "$DEST/model_only_counterevidence_summary_v1.json"
+          git add -f "$DEST/model_only_counterevidence_shadow_v1.json" "$DEST/model_only_counterevidence_summary_v1.json"
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -q -m 'qa(private): R19 original-native screen/hedge guard shadow [skip ci]'
             DONE=0
             for k in 1 2 3 4 5; do
               git fetch -q origin "$PRIVATE_BRANCH"
