@@ -19,7 +19,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-shot-terminal-source-consensus-v2-20261104
-      PRIVATE_TASK_SOURCE_SHA: 11c650c32b8c7a5f65de2a8e29901c8afe102f13
+      PRIVATE_TASK_SOURCE_SHA: 6c4c0aca2c9e1c916706590c63e6993d1fe4042b
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +36,7 @@ jobs:
           root="$RUNNER_TEMP/r13-independent-original"
           git clone -q --filter=blob:none --depth=1 --no-checkout -b "$PRIVATE_BRANCH" "https://github.com/$PRIVATE_REPO.git" "$root"
           script_path="gamepulse/fusion/analysis/r13_shot_source_consensus_fresh4_private_replay_v1.py"
-          expected_blob="c171ae97d0d5face28fc222b76c5059052749686"
+          expected_blob="3e6346dc61ac66d321ab26b073bd1ed180fe069d"
           test "$(git -C "$root" rev-parse "HEAD:$script_path")" = "$expected_blob"
           work="$RUNNER_TEMP/r13-frozen-$R13_GAME_ID"
           mkdir -p "$work"
