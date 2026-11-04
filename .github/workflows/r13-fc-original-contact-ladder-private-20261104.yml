@@ -20,7 +20,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-shot-terminal-anchors-v1-20261104
-      PRIVATE_TASK_SOURCE_SHA: 5cc9e31079d75bfb0d7d7a6623556e56fbb92f7a
+      PRIVATE_TASK_SOURCE_SHA: 3b7a5e19d49f25381e283e2f1867559179c97b8a
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
