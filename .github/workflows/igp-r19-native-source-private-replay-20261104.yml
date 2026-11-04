@@ -1,3 +1,4 @@
+# R19 v4 source-conflict trial: retain v3 archived SHA and QA unchanged.
 # R19 native-first source audit. Licensed NBA coordinates and touch records
 # are read and persisted ONLY inside private timeedmonds-maker/104.
 name: R19 v4 private source-conflict-graded four-game double-team replay
