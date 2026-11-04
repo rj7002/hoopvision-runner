@@ -1,0 +1,95 @@
+# Public GitHub runner contains NO private NBA ball/player coordinates.
+name: Full107 Curry 52 free-throw original source private audit
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/curry-full107-original-ft-private-20261104.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: full107-curry-private-52-ft-original
+  cancel-in-progress: false
+jobs:
+  private-curry-ft-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/full107-curry-free-throw-3d-20261104
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify no private source in public runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Clone only 6 games of private original source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
+            /gamepulse/fusion/curry_ft_full107_original_3d_v1.py \
+            /gamepulse/fusion/official_pbp_timing/games/0022600005.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600101.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600127.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600139.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600023.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600170.json \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600005/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600101/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600127/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600139/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600023/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600170/
+      - name: Recompute original SHA-verified 52 flight candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/curry_ft_full107_original_3d_v1.py
+          python3 gamepulse/fusion/curry_ft_full107_original_3d_v1.py > "$RUNNER_TEMP/private-extract.log" 2>&1 || {
+            echo "PRIVATE_SOURCE_EXTRACT_FAILED; per-shot source data withheld from public log"
+            exit 1
+          }
+          python3 - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          p=Path('gamepulse/fusion/qa/curry_ft_full107/curry_free_throw_original_tracking_20261104.json')
+          d=json.loads(p.read_text())
+          shots=[s for g in d['games'].values() for s in g['attempts']]
+          summary=d['summary']
+          assert len(d['games'])==6
+          assert len(shots)==52 and sum(s['made'] for s in shots)==51
+          assert summary['shot_flights_matched']==52 and summary['missing_or_unresolved']==0
+          assert len({(s['game_id'],str(s['action_number'])) for s in shots})==52
+          assert all(s['flight'] is not None for s in shots)
+          lags=[(s['action_number'],s['source_minus_official_terminal_s']) for s in shots if abs(s['source_minus_official_terminal_s'])>3]
+          assert len(lags)==2 and {str(a) for a,_ in lags}=={'495','836'}
+          print('PRIVATE_CINEMATIC_FT_SHA_QA',json.dumps({'games':6,'shots':52,'makes':51,'misses':1,
+            'matched_source_flights':52,'scorer_time_anomalies':2,
+            'derived_json_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
+            'source_recovery_grade':'P0_ORIGINAL_XYZ_NOT_INDEPENDENT_VIDEO'},sort_keys=True))
+          PY
+      - name: Write private QA only; never upload licensed XYZ publicly
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f gamepulse/fusion/qa/curry_ft_full107/curry_free_throw_original_tracking_20261104.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo 'Curry original-FT private QA unchanged'; exit 0; fi
+          git commit -qm 'qa(private): source SHA verified Full107 Curry 52 free throws'
+          gh auth setup-git
+          for attempt in 1 2 3; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then echo 'PRIVATE_SOURCE_QA_COMMITTED'; exit 0; fi
+            sleep "$attempt"
+          done
+          exit 29
