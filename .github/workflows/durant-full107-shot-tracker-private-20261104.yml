@@ -54,7 +54,7 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           python3 gamepulse/fusion/durant_ft_full107_original_3d_v1.py > "$RUNNER_TEMP/durant-private-extract.log" 2>&1 || {
-            python3 -c 'import pathlib,os,re; x=(pathlib.Path(os.environ["RUNNER_TEMP"])/"durant-private-extract.log").read_text().splitlines(); m=re.match(r"^([A-Za-z]+(?:Error|Exception))(?::([A-Z_]+))?", x[-1] if x else ""); print("PRIVATE_EXTRACT_SAFE_CLASS",m.group(1) if m else "UNKNOWN",m.group(2) if m and m.group(2) else "UNCLASSIFIED","COMPLETE_GAME_REPORTS",sum("GAME_SUMMARY" in a for a in x))'
+            python3 -c 'import pathlib,os,re; x=(pathlib.Path(os.environ["RUNNER_TEMP"])/"durant-private-extract.log").read_text().splitlines(); m=re.match(r"^([A-Za-z]+(?:Error|Exception))(?::\s*([A-Z_0-9]+))?", x[-1] if x else ""); print("PRIVATE_EXTRACT_SAFE_CLASS",m.group(1) if m else "UNKNOWN",m.group(2) if m and m.group(2) else "UNCLASSIFIED","COMPLETE_GAME_REPORTS",sum("GAME_SUMMARY" in a for a in x))'
             echo 'PRIVATE_DURANT_FT_EXTRACT_FAILED'; exit 1;
           }
           python3 - <<'PY'
