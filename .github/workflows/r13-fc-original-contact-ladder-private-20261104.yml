@@ -1,4 +1,4 @@
-name: R13 v2 source-consensus six-variant development on exposed NBA four
+name: R13 v2 source-consensus eight-variant development on exposed NBA four
 on:
   push:
     branches: [main]
@@ -18,8 +18,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       R13_GAME_ID: ${{ matrix.game }}
-      PRIVATE_TASK_SOURCE_SHA: 6f84c4531c4a962402b3bf78ba21e7a9bc73e5fd
-      R13_V2_MODULE_BLOB: 3342b5a72c2136d81b4c820a53f2a3e5e6fbd94d
+      PRIVATE_TASK_SOURCE_SHA: 8e75fa802b6d648f6214a43fe5cba9ea34a86c6c
+      R13_V2_MODULE_BLOB: 0d43315e8c3395291063fafd5e8ea325d47b5aad
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,12 +34,12 @@ jobs:
           gh auth setup-git
           root="$RUNNER_TEMP/r13-v2-private-research"
           git clone -q --filter=blob:none --depth=1 --no-checkout -b research/r13-shot-terminal-source-consensus-v2-20261104 https://github.com/timeedmonds-maker/104.git "$root"
-          for sha in 622de5c2d754f97193acfbdddac6bd886a206637 231448fa9065c380504d13627fba022861e59b8b 6f84c4531c4a962402b3bf78ba21e7a9bc73e5fd; do
+          for sha in 622de5c2d754f97193acfbdddac6bd886a206637 231448fa9065c380504d13627fba022861e59b8b 8e75fa802b6d648f6214a43fe5cba9ea34a86c6c; do
             git -C "$root" fetch -q --filter=blob:none --depth=1 origin "$sha"
           done
           p="gamepulse/fusion/analysis/r13_shot_source_consensus_dev4_git_replay_v1.py"
-          test "$(git -C "$root" rev-parse "6f84c4531c4a962402b3bf78ba21e7a9bc73e5fd:$p")" = "dd301205db50f8c00f1d6461045a6a40cb65a17d"
-          git -C "$root" show "6f84c4531c4a962402b3bf78ba21e7a9bc73e5fd:$p" > "$RUNNER_TEMP/r13_v2_dev.py"
+          test "$(git -C "$root" rev-parse "8e75fa802b6d648f6214a43fe5cba9ea34a86c6c:$p")" = "0c65a04ad32541a8ec82cd37ae2492f0da195659"
+          git -C "$root" show "8e75fa802b6d648f6214a43fe5cba9ea34a86c6c:$p" > "$RUNNER_TEMP/r13_v2_dev.py"
           export R13_PRIVATE_GIT_ROOT="$root"
           cd "$RUNNER_TEMP"
           python3 -m py_compile ./r13_v2_dev.py
