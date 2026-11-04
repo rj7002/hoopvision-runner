@@ -49,6 +49,19 @@ jobs:
           else
             echo "R13_PRIVATE_RELEASE_BROWSER_AUTH_READ_DENIED"
           fi
+          root="$RUNNER_TEMP/r13-original-sparse-git-probe"
+          if git clone -q --filter=blob:none --depth=1 --no-checkout \
+               -b research/r13-source-onset-frontcourt-v3-20261104 \
+               https://github.com/timeedmonds-maker/104.git "$root" >/dev/null 2>&1 && \
+             git -C "$root" fetch -q --filter=blob:none --depth=1 origin \
+               622de5c2d754f97193acfbdddac6bd886a206637 \
+               231448fa9065c380504d13627fba022861e59b8b >/dev/null 2>&1 && \
+             git -C "$root" show 622de5c2d754f97193acfbdddac6bd886a206637:gamepulse/fusion/materialized/igp_all_original_xyz/0022600001/index.json >/dev/null 2>&1 && \
+             git -C "$root" show HEAD:gamepulse/fusion/qa/r13_fresh_extended_radius_20261104/0022600001_native_labels.json.gz >/dev/null 2>&1; then
+            echo "R13_GIT_ORIGINAL_AND_ARCHIVED_LABELS_READ_OK"
+          else
+            echo "R13_GIT_ORIGINAL_AND_ARCHIVED_LABELS_READ_FAILED"
+          fi
           exit 0
           python3 - <<'PY'
           import base64,hashlib,json,os,pathlib,subprocess,sys,time
