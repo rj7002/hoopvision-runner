@@ -1,5 +1,4 @@
-name: R13 pinned one-frame shot source touch frozen-four holdout private
-# Existing approved R13 private-only isolated CPU workflow: fresh-four SHA-pinned holdout.
+name: R13 original NBA shot-touch archived eight - Git transport
 on:
   push:
     branches: [main]
@@ -10,106 +9,39 @@ permissions:
 jobs:
   replay:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       max-parallel: 2
       matrix:
-        game: ['0022600112']
+        game: ['0022600125','0022600138','0022600021','0022600153','0022600017','0022600018','0022600019','0022600020']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_REPO: timeedmonds-maker/104
-      PRIVATE_BRANCH: research/r13-shot-terminal-frozen4-v1-20261104
-      PRIVATE_TASK_SOURCE_SHA: 5bdb2649f480ebf671e4c1a5f1afdb1420feaf3c
       R13_GAME_ID: ${{ matrix.game }}
+      PRIVATE_TASK_SOURCE_SHA: 5bdb2649f480ebf671e4c1a5f1afdb1420feaf3c
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Verify no private content in public repository
+      - name: Validate public-to-private boundary
         run: python3 tools/public_content_guard.py
-      - name: Run pinned private source against original NBA and official audit
+      - name: Run exact Git-blob pinned original SDK R13 candidate
         shell: bash
         run: |
           set -euo pipefail
           test -n "$GH_TOKEN"
           gh auth setup-git
-          if git ls-remote -q https://github.com/timeedmonds-maker/104.git HEAD >/dev/null 2>&1; then
-            echo "R13_PRIVATE_GIT_TRANSPORT_READ_OK"
-          else
-            echo "R13_PRIVATE_GIT_TRANSPORT_READ_DENIED"
-          fi
-          url="https://github.com/timeedmonds-maker/104/releases/download/gamepulse-sdk-0022600112/sdk-COMPLETE.json"
-          if curl -sSLf --connect-timeout 10 --max-time 40 --retry 1 \
-               -H "Authorization: Bearer $GH_TOKEN" \
-               -H "Accept: application/octet-stream" \
-               -o "$RUNNER_TEMP/r13-sdk-complete-probe.json" "$url"; then
-            echo "R13_PRIVATE_RELEASE_BROWSER_AUTH_READ_OK"
-            sha256sum "$RUNNER_TEMP/r13-sdk-complete-probe.json" | awk '{print "R13_RELEASE_PROBE_SHA256="$1}'
-          else
-            echo "R13_PRIVATE_RELEASE_BROWSER_AUTH_READ_DENIED"
-          fi
-          root="$RUNNER_TEMP/r13-original-sparse-git-probe"
-          if git clone -q --filter=blob:none --depth=1 --no-checkout \
-               -b research/r13-source-onset-frontcourt-v3-20261104 \
-               https://github.com/timeedmonds-maker/104.git "$root" >/dev/null 2>&1 && \
-             git -C "$root" fetch -q --filter=blob:none --depth=1 origin \
-               622de5c2d754f97193acfbdddac6bd886a206637 \
-               231448fa9065c380504d13627fba022861e59b8b >/dev/null 2>&1 && \
-             git -C "$root" show 622de5c2d754f97193acfbdddac6bd886a206637:gamepulse/fusion/materialized/igp_all_original_xyz/0022600001/index.json >/dev/null 2>&1 && \
-             git -C "$root" show HEAD:gamepulse/fusion/qa/r13_fresh_extended_radius_20261104/0022600001_native_labels.json.gz >/dev/null 2>&1; then
-            echo "R13_GIT_ORIGINAL_AND_ARCHIVED_LABELS_READ_OK"
-          else
-            echo "R13_GIT_ORIGINAL_AND_ARCHIVED_LABELS_READ_FAILED"
-          fi
-          exit 0
-          python3 - <<'PY'
-          import base64,hashlib,json,os,pathlib,subprocess,sys,time
-          repo=os.environ["PRIVATE_REPO"]
-          pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
-          branch=os.environ["PRIVATE_BRANCH"]
-          game=os.environ["R13_GAME_ID"]
-          path="gamepulse/fusion/analysis/r13_shot_terminal_frozen4_replay_v1.py"
-          source=None
-          for ref in (pin,branch):
-              for retry in range(3):
-                  r=subprocess.run(["gh","api",f"repos/{repo}/contents/{path}?ref={ref}"],capture_output=True,text=True)
-                  if r.returncode==0:
-                      source=json.loads(r.stdout)
-                      break
-                  time.sleep(min(retry+1,3))
-              if source is not None:break
-          if source is None:
-              stderr=(r.stderr or "").lower()
-              grade=("RATE_LIMIT" if "rate limit" in stderr else "FORBIDDEN" if "403" in stderr else
-                     "NOT_FOUND" if "404" in stderr else "UNAUTHORIZED" if "401" in stderr else "OTHER")
-              print("PRIVATE_SCRIPT_READ_ERROR_CLASS="+grade)
-              print("PRIVATE_SCRIPT_HTTP_RETURN_CODE="+str(r.returncode))
-              repo_check=subprocess.run(["gh","api",f"repos/{repo}","--jq",".private"],capture_output=True,text=True)
-              print("PRIVATE_REPOSITORY_READ_ALLOWED="+str(repo_check.returncode==0 and repo_check.stdout.strip()=="true"))
-              sys.exit(1)
-          raw=base64.b64decode(source["content"])
-          git_sha=hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()
-          assert git_sha==source["sha"]=="6cf1918d2fa800fae4a07d1a700e78343ffa1ae1","FROZEN_PRIVATE_SCRIPT_BLOB_MISMATCH"
-          root=pathlib.Path(os.environ["RUNNER_TEMP"])/("r13-frontcourt-ladder-"+game)
-          root.mkdir()
-          script=root/"replay.py"
-          script.write_bytes(raw)
-          run=subprocess.run([sys.executable,str(script)],cwd=root,env=os.environ.copy(),capture_output=True,text=True)
-          if run.returncode:
-              endpoint=f"repos/{repo}/contents/gamepulse/fusion/qa/r13_shot_terminal_frozen4_20261104/private_failure_{game}.json"
-              payload={"branch":branch,"message":"qa(private): R13 original gate ladder failure [skip ci]",
-                       "content":base64.b64encode(json.dumps({
-                           "game_id":game,"pin":pin,"return_code":run.returncode,
-                           "stderr_tail":run.stderr[-12000:],
-                           "stdout_tail":run.stdout[-1200:]},sort_keys=True).encode()).decode()}
-              for retry in range(6):
-                  old=subprocess.run(["gh","api",endpoint+"?ref="+branch],capture_output=True,text=True)
-                  if old.returncode==0:payload["sha"]=json.loads(old.stdout)["sha"]
-                  put=subprocess.run(["gh","api","-X","PUT",endpoint,"--input","-"],input=json.dumps(payload),capture_output=True,text=True)
-                  if put.returncode==0:break
-                  time.sleep(min(retry+1,6))
-              print("R13_FC_FRESH_FOUR_PRIVATE_REPLAY_REQUIRES_REVIEW game="+game)
-              sys.exit(1)
-          print("R13_FC_FRESH_FOUR_PRIVATE_REPLAY_SAVED game="+game)
-          PY
+          root="$RUNNER_TEMP/r13-archived-source"
+          git clone -q --filter=blob:none --depth=1 --no-checkout -b research/r13-source-onset-frontcourt-v3-20261104 https://github.com/timeedmonds-maker/104.git "$root"
+          for sha in 622de5c2d754f97193acfbdddac6bd886a206637 231448fa9065c380504d13627fba022861e59b8b 5bdb2649f480ebf671e4c1a5f1afdb1420feaf3c 20c11501a2a7ecb2563f75bfe43784cbada850d8; do
+            git -C "$root" fetch -q --filter=blob:none --depth=1 origin "$sha"
+          done
+          path="gamepulse/fusion/analysis/r13_shot_terminal_archived8_git_transport_v1.py"
+          expected="8abfc31367e3081fb340a0efb31d1e0d0ddebbb3"
+          test "$(git -C "$root" rev-parse "20c11501a2a7ecb2563f75bfe43784cbada850d8:$path")" = "$expected"
+          git -C "$root" show "20c11501a2a7ecb2563f75bfe43784cbada850d8:$path" > "$RUNNER_TEMP/r13_archived8.py"
+          export R13_PRIVATE_GIT_ROOT="$root"
+          cd "$RUNNER_TEMP"
+          python3 -m py_compile ./r13_archived8.py
+          python3 ./r13_archived8.py
+          echo "R13_ARCHIVED8_PRIVATE_REPLICATION_DONE game=$R13_GAME_ID"
