@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-r19-pnr-dho-real-8clip-private-20261105.yml",  # private SHA locked actual 10Hz player ball PNR/DHO temporal action classifier, source-only aggregate public
+
     ".github/workflows/full107-30centre-xy-render-only-20261105.yml",  # reviewed private 2ft Full107 source bins to deterministic PNG in private repo only; no direct source XYZ export
     ".github/workflows/full107-starting-centre-heatmaps-20261105.yml",  # SHA-verified original XYZ in private checkout; exports only 2-foot time-binned aggregates to private 104
     ".github/workflows/full107-defensive-centre-heatmaps-20261105.yml",  # audited full107 original-SHA 2ft histogram; derived private aggregate only; no public XYZ
