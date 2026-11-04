@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-ALLOWED_STATIC = {
+ALLOWED_STATIC = {\n    ".github/workflows/full107-starting-centre-heatmaps-20261105.yml",  # SHA-verified original XYZ in private checkout; exports only 2-foot time-binned aggregates to private 104\n
     ".github/workflows/full107-defensive-centre-heatmaps-20261105.yml",  # audited full107 original-SHA 2ft histogram; derived private aggregate only; no public XYZ
     ".github/workflows/full107-starting-centres-30teams-20261105.yml",  # official boxscore-only starter selection + existing source-graded private aggregates
     ".github/workflows/full107-center-defensive-paint-private-20261105.yml",  # reviewed source-direct SHA-native 107 game center region; no raw XYZ in public jobs
