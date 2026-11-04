@@ -13,7 +13,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: analysis/igp-r19-native-temporal-20261104
-      PIN: 29c4c691ff55df3047b2456fb6c51400ccd9c016
+      PIN: e5cf205a23f47bceb120f0e89ee42decf87e1b78
       SRC: gamepulse/fusion/qa/analysis/igp_r19_pnr_halfcourt_real_xy_review_20261105
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +44,7 @@ jobs:
           d=json.loads((p/"output.json").read_bytes())
           assert d["aggregate"]["source_review_cases"]==8
           assert d["aggregate"]["frames"]==408
-          assert d["aggregate"]["source_complete_ten_plus_ball"]==324
+          assert d["aggregate"]["source_complete_ten_plus_ball"]==375
           assert d["video_truth_not_present"] is True
           assert d["no_production_promotion"] is True
           print("R19_PNR_DHO_ACTUAL_10HZ_NBA_PRIVATE_REPLAY_PASS",d["aggregate"])
