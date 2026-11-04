@@ -34,6 +34,7 @@ jobs:
           git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
             /gamepulse/fusion/curry_ft_full107_original_3d_v1.py \
             /gamepulse/fusion/curry_ft_full107_physics_validation_v2.py \
+            /gamepulse/fusion/curry_ft_full107_deterministic_figure_v1.py \
             /gamepulse/fusion/official_pbp_timing/games/0022600005.json \
             /gamepulse/fusion/official_pbp_timing/games/0022600101.json \
             /gamepulse/fusion/official_pbp_timing/games/0022600127.json \
@@ -104,6 +105,33 @@ jobs:
             'ten_foot_brackets':q['shots_with_observed_descending_10ft_bracket'],
             'sha256':hashlib.sha256(p.read_bytes()).hexdigest()},sort_keys=True))
           PY
+      - name: Deterministic Matplotlib and verified official NBA CDN PNG compositing
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/ft-venv"
+          "$RUNNER_TEMP/ft-venv/bin/python" -m pip --disable-pip-version-check -q install "matplotlib==3.10.3" "Pillow==11.3.0"
+          cd "$RUNNER_TEMP/private"
+          "$RUNNER_TEMP/ft-venv/bin/python" gamepulse/fusion/curry_ft_full107_deterministic_figure_v1.py > "$RUNNER_TEMP/private-render.log" 2>&1 || {
+            echo "PRIVATE_OFFICIAL_CDN_RENDER_FAILED; unverified image never substituted"
+            exit 1
+          }
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          base=Path('gamepulse/fusion/qa/curry_ft_full107')
+          figure=base/'curry_full107_ft_physics_research_source_cdn.png'
+          manifest=base/'curry_full107_ft_physics_research_source_cdn_manifest.json'
+          meta=json.loads(manifest.read_text())
+          b=figure.read_bytes()
+          assert b[:8]==b'\x89PNG\r\n\x1a\n'
+          assert meta['source_flight_count']==52 and meta['source_masked_frame_count']==189
+          assert meta['graphic_sha256']==hashlib.sha256(b).hexdigest()
+          assert meta['nba_cdn_headshot']['url'].startswith('https://cdn.nba.com/headshots/nba/latest/')
+          assert not meta['physical_accuracy_certified']
+          print('CURRY_DETERMINISTIC_NBA_CDN_PNG_PASS',json.dumps({'bytes':len(b),
+            'png_sha256':meta['graphic_sha256'],'official_cdn_sha256':meta['nba_cdn_headshot']['image_sha256']},sort_keys=True))
+          PY
       - name: Write private QA only; never upload licensed XYZ publicly
         shell: bash
         run: |
@@ -113,6 +141,8 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add --sparse -f gamepulse/fusion/qa/curry_ft_full107/curry_free_throw_original_tracking_20261104.json
           git add --sparse -f gamepulse/fusion/qa/curry_ft_full107/curry_ft_physics_masked_original_v2_20261104.json
+          git add --sparse -f gamepulse/fusion/qa/curry_ft_full107/curry_full107_ft_physics_research_source_cdn.png
+          git add --sparse -f gamepulse/fusion/qa/curry_ft_full107/curry_full107_ft_physics_research_source_cdn_manifest.json
           git diff --cached --check
           if git diff --cached --quiet; then echo 'Curry original-FT private QA unchanged'; exit 0; fi
           git commit -qm 'qa(private): source SHA verified Full107 Curry 52 free throws'
