@@ -3,12 +3,12 @@ name: Full107 defensive centre original XY heat maps
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/full107-defensive-centre-heatmaps-20261105.yml', 'tools/public_content_guard.py']
+    paths: ['.github/workflows/full107-defensive-centre-heatmaps-20261105.yml']
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
   group: full107-defensive-centre-heatmaps-20261105
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   shards:
     runs-on: ubuntu-24.04
