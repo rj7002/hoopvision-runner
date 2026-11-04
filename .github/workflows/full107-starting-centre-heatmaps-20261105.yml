@@ -1,5 +1,5 @@
 # Only 2ft binned aggregate position durations ever leave the protected source checkout.\n# Reviewed: original positions never leave private 104; no public source tracking artifacts.
-name: Full107 all starting centres defensive position heatmaps
+# Source result includes all 30 centre 2ft density maps and one POR-MIA comparison.\nname: Full107 all starting centres defensive position heatmaps
 on:
   push:
     branches: [main]
