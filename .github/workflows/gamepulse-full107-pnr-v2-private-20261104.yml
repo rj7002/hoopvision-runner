@@ -1,0 +1,213 @@
+# Reviewed public-to-private source runner. Private licensed native NBA XYZ and
+# per-event data remain in private repository 104; public logs are aggregate QA.
+name: Full107 V2 on-ball picks paired original NBA source QA
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/gamepulse-full107-pnr-v2-private-20261104.yml
+      - tools/public_content_guard.py
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: full107-pnr-v2-20261104
+  cancel-in-progress: true
+jobs:
+  controls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PIN: a0a6af0fea809a03b4f51a3a556cc4895c205aa0
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: python3 tools/public_content_guard.py
+      - name: Frozen v1 and V2 geometry/outcome tests (source-free)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone --quiet --filter=blob:none --depth=1 --sparse -b research/full107-pick-pair-detector-20261104 \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PIN"
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$PIN"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/analysis
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PIN"
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion/analysis
+          python3 -B -m unittest -q \
+            gamepulse/fusion/analysis/test_igp_full107_pnr_detector_v1.py \
+            gamepulse/fusion/analysis/test_igp_full107_pnr_detector_v2.py \
+            gamepulse/fusion/analysis/test_igp_full107_pnr_outcomes_v2.py
+          echo FULL107_V1_AND_V2_SOURCE_FREE_ADVERSARIAL_CONTROLS_PASS
+  shards:
+    needs: [controls]
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        shard: [0,1,2,3,4,5,6,7,8]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 105
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PIN: a0a6af0fea809a03b4f51a3a556cc4895c205aa0
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: research/full107-pick-pair-detector-20261104
+      PRIVATE_DEST: gamepulse/fusion/qa/analysis/full107_pnr_v2_20261104
+      SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: python3 tools/public_content_guard.py
+      - name: Exact-source Full107 V1/V2 original XYZ replay and PBP proxy
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone --quiet --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PIN"
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$PIN"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PIN"
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion
+          script=gamepulse/fusion/analysis/igp_full107_pnr_source_run_v2.py
+          python3 -B "$script" --root . --shard "$SHARD" --shards 9 \
+            --summary "$RUNNER_TEMP/summary.json" --events-gz "$RUNNER_TEMP/events.json.gz" \
+            > "$RUNNER_TEMP/REDACTED_PRIVATE_LOCAL_REPLAY_LOG"
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          s=json.loads(pathlib.Path(os.environ['RUNNER_TEMP'],'summary.json').read_bytes())
+          assert s['shard']==int(os.environ['SHARD']) and s['shards']==9
+          assert s['game_count']==len(s['selected_games'])
+          assert s['prior_v1_same_native_source'] and not s['publishable']
+          assert s['private_events_count']==s['v2_candidates']
+          assert s['private_events_gzip_sha256']==hashlib.sha256(
+              pathlib.Path(os.environ['RUNNER_TEMP'],'events.json.gz').read_bytes()).hexdigest()
+          print('FULL107_V2_PRIVATE_SOURCE_HASHED_AND_BASELINE_PAIRED',
+                'shard',s['shard'],'games',s['game_count'],
+                'v1',s['v1_candidates'],'v2',s['v2_candidates'])
+          PY
+      - name: SHA-verified private-only shard summary and compressed event persistence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          python3 - <<'PY'
+          import base64,json,os,subprocess,sys,time,pathlib
+          base=os.environ['PRIVATE_DEST'];repo=os.environ['PRIVATE_REPO'];branch=os.environ['PRIVATE_BRANCH']
+          root=pathlib.Path(os.environ['RUNNER_TEMP']);shard=os.environ['SHARD']
+          for filename,source in [(f'shard_{shard}.json',root/'summary.json'),
+                                  (f'events_{shard}.json.gz',root/'events.json.gz')]:
+              target=f'repos/{repo}/contents/{base}/{filename}'
+              body={'branch':branch,'message':f'qa(private): V2 Full107 original source {filename} [skip ci]',
+                    'content':base64.b64encode(source.read_bytes()).decode()}
+              for trial in range(20):
+                  before=subprocess.run(['gh','api',target+'?ref='+branch],capture_output=True,text=True)
+                  req=dict(body)
+                  if before.returncode==0:req['sha']=json.loads(before.stdout)['sha']
+                  done=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],
+                                      input=json.dumps(req),capture_output=True,text=True)
+                  if done.returncode==0:
+                      print('PRIVATE_SHA_PERSIST_OK',shard,filename)
+                      break
+                  time.sleep(2+trial)
+              else:raise RuntimeError('PRIVATE_PNR_V2_PERSISTENCE_FAILED')
+          PY
+  reduce:
+    needs: [controls, shards]
+    if: success()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/full107-pick-pair-detector-20261104
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_DEST: gamepulse/fusion/qa/analysis/full107_pnr_v2_20261104
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: python3 tools/public_content_guard.py
+      - name: Read private shard artifacts and verify 107-game conservation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone --quiet --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set \
+            gamepulse/fusion/qa/analysis/full107_pnr_v2_20261104
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          import json,gzip,hashlib,collections,pathlib,base64,subprocess,time,os
+          root=pathlib.Path('gamepulse/fusion/qa/analysis/full107_pnr_v2_20261104')
+          assert root.is_dir(),'PRIVATE_NINE_SHARD_DIR_MISSING'
+          runs=[];seen=set();states=collections.Counter();stages=collections.Counter();categories=collections.Counter()
+          outcome=collections.Counter();prior_sha=None;event_pairs=collections.Counter();source_sha={}
+          for i in range(9):
+              path=root/f'shard_{i}.json'
+              doc=json.loads(path.read_bytes())
+              assert doc['shard']==i and doc['shards']==9
+              assert not doc['publishable'] and doc['prior_v1_same_native_source']
+              assert len(doc['cohort_game_ids'])==107
+              if prior_sha is None:prior_sha=doc['baseline_prior_sha256']
+              assert doc['baseline_prior_sha256']==prior_sha
+              assert not (seen & set(doc['per_game']))
+              seen.update(doc['per_game'])
+              for g,x in doc['per_game'].items():source_sha[g]=x['native_manifest_sha256']
+              blob=(root/f'events_{i}.json.gz').read_bytes()
+              assert hashlib.sha256(blob).hexdigest()==doc['private_events_gzip_sha256']
+              events=json.loads(gzip.decompress(blob))
+              assert len(events)==doc['v2_candidates']==doc['private_events_count']
+              assert sum(doc['candidate_categories'].values())==len(events)
+              for ev in events:
+                  assert ev['NBA_game_id'] in doc['per_game']
+                  assert ev['source_native_sha256']==doc['per_game'][ev['NBA_game_id']]['native_manifest_sha256']
+                  assert not ev['independent_screen_truth']
+                  event_pairs[(ev['team'],ev['ballhandler_id'],ev['screener_id'])]+=1
+              runs.append(doc);states.update(doc['source_touch_states']);stages.update(doc['stage_counts'])
+              categories.update(doc['candidate_categories']);outcome.update(doc['outcome_counts'])
+          allids=runs[0]['cohort_game_ids']
+          assert len(seen)==107 and seen==set(allids)
+          v1=sum(x['v1_candidates'] for x in runs)
+          v2=sum(x['v2_candidates'] for x in runs)
+          assert v1==880,'FROZEN_V1_880_REPRODUCTION_FAILED'
+          assert v2==sum(categories.values())
+          assert stages['V1_screen_candidates']==880
+          assert sum(states.values())==sum(x['touches'] for d in runs for x in d['per_game'].values())
+          assert sum(outcome.values())==v2
+          pairs=[{'team':t,'handler_id':h,'screener_id':s,'v2_candidate_count':n}
+                 for (t,h,s),n in sorted(event_pairs.items())]
+          report={'schema':'igp.full107.pnr.v2.source-first-paired-reduction',
+                  'games':107,'source_manifest_sha256':source_sha,
+                  'prior_baseline_shards_sha256':prior_sha,'prior_v1_candidates':v1,
+                  'v2_candidate_events':v2,'event_categories':dict(categories),
+                  'source_touch_states':dict(states),'stage_counts':dict(stages),
+                  'pbp_shot_proxy_counts':dict(outcome),
+                  'pair_candidate_counts':pairs,'independent_video_precision_recall':None,
+                  'pair_oncourt_possessions_certified':False,'skillcorner_direct_equivalent':False,
+                  'publishable':False,'original_native_modified':False}
+          data=(json.dumps(report,sort_keys=True,separators=(',',':'))+'\n').encode()
+          target=f"repos/{os.environ['PRIVATE_REPO']}/contents/{os.environ['PRIVATE_DEST']}/full107_v2_paired_qa.json"
+          body={'branch':os.environ['PRIVATE_BRANCH'],'message':'qa(private): Full107 V1/V2 paired native screen candidate reduction [skip ci]',
+                'content':base64.b64encode(data).decode()}
+          for i in range(18):
+              old=subprocess.run(['gh','api',target+'?ref='+os.environ['PRIVATE_BRANCH']],capture_output=True,text=True)
+              req=dict(body)
+              if old.returncode==0:req['sha']=json.loads(old.stdout)['sha']
+              r=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],input=json.dumps(req),capture_output=True,text=True)
+              if r.returncode==0:break
+              time.sleep(2+i)
+          else:raise RuntimeError('PRIVATE_V2_REDUCER_WRITE_FAILED')
+          print('FULL107_V2_NINE_SHARD_PAIRED_FINAL','games',107,'v1',v1,'v2',v2,
+                'strong',categories['STRONG_GEOMETRY_UNVERIFIED_CONTACT'],
+                'review',v2-categories['STRONG_GEOMETRY_UNVERIFIED_CONTACT'],
+                'final_report_sha256',hashlib.sha256(data).hexdigest(),
+                'provider_direct_validated',False,'film_truth',False)
+          PY
