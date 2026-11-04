@@ -1,5 +1,5 @@
-name: R13 stale-original-handler identity challenger private
-# Source-pinned isolation approved by the explicit public-content guard allowlist.
+name: R13 fresh-four high-Z source reception single challenger private
+# Existing approved R13 private-only isolated CPU workflow: fresh-four SHA-pinned holdout.
 on:
   push:
     branches: [main]
@@ -15,12 +15,12 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        game: ['0022600091','0022600125']
+        game: ['0022600015','0022600022','0022600023','0022600024']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PRIVATE_BRANCH: research/r13-source-onset-frontcourt-v3-20261104
-      PRIVATE_TASK_SOURCE_SHA: c802692a5bf13148372334734280b2201d9b1ba8
+      PRIVATE_BRANCH: research/r13-fc-highz-fresh4-20261104
+      PRIVATE_TASK_SOURCE_SHA: 44e57c4841a29bd469417488ded03184443bd24b
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
           pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
           branch=os.environ["PRIVATE_BRANCH"]
           game=os.environ["R13_GAME_ID"]
-          path="gamepulse/fusion/analysis/r13_stale_source_conflict_veto_replay_v1.py"
+          path="gamepulse/fusion/analysis/r13_fresh_four_highz_single_20261104.py"
           source=None
           for retry in range(8):
               r=subprocess.run(["gh","api",f"repos/{repo}/contents/{path}?ref={pin}"],capture_output=True,text=True)
@@ -59,7 +59,7 @@ jobs:
           script.write_bytes(raw)
           run=subprocess.run([sys.executable,str(script)],cwd=root,env=os.environ.copy(),capture_output=True,text=True)
           if run.returncode:
-              endpoint=f"repos/{repo}/contents/gamepulse/fusion/qa/r13_contact_gate_ladder_20261104/private_failure_{game}.json"
+              endpoint=f"repos/{repo}/contents/gamepulse/fusion/qa/r13_highz_fresh_four_20261104/private_failure_{game}.json"
               payload={"branch":branch,"message":"qa(private): R13 original gate ladder failure [skip ci]",
                        "content":base64.b64encode(json.dumps({
                            "game_id":game,"pin":pin,"return_code":run.returncode,
@@ -71,7 +71,7 @@ jobs:
                   put=subprocess.run(["gh","api","-X","PUT",endpoint,"--input","-"],input=json.dumps(payload),capture_output=True,text=True)
                   if put.returncode==0:break
                   time.sleep(min(retry+1,6))
-              print("R13_FRONTCOURT_LADDER_PRIVATE_REPLAY_REQUIRES_REVIEW game="+game)
+              print("R13_FC_FRESH_FOUR_PRIVATE_REPLAY_REQUIRES_REVIEW game="+game)
               sys.exit(1)
-          print("R13_FRONTCOURT_LADDER_PRIVATE_REPLAY_SAVED game="+game)
+          print("R13_FC_FRESH_FOUR_PRIVATE_REPLAY_SAVED game="+game)
           PY
