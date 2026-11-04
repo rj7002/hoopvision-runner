@@ -29,6 +29,7 @@ jobs:
             /gamepulse/fusion/durant_ft_full107_original_3d_v1.py \
             /gamepulse/fusion/durant_ft_full107_source_physics_v1.py \
             /gamepulse/fusion/durant_ft_full107_deterministic_renderer_v1.py \
+            /gamepulse/fusion/durant_ft_full107_unmatched_diagnostic_v2.py \
             /gamepulse/fusion/official_pbp_timing/games/0022600091.json \
             /gamepulse/fusion/official_pbp_timing/games/0022600009.json \
             /gamepulse/fusion/official_pbp_timing/games/0022600107.json \
@@ -65,6 +66,23 @@ jobs:
           print('DURANT_OFFICIAL_FT_LEDGER_PASS',json.dumps({
             'attempts':61,'makes':51,'misses':10,'matched':s['shot_flights_matched'],
             'unresolved':s['missing_or_unresolved'],'sha256':hashlib.sha256(p.read_bytes()).hexdigest()}))
+          PY
+      - name: Privately inspect four source-graded FT candidates at three unmatched official actions
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 gamepulse/fusion/durant_ft_full107_unmatched_diagnostic_v2.py             > "$RUNNER_TEMP/durant-three-unmatched-private.log" 2>&1 || {
+              echo 'PRIVATE_UNMATCHED_NATIVE_SOURCE_DIAGNOSTIC_FAILED'; exit 1;
+            }
+          python3 - <<'PY'
+          import json,hashlib,pathlib
+          p=pathlib.Path('gamepulse/fusion/qa/durant_ft_full107/durant_full107_three_unmatched_source_diagnostic_v2.json')
+          q=json.loads(p.read_text())
+          assert len(q['cases'])==4 and q['original_license_private_only']
+          print('DURANT_UNMATCHED_NATIVE_FT_DIAGNOSTIC_PASS',json.dumps({
+            'unmatched_official_actions':3,'source_candidates_inspected':4,
+            'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
+            'private_source_coordinates_exposed_publicly':False}))
           PY
       - name: Analyze source, cross-game masked physics and all rim-plane models
         run: |
