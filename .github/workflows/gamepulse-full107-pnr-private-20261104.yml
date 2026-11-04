@@ -1,0 +1,190 @@
+# Public CPU orchestration only. Licensed NBA XYZ and detector event outputs stay private in 104.
+name: IGP Full107 pick-pair original XYZ private CPU execution
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-full107-pnr-private-20261104.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full107-pnr-original-private-cpu-20261104
+  cancel-in-progress: false
+jobs:
+  controls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/full107-pick-pair-detector-20261104
+      PRIVATE_PIN: 9f968208f0905219ce06a9edcffd5714d36536aa
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: python3 tools/public_content_guard.py
+      - name: Private pinned source-free checks, never report NBA accuracy from synthetic tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PRIVATE_PIN"
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$PRIVATE_PIN"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/analysis
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PRIVATE_PIN"
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion
+          python3 -B -m unittest -v test_igp_full107_pnr_detector_v1
+          python3 -m py_compile gamepulse/fusion/analysis/igp_full107_pnr_source_run_v1.py
+          echo 'SOURCE_FREE_PNR_CONTROLS_PASS__ORIGINAL_NBA_TEST_STILL_REQUIRED'
+  full107-private-shards:
+    needs: controls
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        shard: [0,1,2,3,4,5,6,7,8]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/full107-pick-pair-detector-20261104
+      PRIVATE_PIN: 9f968208f0905219ce06a9edcffd5714d36536aa
+      SHARD: ${{ matrix.shard }}
+      PRIVATE_DEST: gamepulse/fusion/qa/analysis/full107_pnr_20261104
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: python3 tools/public_content_guard.py
+      - name: Original NBA SDK XYZ and official PBP private source SHA replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PRIVATE_PIN"
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$PRIVATE_PIN"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PRIVATE_PIN"
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion
+          python3 -B gamepulse/fusion/analysis/igp_full107_pnr_source_run_v1.py \
+            --root . --shard "$SHARD" --shards 9 --out "$RUNNER_TEMP/pnr-private.json" \
+            > "$RUNNER_TEMP/pnr-private.log" 2>&1 || {
+               echo 'PNR_ORIGINAL_SOURCE_OR_ADAPTER_FAILURE; no source data printed'
+               exit 1
+            }
+          python3 - <<'PY'
+          import json,os
+          x=json.load(open(os.environ['RUNNER_TEMP']+'/pnr-private.json'))
+          assert x['shard']==int(os.environ['SHARD']) and x['shards']==9
+          assert x['games_processed']==len(x['selected_game_ids'])==len(x['per_game'])
+          assert len(x['cohort_game_ids'])==107
+          assert not x['publication_approved'] and not x['physical_accuracy_certified']
+          assert all(g['original_native_manifest_sha256'] for g in x['per_game'].values())
+          print('PRIVATE_ORIGINAL_NBA_SOURCE_GATED',x['shard'],
+                'games',x['games_processed'],'candidate_screens',len(x['all_candidate_events']))
+          PY
+      - name: Write source-graded event output ONLY to private GitHub
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,json,os,subprocess,time,pathlib
+          dest=os.environ['PRIVATE_DEST']+'/shard_'+os.environ['SHARD']+'.json'
+          path='repos/timeedmonds-maker/104/contents/'+dest
+          data=(pathlib.Path(os.environ['RUNNER_TEMP'])/'pnr-private.json').read_bytes()
+          body={'branch':os.environ['PRIVATE_BRANCH'],
+                'message':'qa(private): Full107 on-ball screen source shard '+os.environ['SHARD']+' [skip ci]',
+                'content':base64.b64encode(data).decode()}
+          for i in range(15):
+            q=subprocess.run(['gh','api',path+'?ref='+os.environ['PRIVATE_BRANCH']],capture_output=True,text=True)
+            req=dict(body)
+            if q.returncode==0:req['sha']=json.loads(q.stdout)['sha']
+            p=subprocess.run(['gh','api','-X','PUT',path,'--input','-'],
+                             input=json.dumps(req),capture_output=True,text=True)
+            if p.returncode==0:
+              print('PRIVATE_PNR_SHARD_PERSISTED',os.environ['SHARD']);break
+            time.sleep(2+i)
+          else:raise RuntimeError('PRIVATE_GITHUB_ONLY_PNR_SHARD_PERSISTENCE_FAILED')
+          PY
+  full107-private-reduce:
+    needs: [controls,full107-private-shards]
+    if: success()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/full107-pick-pair-detector-20261104
+      PRIVATE_DEST: gamepulse/fusion/qa/analysis/full107_pnr_20261104
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: python3 tools/public_content_guard.py
+      - name: Privately read, recombine and verify nine SHA-backed shards
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          python3 - <<'PY'
+          import base64,collections,hashlib,json,os,subprocess,time,pathlib
+          branch=os.environ['PRIVATE_BRANCH'];dest=os.environ['PRIVATE_DEST']
+          def fetch(path):
+            url='repos/timeedmonds-maker/104/contents/'+path+'?ref='+branch
+            for i in range(10):
+              q=subprocess.run(['gh','api',url],capture_output=True,text=True)
+              if q.returncode==0:
+                doc=json.loads(q.stdout)
+                if doc.get('encoding')=='base64' and doc.get('content'):
+                  return base64.b64decode(doc['content'])
+                blob=json.loads(subprocess.check_output(['gh','api','repos/timeedmonds-maker/104/git/blobs/'+doc['sha']]))
+                return base64.b64decode(blob['content'])
+              time.sleep(1+i)
+            raise RuntimeError('MISSING_PRIVATE_NBA_PNR_SOURCE_SHARD')
+          docs=[json.loads(fetch(dest+'/shard_'+str(i)+'.json')) for i in range(9)]
+          keys=docs[0]['cohort_game_ids']
+          assert len(keys)==107 and len(set(keys))==107
+          got=set();duos=collections.Counter();states=collections.Counter();manifests={};unknowns=0
+          for i,d in enumerate(docs):
+            assert d['shard']==i and d['cohort_game_ids']==keys and d['shards']==9
+            assert not d['physical_accuracy_certified'] and not d['publication_approved']
+            assert set(d['per_game'])==set(d['selected_game_ids'])
+            assert not got.intersection(d['per_game'])
+            got.update(d['per_game'])
+            for k,g in d['per_game'].items():manifests[k]=g['original_native_manifest_sha256']
+            states.update(d['source_only_touch_states'])
+            for ev in d['all_candidate_events']:
+              assert ev['NBA_game_id'] in d['per_game']
+              duos[(ev['team'],ev['ballhandler_id'],ev['screener_id'])]+=1
+          assert got==set(keys)
+          rows=[{'team':t,'ballhandler_id':h,'screener_id':s,
+                 'source_screen_candidates':n,'at_least_60_candidates':n>=60,
+                 'picks_per_100_official_pair_possessions':None,
+                 'points_per_direct_pick':None} for (t,h,s),n in sorted(duos.items())]
+          qa={'schema':'igp.full107.pnr.nine-shard-original-source-aggregate.v1',
+              'games_exact':107,'per_game_native_source_sha256':manifests,
+              'candidate_screen_events':sum(duos.values()),'duo_candidates':rows,
+              'candidate_touch_states':dict(states),
+              'official_pair_oncourt_possessions_linked':False,
+              'direct_outcomes_linked':False,
+              'video_certified':False,'publication_approved':False}
+          data=(json.dumps(qa,sort_keys=True,indent=2)+'\n').encode()
+          target='repos/timeedmonds-maker/104/contents/'+dest+'/full107_pnr_source_summary.json'
+          body={'branch':branch,'message':'qa(private): Full107 nine-shard original PNR source summary [skip ci]',
+                'content':base64.b64encode(data).decode()}
+          for i in range(12):
+            old=subprocess.run(['gh','api',target+'?ref='+branch],capture_output=True,text=True)
+            req=dict(body)
+            if old.returncode==0:req['sha']=json.loads(old.stdout)['sha']
+            p=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],input=json.dumps(req),capture_output=True,text=True)
+            if p.returncode==0:break
+            time.sleep(2+i)
+          else:raise RuntimeError('PRIVATE_ONLY_PNR_REDUCTION_PERSIST_FAILED')
+          print('FULL107_NBA_SOURCE_PNR_SHARDED_QA',qa['games_exact'],
+               'candidate_screen_events',qa['candidate_screen_events'],
+               'duos',len(duos),'report_SHA256',hashlib.sha256(data).hexdigest(),
+               'independent_video_truth','UNKNOWN')
+          PY
