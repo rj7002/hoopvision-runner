@@ -1,0 +1,107 @@
+# Private licensed source never written to public runner repository.
+# Push-triggered isolated original-source replay; R13 predictions unchanged.
+name: Full81 R18 native touch unknown root cause (private)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/full107-first81-r18-rootcause-private-source-20261104.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  source-graded:
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - {gid: '0022600021', label_sha: '5a8f5332a96b9b748539cf863aefb2dd03ff9abf'}
+          - {gid: '0022600091', label_sha: 'a8d07901d90bae453f020ed5d5bb09431ce306f7'}
+          - {gid: '0022600125', label_sha: 'd930b26551c140499cb4723c23dc5071d99d0d61'}
+          - {gid: '0022600138', label_sha: '4510ed020705a4bf9d425faf02d78b29a52354a8'}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      REPO: timeedmonds-maker/104
+      BRANCH: analysis/igp81-r18-unknown-rootcause-v1-20261104
+      PIN: 96e75b0a2b315872f7d052f1530f38a60c596aad
+      LABEL_REF: research/r13-github-official-touch-snapshots-20261104
+      GID: ${{ matrix.gid }}
+      LABEL_SHA: ${{ matrix.label_sha }}
+      DEST_DIR: gamepulse/fusion/qa/analysis/igp81_r18_source_rootcause_20261104
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Public content safety gate
+        run: python3 tools/public_content_guard.py
+      - name: SHA-pinned private original-source replay; private results only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" "https://github.com/$REPO.git" "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion docs/gamepulse
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PIN"
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$PIN"
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PIN"
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$LABEL_REF"
+          git -C "$RUNNER_TEMP/private" show "FETCH_HEAD:gamepulse/fusion/qa/r13_github_official_touch_20261104/${GID}_native_labels.json.gz" > "$RUNNER_TEMP/labels.gz"
+          test "$(git hash-object "$RUNNER_TEMP/labels.gz")" = "$LABEL_SHA"
+          echo R18_ORIGINAL_LASTTOUCH_GIT_SHA_VERIFIED "$GID"
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion
+          script=gamepulse/fusion/analysis/igp81_r18_four_game_source_audit_v1.py
+          python3 -B "$script" --selftest > "$RUNNER_TEMP/selftest-log" 2> "$RUNNER_TEMP/selftest-error"
+          if python3 -B "$script" --root . --game-id "$GID" --labels "$RUNNER_TEMP/labels.gz" --out "$RUNNER_TEMP/result.json" > "$RUNNER_TEMP/qa-stdout" 2> "$RUNNER_TEMP/qa-stderr"; then
+            python3 - <<'PY'
+          import json,os,pathlib
+          x=json.loads((pathlib.Path(os.environ["RUNNER_TEMP"])/"result.json").read_bytes())
+          assert x["game_id"]==os.environ["GID"]
+          assert x["previous_pilot_reconciled"] and x["previous_source_r13_predictions_unchanged"]
+          assert x["full81_default_promotion_allowed"] is False
+          assert x["summary"]["invariants"]["state_counts_reconcile"]
+          print("R18_PRIVATE_ROOTCAUSE_SOURCE_PASS",x["game_id"],
+                "touches",x["summary"]["touches"],
+                "unknown_tracking",x["summary"]["r13_states"].get("UNKNOWN_TRACKING",0))
+          PY
+            FILE="game_$GID.json"
+            cp "$RUNNER_TEMP/result.json" "$RUNNER_TEMP/private-result-to-commit.json"
+          else
+            FILE="failure_$GID.json"
+            python3 - <<'PY'
+          import json,os,pathlib
+          t=pathlib.Path(os.environ["RUNNER_TEMP"])
+          p=t/"qa-stderr"
+          doc={"game_id":os.environ["GID"],"status":"FAILED_PRIVATE_ORIGINAL_SOURCE_REPLAY",
+               "stderr_private":p.read_text()[-15000:] if p.exists() else "UNKNOWN"}
+          (t/"private-result-to-commit.json").write_text(json.dumps(doc,sort_keys=True,indent=2)+"\n")
+          PY
+            echo R18_PRIVATE_SOURCE_REPLAY_FAILED_DETAILS_PRIVATE
+          fi
+          git fetch -q origin "$BRANCH"
+          git checkout -q -B qa-publish "origin/$BRANCH"
+          mkdir -p "$DEST_DIR"
+          cp "$RUNNER_TEMP/private-result-to-commit.json" "$DEST_DIR/$FILE"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$DEST_DIR/$FILE"
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo R18_PRIVATE_QA_ALREADY_PERSISTED
+          else
+            git commit -q -m "qa(private): source-graded R18 audit $GID [skip ci]"
+            complete=0
+            for n in 1 2 3 4 5; do
+              git fetch -q origin "$BRANCH"
+              git rebase -q "origin/$BRANCH"
+              if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+                complete=1
+                echo R18_PRIVATE_QA_RESULT_PERSISTED "$GID"
+                break
+              fi
+              sleep "$n"
+            done
+            test "$complete" -eq 1
+          fi
+          test "$FILE" = "game_$GID.json"
