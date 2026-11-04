@@ -20,7 +20,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-fc-roster-guard-devfour-20261104
-      PRIVATE_TASK_SOURCE_SHA: 541e2bc98b981ea3abfb0da208e6d99e06038647
+      PRIVATE_TASK_SOURCE_SHA: 020789da9eb9176e08f0bda45482a17fd52d3398
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
