@@ -42,7 +42,7 @@ jobs:
           test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PIN"
           cd "$RUNNER_TEMP/private"
           PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion python3 -B -m py_compile gamepulse/fusion/analysis/igp_full107_center_defensive_heatmaps_v1.py
-          PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion python3 -B gamepulse/fusion/analysis/igp_full107_center_defensive_heatmaps_v1.py --shard "$SHARD" --out "$RUNNER_TEMP/heatmap_{SHARD{'}'}.json" > "$RUNNER_TEMP/full107_center_heatmap_source.log"
+          PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion python3 -B gamepulse/fusion/analysis/igp_full107_center_defensive_heatmaps_v1.py --shard "$SHARD" --out "$RUNNER_TEMP/heatmap_$SHARD.json" > "$RUNNER_TEMP/full107_center_heatmap_source.log"
           python3 - <<'PY'
           import json,os,pathlib
           v=json.loads(pathlib.Path(os.environ['RUNNER_TEMP'],f"heatmap_{os.environ['SHARD']}.json").read_text())
