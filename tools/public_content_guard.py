@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-2025-26-public-source-preflight.yml",  # reviewed public HTTPS ZIP header probe only, no tracking data retained
+    ".github/workflows/gamepulse-2025-26-public-to-private-archive.yml",  # isolated public archive fetch and original-byte transfer to private release, aggregate log only
     ".github/workflows/full107-player-z-gravity-rank-crosscheck-20261105.yml",  # source-private original 107game gravity-shaped Z filter; aggregates only
     ".github/workflows/full107-player-z-rank-stability-20261105.yml",  # private-only derived Full107 Z player game bootstrap; no licensed XYZ in runner logs
     ".github/workflows/full107-player-z-gravity-ballistic-20261105.yml",  # vetted original NBA 15game gravity-shaped source QA; private positions only
