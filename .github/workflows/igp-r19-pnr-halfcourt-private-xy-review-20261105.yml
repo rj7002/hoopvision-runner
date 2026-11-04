@@ -1,0 +1,99 @@
+name: IGP R19 real NBA PNR halfcourt 5v5 ball review private
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-r19-pnr-halfcourt-private-xy-review-20261105.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  build-pnr-xy-packet:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: analysis/igp-r19-native-temporal-20261104
+      PIN: cda9c2bbe7940dfaaa9bc7b70b7907b8e39267ee
+      DEST: gamepulse/fusion/qa/analysis/igp_r19_pnr_halfcourt_real_xy_review_20261105
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Public content guard
+        run: python3 tools/public_content_guard.py
+      - name: Produce private actual NBA positions and source hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          git sparse-checkout set gamepulse/fusion gamepulse/coverage/rockets_0022600091
+          git fetch -q --depth=1 origin "$PIN"
+          git checkout -q --detach "$PIN"
+          test "$(git rev-parse HEAD)" = "$PIN"
+          export PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion
+          script=gamepulse/fusion/analysis/igp_r19_real_pnr_xy_review_export_v1.py
+          if python3 -B "$script" --root . --out "$RUNNER_TEMP/full_packet.json" > "$RUNNER_TEMP/progress.log" 2> "$RUNNER_TEMP/error.log"; then
+            python3 - <<'PY'
+          import json,os,pathlib,hashlib
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])
+          data=json.loads((root/'full_packet.json').read_bytes())
+          q=data['qa']
+          assert 6<=q['clips']<=8
+          assert q['frames']>=210
+          assert data['source_game_id']=='0022600091'
+          assert data['reviewer_labels_preexisting']==0
+          assert data['source_dataset_not_modified']
+          assert all(c['not_an_independently_verified_pick_and_roll'] for c in data['clips'])
+          assert all(c['not_a_certified_defensive_coverage_type'] for c in data['clips'])
+          d=root/'shards'
+          d.mkdir()
+          shas=[]
+          for i,clip in enumerate(data['clips'],1):
+            p=d/('clip_%02d.json'%i)
+            p.write_text(json.dumps(clip,sort_keys=True,separators=(',',':'))+'\n')
+            shas.append({'path':p.name,'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
+                         'clip_id':clip['id'],'frames':len(clip['frames']),
+                         'full_ten_ball':clip['counts'].get('ten_plus_ball',0)})
+          manifest={k:v for k,v in data.items() if k!='clips'}
+          manifest['shards']=shas
+          (d/'index_manifest.json').write_text(json.dumps(manifest,sort_keys=True,indent=2)+'\n')
+          print('R19_REAL_NBA_PNR_XY_PRIVATE_SOURCE_QA_PASS',
+                'clips',q['clips'],'frames',q['frames'],
+                'ten_ball',q['ten_plus_ball_frames'],'ball',q['ball_available_frames'])
+          PY
+          else
+            python3 - <<'PY'
+          import json,os,pathlib
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])
+          stderr=(root/'error.log').read_text()[-18000:]
+          (root/'error_private.json').write_text(json.dumps({
+            'status':'R19_REAL_SOURCE_PNR_CLIP_EXTRACTION_FAILED',
+            'private_error':stderr},sort_keys=True)+'\n')
+          PY
+            echo R19_PRIVATE_PNR_XY_ERROR_STORED_IN_PRIVATE_SOURCE_BRANCH
+            mkdir "$RUNNER_TEMP/shards"
+            cp "$RUNNER_TEMP/error_private.json" "$RUNNER_TEMP/shards/error_private.json"
+            FAILED=1
+          fi
+          git fetch -q origin "$PRIVATE_BRANCH"
+          git checkout -q -B qa-private "origin/$PRIVATE_BRANCH"
+          mkdir -p "$DEST"
+          cp "$RUNNER_TEMP/shards/"*.json "$DEST/"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$DEST"
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -q -m 'qa(private): source-locked real NBA 10+ball PNR coverage review XY [skip ci]'
+            done=0
+            for k in 1 2 3 4 5; do
+              git fetch -q origin "$PRIVATE_BRANCH"
+              git rebase -q "origin/$PRIVATE_BRANCH"
+              if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then done=1;break;fi
+              sleep "$k"
+            done
+            test "$done" = 1
+          fi
+          test "${FAILED:-0}" = 0
