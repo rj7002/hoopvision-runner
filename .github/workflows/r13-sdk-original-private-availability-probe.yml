@@ -1,0 +1,48 @@
+name: R13 original SDK release recovery probe - private auth only
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/r13-sdk-original-private-availability-probe.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-access:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Original license and bridge boundary
+        run: python3 tools/public_content_guard.py
+      - name: Rate quota and 13-part original release metadata probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          python3 - <<'PY'
+          import json,subprocess,datetime
+          def probe(args,kind):
+              p=subprocess.run(["gh","api",*args],capture_output=True,text=True)
+              if p.returncode:
+                  err=p.stderr.lower()
+                  grade="RATE_LIMIT" if "rate limit" in err else "FORBIDDEN" if "403" in err else "MISSING" if "404" in err else "OTHER"
+                  print(kind+"_RESULT="+grade)
+                  return
+              j=json.loads(p.stdout)
+              if kind=="R13_RATE":
+                  q=j["resources"]["core"]
+                  print("R13_RATE_LIMIT="+str(q.get("limit")))
+                  print("R13_RATE_REMAINING="+str(q.get("remaining")))
+                  print("R13_RATE_RESET_UTC="+datetime.datetime.fromtimestamp(q.get("reset"),datetime.timezone.utc).isoformat())
+              elif kind=="R13_RELEASE":
+                  assets=[a for a in j.get("assets",[]) if a.get("name","").startswith("sdk-part-") and a.get("name","").endswith(".tar.gz")]
+                  print("R13_ORIGINAL_SDK_13_PARTS_VISIBLE="+str(len(assets)))
+                  print("R13_ORIGINAL_RELEASE_ASSETS_WITH_SHA256="+str(sum(bool(a.get("digest","").startswith("sha256:")) for a in assets)))
+          probe(["rate_limit"],"R13_RATE")
+          probe(["repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-0022600112"],"R13_RELEASE")
+          PY
