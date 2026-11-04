@@ -8,7 +8,7 @@ on:
 permissions: {contents: read}
 concurrency:
   group: full107-center-defensive-paint-20261105
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   shards:
     runs-on: ubuntu-24.04
