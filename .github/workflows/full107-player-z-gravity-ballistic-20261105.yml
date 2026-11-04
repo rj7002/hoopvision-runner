@@ -1,5 +1,5 @@
 # Reviewed source-private physical gravity criterion; per-player/shot licensed geometry never exported.
-name: Full107 player Z original ballistic 15game heldout source test
+name: Full107 player Z original ballistic 15-game heldout source test
 on:
   push:
     branches: [main]
