@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-r19-human-review-13-private-20261104.yml",  # private original-source R19 vs 13 prior user-reviewed action-run QA; public counts only
+
     ".github/workflows/igp-r19-disagreement-forensics-private-20261104.yml",  # source SHA-reconciled R19 vs R13 disagreement forensic, private touch evidence, aggregate public metrics only
 
     ".github/workflows/igp-r19-native-source-private-replay-20261104.yml",  # SHA-pinned private Full81 native-source R19 replay; source XYZ and per-touch evidence remain private, public aggregate QA only
