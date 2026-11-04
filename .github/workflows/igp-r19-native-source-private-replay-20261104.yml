@@ -1,0 +1,178 @@
+# R19 native-first source audit. Licensed NBA coordinates and touch records
+# are read and persisted ONLY inside private timeedmonds-maker/104.
+name: R19 private native-first four-game double-team replay
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/igp-r19-native-source-private-replay-20261104.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  replay:
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        gid: ['0022600021','0022600091','0022600125','0022600138']
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: analysis/igp-r19-native-temporal-20261104
+      PIN: ec3eb0603b932841deb89c5852ee07b706440ba1
+      BUNDLE_SHA: f623015924448c39fed064515cf50ceeda28bdb4c1163615c278e112ab17ced2
+      GID: ${{ matrix.gid }}
+      DEST: gamepulse/fusion/qa/analysis/igp_r19_native_rebuild_20261104
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce public licensed source boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+      - name: Run exact private R19 source and save private QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          git sparse-checkout set gamepulse/fusion
+          git fetch -q --depth=1 origin "$PIN"
+          git checkout -q --detach "$PIN"
+          test "$(git rev-parse HEAD)" = "$PIN"
+          BASE=gamepulse/fusion/analysis
+          base64 -d "$BASE/igp_r19_v3_source_bundle.b64" > "$RUNNER_TEMP/r19-source.tar.xz"
+          echo "$BUNDLE_SHA  $RUNNER_TEMP/r19-source.tar.xz" | sha256sum -c -q
+          tar -xJf "$RUNNER_TEMP/r19-source.tar.xz" -C "$BASE"
+          export PYTHONPATH="$BASE:gamepulse/fusion"
+          RESULT="$RUNNER_TEMP/r19-result.json"
+          FAILED=0
+          if python3 -B "$BASE/igp_r19_engine.py" --selftest > "$RUNNER_TEMP/selftest.out" 2> "$RUNNER_TEMP/selftest.err" &&
+             python3 -B "$BASE/igp_r19_full81_original_bridge.py" --selftest > "$RUNNER_TEMP/bridge.out" 2> "$RUNNER_TEMP/bridge.err" &&
+             python3 -B -m unittest -q test_r19_engine test_r19_bridge_contract test_r19_reducer_contract > "$RUNNER_TEMP/tests.out" 2> "$RUNNER_TEMP/tests.err" &&
+             python3 -B "$BASE/igp_r19_full81_original_bridge.py" --root . --game-id "$GID" --out "$RESULT" > "$RUNNER_TEMP/qa.out" 2> "$RUNNER_TEMP/qa.err"; then
+            python3 - "$RESULT" <<'PY'
+          import json,os,sys
+          x=json.load(open(sys.argv[1]))
+          totals={'0022600021':465,'0022600091':510,'0022600125':537,'0022600138':479}
+          assert x['game_id']==os.environ['GID']
+          assert x['summary']['touches']==totals[os.environ['GID']]
+          assert x['summary']['native_records']==x['bridge_native_source_rows']
+          assert x['summary']['accepted_records']==x['bridge_model_source_rows']
+          assert x['summary']['default_engine_changed'] is False
+          assert x['summary']['public_release_permitted'] is False
+          assert x['accepted_model_quality_checks'].get('original_direct_player_mismatch',0)==0
+          assert x['accepted_model_quality_checks'].get('original_direct_ball_mismatch',0)==0
+          assert x['bridge_native_source_rows']==x['bridge_original_count_including_outside_strict'][1]
+          assert x['source_only_no_video_truth'] is True
+          print('R19_PRIVATE_SOURCE_QA_PASS',x['game_id'],
+                'touches',x['summary']['touches'],
+                'r19_states',x['summary']['state_counts'])
+          PY
+          else
+            FAILED=1
+            python3 - "$RESULT" <<'PY'
+          import json,os,sys,pathlib
+          base=pathlib.Path(os.environ['RUNNER_TEMP'])
+          err={}
+          for f in ('selftest.err','bridge.err','tests.err','qa.err'):
+              p=base/f
+              if p.is_file():err[f]=p.read_text()[-18000:]
+          pathlib.Path(sys.argv[1]).write_text(json.dumps({
+              'game_id':os.environ['GID'],
+              'status':'R19_PRIVATE_SOURCE_RUN_FAILED',
+              'private_error_details':err},sort_keys=True)+'\n')
+          PY
+            echo R19_SOURCE_FAILURE_SAVED_PRIVATELY
+          fi
+          cp "$RESULT" "$RUNNER_TEMP/retained_result.json"
+          git fetch -q origin "$PRIVATE_BRANCH"
+          git checkout -q -B qa-private "origin/$PRIVATE_BRANCH"
+          mkdir -p "$DEST"
+          if test "$FAILED" = 0; then
+            OUT="$DEST/game_$GID.json"
+          else
+            OUT="$DEST/failure_$GID.json"
+          fi
+          cp "$RUNNER_TEMP/retained_result.json" "$OUT"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$OUT"
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -q -m "qa(private): R19 10Hz plus native original replay $GID [skip ci]"
+            DONE=0
+            for k in 1 2 3 4 5; do
+              git fetch -q origin "$PRIVATE_BRANCH"
+              git rebase -q "origin/$PRIVATE_BRANCH"
+              if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+                DONE=1
+                break
+              fi
+              sleep "$k"
+            done
+            test "$DONE" = 1
+          fi
+          test "$FAILED" = 0
+  reduce:
+    needs: replay
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: analysis/igp-r19-native-temporal-20261104
+      BUNDLE_SHA: f623015924448c39fed064515cf50ceeda28bdb4c1163615c278e112ab17ced2
+      DEST: gamepulse/fusion/qa/analysis/igp_r19_native_rebuild_20261104
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify exact 1,991 source touches and save source-only QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          git sparse-checkout set gamepulse/fusion
+          BASE=gamepulse/fusion/analysis
+          base64 -d "$BASE/igp_r19_v3_source_bundle.b64" > "$RUNNER_TEMP/r19-source.tar.xz"
+          echo "$BUNDLE_SHA  $RUNNER_TEMP/r19-source.tar.xz" | sha256sum -c -q
+          tar -xJf "$RUNNER_TEMP/r19-source.tar.xz" -C "$BASE"
+          export PYTHONPATH="$BASE:gamepulse/fusion"
+          python3 -B "$BASE/igp_r19_private_fourgame_reducer_v2.py" --root . --out "$RUNNER_TEMP/four_game_crosswalk.json" > "$RUNNER_TEMP/reduce.out" 2> "$RUNNER_TEMP/reduce.err" || {
+            echo R19_PRIVATE_REDUCER_FAILED_DETAILS_REDACTED
+            exit 1
+          }
+          python3 - <<'PY'
+          import json,os,pathlib
+          d=json.loads((pathlib.Path(os.environ['RUNNER_TEMP'])/'four_game_crosswalk.json').read_bytes())
+          assert d['source_touches']==1991
+          assert d['four_game_population_complete'] is True
+          assert d['original_native_sha_conserved'] is True
+          assert d['production_promotion_allowed'] is False
+          print('R19_1991_TOUCH_PRIVATE_REDUCER_PASS',
+                'source_touches',d['source_touches'],
+                'R19_research_states',d['r19_reconciled_states'],
+                'source_native_frames',d['source_original_native_frames'])
+          PY
+          mkdir -p "$DEST"
+          cp "$RUNNER_TEMP/four_game_crosswalk.json" "$DEST/four_game_source_crosswalk_v3.json"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$DEST/four_game_source_crosswalk_v3.json"
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -q -m 'qa(private): R19 full four-game SHA touch crosswalk [skip ci]'
+            git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"
+          fi
