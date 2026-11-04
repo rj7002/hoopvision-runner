@@ -112,16 +112,6 @@ jobs:
           print('DURANT_THREE_DETERMINISTIC_PNG_SHAS',json.dumps(
             {k:v['sha256'] for k,v in d['image_sha256'].items()},sort_keys=True))
           PY
-      - name: Export rendered PNGs only as inspectable artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Durant-Full107-Shot-Tracker-PNGs
-          path: |
-            ${{ runner.temp }}/private/gamepulse/fusion/qa/durant_ft_full107/durant_full107_shot_tracker.png
-            ${{ runner.temp }}/private/gamepulse/fusion/qa/durant_ft_full107/durant_full107_side_view.png
-            ${{ runner.temp }}/private/gamepulse/fusion/qa/durant_ft_full107/durant_full107_birds_eye.png
-          if-no-files-found: error
-          retention-days: 30
       - name: Persist all source-derived QA and original CDN headshot to private 104
         run: |
           set -euo pipefail
