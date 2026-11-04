@@ -13,7 +13,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: analysis/igp-r19-native-temporal-20261104
-      PIN: 220a2978868a72428ffea746c9a1ab60dd0acca0
+      PIN: 6bc883144152da62e5cf003a72b601945fee45e3
       DEST: gamepulse/fusion/qa/analysis/igp_r19_pnr_halfcourt_real_xy_review_20261105
     steps:
       - uses: actions/checkout@v4
