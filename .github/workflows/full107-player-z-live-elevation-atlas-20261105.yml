@@ -45,6 +45,7 @@ jobs:
           if test ! -f gamepulse/fusion/qa/analysis/full107_player_z_live_elevation_atlas_v5_20261105.json; then
             python3 -B gamepulse/fusion/analysis/igp_full107_player_z_live_atlas_v5_20261105.py > "$RUNNER_TEMP/private-player-z-atlas.log" 2>&1 || {
               echo 'FULL107_PRIVATE_Z_ATLAS_VALIDATION_NOT_PASSED'
+              grep '^FULL107_SOURCE_ONLY_QA_FAILURE ' "$RUNNER_TEMP/private-player-z-atlas.log" || true
               python3 - <<'PY'
           import os,pathlib,re
           p=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-player-z-atlas.log"
