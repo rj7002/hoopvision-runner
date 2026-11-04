@@ -61,9 +61,9 @@ jobs:
           import json,hashlib,pathlib
           p=pathlib.Path('gamepulse/fusion/qa/durant_ft_full107/durant_free_throw_original_tracking_20261104.json')
           q=json.loads(p.read_text()); s=q['summary']
-          assert (s['total_attempts'],s['makes'],s['misses'],len(q['games']))==(61,50,11,8)
+          assert (s['total_attempts'],s['makes'],s['misses'],len(q['games']))==(61,51,10,8)
           print('DURANT_OFFICIAL_FT_LEDGER_PASS',json.dumps({
-            'attempts':61,'makes':50,'misses':11,'matched':s['shot_flights_matched'],
+            'attempts':61,'makes':51,'misses':10,'matched':s['shot_flights_matched'],
             'unresolved':s['missing_or_unresolved'],'sha256':hashlib.sha256(p.read_bytes()).hexdigest()}))
           PY
       - name: Analyze source, cross-game masked physics and all rim-plane models
@@ -81,7 +81,7 @@ jobs:
           import json,hashlib,pathlib
           p=pathlib.Path('gamepulse/fusion/qa/durant_ft_full107/durant_full107_shot_qa.json')
           x=json.loads(p.read_text())
-          assert (x['official_attempts'],x['makes'],x['misses'])==(61,50,11)
+          assert (x['official_attempts'],x['makes'],x['misses'])==(61,51,10)
           print('DURANT_PHYSICS_SOURCE_QA_PASS',json.dumps({
             'matched':x['matched_original_flights'],'rim_models':x['with_model_rim_plane'],
             'release_brackets':x['release_near_shooter_brackets'],
