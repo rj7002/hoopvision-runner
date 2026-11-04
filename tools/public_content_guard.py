@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    "tools/neilball_2025_26_public_archive_ingest.py",  # public-source byte conservation, JSONL QA and private-release staging only
     ".github/workflows/gamepulse-2025-26-public-source-preflight.yml",  # reviewed public HTTPS ZIP header probe only, no tracking data retained
     ".github/workflows/gamepulse-2025-26-public-to-private-archive.yml",  # isolated public archive fetch and original-byte transfer to private release, aggregate log only
     ".github/workflows/full107-player-z-gravity-rank-crosscheck-20261105.yml",  # source-private original 107game gravity-shaped Z filter; aggregates only
