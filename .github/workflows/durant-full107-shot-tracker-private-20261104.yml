@@ -54,18 +54,7 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           python3 gamepulse/fusion/durant_ft_full107_original_3d_v1.py > "$RUNNER_TEMP/durant-private-extract.log" 2>&1 || {
-            python3 - <<'PY'
-            from pathlib import Path
-            import re
-            data=Path(__import__('os').environ['RUNNER_TEMP'])/'durant-private-extract.log'
-            lines=data.read_text().splitlines()
-            last=lines[-1] if lines else 'UNKNOWN'
-            match=re.match(r'^(\\w+(?:Error|Exception))(?::([A-Z_]+))?',last)
-            code=match.group(1) if match else 'UNKNOWN_PYTHON_FAILURE'
-            reason=match.group(2) if match and match.group(2) else 'UNCLASSIFIED'
-            print('PRIVATE_DURANT_EXTRACT_ERROR_CLASS',code,'SAFE_REASON',reason,
-                  'FINISHED_GAME_SUMMARIES',sum('GAME_SUMMARY' in x for x in lines))
-            PY
+            python3 -c 'import pathlib,os,re; x=(pathlib.Path(os.environ["RUNNER_TEMP"])/"durant-private-extract.log").read_text().splitlines(); m=re.match(r"^([A-Za-z]+(?:Error|Exception))(?::([A-Z_]+))?", x[-1] if x else ""); print("PRIVATE_EXTRACT_SAFE_CLASS",m.group(1) if m else "UNKNOWN",m.group(2) if m and m.group(2) else "UNCLASSIFIED","COMPLETE_GAME_REPORTS",sum("GAME_SUMMARY" in a for a in x))'
             echo 'PRIVATE_DURANT_FT_EXTRACT_FAILED'; exit 1;
           }
           python3 - <<'PY'
