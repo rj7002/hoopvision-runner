@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/curry-full107-ft-window-expansion-private-20261104.yml",  # reviewed: six-game SHA-original Curry source pre/post FT window audit, no private coordinates public
     ".github/workflows/curry-full107-original-ft-private-20261104.yml",  # reviewed: SHA-native six-game Curry FT audit; private-only source and per-shot result, public aggregates only
     ".github/workflows/r13-fc-original-contact-ladder-private-20261104.yml",  # reviewed isolated source SHA pinned four-game R13 audit; private-only original NBA XYZ/results
     ".github/workflows/r13-github-official-touch-paired-private-20261104.yml",  # private SHA-pinned five-game R13 original-source evaluation; zero private tracking public
