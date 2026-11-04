@@ -1,5 +1,5 @@
-# Only 2ft binned aggregate position durations ever leave the protected source checkout.\n# Reviewed: original positions never leave private 104; no public source tracking artifacts.
-# Source result includes all 30 centre 2ft density maps and one POR-MIA comparison.\nname: Full107 all starting centres defensive position heatmaps
+# Source-verified Full107 2ft density and PNG outputs remain in the private repository.
+name: Full107 all30 defensive XY maps render private
 on:
   push:
     branches: [main]
@@ -7,77 +7,65 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
-  group: full107-starting-centre-heatmaps-20261105
+  group: full107-30-xy-render-private
   cancel-in-progress: true
 jobs:
-  aggregate:
+  render:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      max-parallel: 3
-      matrix:
-        shard: [0,1,2,3,4,5,6,7,8,9]
+    timeout-minutes: 45
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: analysis/full107-center-defensive-paint-20261105
-      PIN: 4dbe99fab4380635ddd5c4a7e63ff71fc75d0ce5
-      SHARD: ${{ matrix.shard }}
+      RENDERER_PIN: 2f3faefb8edfe9160aebec5825a4bbc7b5846940
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - run: python3 tools/public_content_guard.py
-      - name: Run SHA-verified original XYZ source, official starter and clock filters
+      - name: Public guard
+        run: python3 -m py_compile tools/public_content_guard.py && python3 tools/public_content_guard.py
+      - name: Source-derived deterministic PNG rendering in protected private clone
         shell: bash
         run: |
           set -euo pipefail
           test -n "$GH_TOKEN"
           gh auth setup-git
-          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
-          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PIN"
-          git -C "$RUNNER_TEMP/private" checkout -q --detach "$PIN"
-          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
-          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PIN"
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/analysis gamepulse/fusion/qa/analysis/full107_center_defensive_heatmaps_v1_20261105
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$RENDERER_PIN"
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$RENDERER_PIN"
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$RENDERER_PIN"
+          python3 -m pip -q install numpy matplotlib
           cd "$RUNNER_TEMP/private"
-          if test "$SHARD" = 9; then
-            PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion python3 -B gamepulse/fusion/analysis/igp_full107_starting_center_heatmap_v1.py --root . --shard 0 --shards 1 --teams POR,MIA --out "$RUNNER_TEMP/result.json"
-          else
-            PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion python3 -B gamepulse/fusion/analysis/igp_full107_starting_center_heatmap_v1.py --root . --shard "$SHARD" --shards 9 --out "$RUNNER_TEMP/result.json"
-          fi
-          python3 - <<'PY'
-          import json,os,pathlib
-          r=json.loads(pathlib.Path(os.environ['RUNNER_TEMP'],'result.json').read_bytes())
-          assert r['n_full107_games']==107 and r['raw_source_coordinates_exposed'] is False
-          assert len(r['rows'])==(2 if int(os.environ['SHARD'])==9 else 30)
-          for row in r['rows']:
-              assert len(row['grid_ms'])==24 and all(len(a)==25 for a in row['grid_ms'])
-              assert sum(map(sum,row['grid_ms']))==row['defensive_ms']
-          print('HEATMAP_SOURCE_AGGREGATE_VALIDATED',r['shard'],r['shards'],len(r['rows']))
-          PY
-      - name: Git-transport-only private aggregate publish (avoids exhausted REST quota)
+          base="gamepulse/fusion/qa/analysis/full107_center_defensive_heatmaps_v1_20261105"
+          python3 -B gamepulse/fusion/analysis/igp_full107_center_xy_30map_render_v1.py --input "$base/starting_centres_30team_heatmaps.json" --output-dir "$base/visuals"
+          test "$(find "$base/visuals/individual" -name '*.png' | wc -l)" -eq 30
+          test -s "$base/visuals/full107_all30_starting_center_xy.png"
+          test -s "$base/visuals/full107_clingan_bam_source_xy.png"
+          sha256sum "$base/visuals/full107_all30_starting_center_xy.png" "$base/visuals/full107_clingan_bam_source_xy.png"
+      - name: Publish all deterministic chart PNGs to protected private repository
         shell: bash
         run: |
           set -euo pipefail
-          source_dir="$RUNNER_TEMP/private"
-          if test "$SHARD" = 9; then name="headtohead_clingan_adebayo.json"; else name="shard_${SHARD}.json"; fi
-          dest="gamepulse/fusion/qa/analysis/full107_starting_centres_heatmaps_20261105/$name"
-          test -s "$RUNNER_TEMP/result.json"
-          uploaded=0
-          for attempt in $(seq 1 20); do
-            git -C "$source_dir" fetch -q --depth=1 origin "$PRIVATE_BRANCH"
-            git -C "$source_dir" checkout -q -B aggregate-upload FETCH_HEAD
-            mkdir -p "$source_dir/$(dirname "$dest")"
-            cp "$RUNNER_TEMP/result.json" "$source_dir/$dest"
-            git -C "$source_dir" add "$dest"
-            git -C "$source_dir" -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -qm "qa: source-verified NBA Full107 defensive position 2-foot aggregate $name" || true
-            if git -C "$source_dir" push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
-              uploaded=1
-              break
-            fi
-            sleep $(( 2 + attempt ))
+          cd "$RUNNER_TEMP/private"
+          base="gamepulse/fusion/qa/analysis/full107_center_defensive_heatmaps_v1_20261105"
+          git fetch -q origin "$PRIVATE_BRANCH"
+          git checkout -q -B release FETCH_HEAD
+          git config user.name "Integrated Pulse Source QA"
+          git config user.email "41882018272+source-qa@users.noreply.github.com"
+          git add "$base/visuals"
+          git commit -qm "viz: Full107 30 official starting centres original defensive-half position heatmaps"
+          success=0
+          for i in $(seq 1 16); do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            if ! git rebase "origin/$PRIVATE_BRANCH"; then git rebase --abort || true;exit 3;fi
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then success=1;break;fi
+            sleep $((2+i))
           done
-          test "$uploaded" = 1
-          git -C "$source_dir" fetch -q --depth=1 origin "$PRIVATE_BRANCH"
-          git -C "$source_dir" show "FETCH_HEAD:$dest" > "$RUNNER_TEMP/readback.json"
-          test "$(sha256sum "$RUNNER_TEMP/result.json" | cut -c1-64)" = "$(sha256sum "$RUNNER_TEMP/readback.json" | cut -c1-64)"
-          echo "PRIVATE_GIT_TRANSPORT_SHA256_VERIFIED $name"
+          test "$success" = 1
+          git fetch -q origin "$PRIVATE_BRANCH"
+          for name in full107_all30_starting_center_xy.png full107_clingan_bam_source_xy.png; do
+            file="$base/visuals/$name"
+            sha="$(sha256sum "$file" | cut -d' ' -f1)"
+            readback="$(git show "origin/$PRIVATE_BRANCH:$file" | sha256sum | cut -d' ' -f1)"
+            test "$sha" = "$readback"
+            echo "FULL107_PRIVATE_ORIGINAL_SOURCE_PNG_SHA_READBACK_OK $name $sha"
+          done
