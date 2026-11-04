@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-r19-native-source-private-replay-20261104.yml",  # SHA-pinned private Full81 native-source R19 replay; source XYZ and per-touch evidence remain private, public aggregate QA only
+
     ".github/workflows/full107-first81-r18-rootcause-private-source-20261104.yml",  # reviewed: four SHA-original source games, private-only per-touch evidence, aggregate-only public logs, nonpromotion
     ".github/workflows/durant-full107-ft-original-private-20261104.yml",  # reviewed: 8-game private SHA-original Durant P0 extraction; aggregate counts only public
     ".github/workflows/durant-full107-shot-tracker-private-20261104.yml",  # reviewed: private SHA-original Durant 8-game FT flight and P0 model; public PNG artifact only
