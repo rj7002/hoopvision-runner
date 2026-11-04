@@ -1,5 +1,5 @@
 # Original licensed XYZ not checked out; only QA on private derived player-game aggregates.
-name: Full107 player Z candidate leaderboard stability audit
+name: Full107 player Z candidate leaderboard stability audit v6
 on:
   push:
     branches: [main]
