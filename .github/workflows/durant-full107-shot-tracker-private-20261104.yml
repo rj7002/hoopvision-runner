@@ -135,6 +135,38 @@ jobs:
             'physical_accuracy_certified':False,
             'sha256':hashlib.sha256(p.read_bytes()).hexdigest()}))
           PY
+      - name: Audit physically impossible release fits and source-native flight-stage correction
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          import json,pathlib
+          root=pathlib.Path('gamepulse/fusion/qa/durant_ft_full107')
+          shots=json.loads((root/'durant_full107_shot_details_private.json').read_text())['shots']
+          qa=json.loads((root/'durant_full107_shot_qa.json').read_text())
+          assert len(shots)==61
+          assert all(s['release_height_ft'] is None for s in shots)
+          flagged=[s for s in shots if s.get('preflight_reclassified_source_frames',0)>0]
+          corrected={(s['game_id'],int(s['action_number'])):s for s in flagged}
+          for key in (('0022600021',223),('0022600138',387)):
+              assert key in corrected, 'MISSING_ORIGINAL_SOURCE_STAGE_CORRECTION'
+              s=corrected[key]
+              assert s['n_incoming_source']>=4
+              assert s['source_fit_rms_ft']<=.18
+              assert s['flight_stages']['original_candidate_rms_ft']>.32
+              assert s['flight_stages']['removed_original_preflight_count']>=1
+          print('DURANT_ORIGINAL_SOURCE_FLIGHT_STAGE_QA',json.dumps({
+            'official_attempts':len(shots),'reclassified_shots':len(flagged),
+            'removed_preflight_frames':qa['reclassified_original_preflight_frames'],
+            'full_source_candidates_preserved':qa['matched_original_flights'],
+            'user_outlier_geometry':[{
+              'game':k[0],'action':k[1],'old_fit_rms_ft':round(corrected[k]['flight_stages']['original_candidate_rms_ft'],3),
+              'new_fit_rms_ft':round(corrected[k]['source_fit_rms_ft'],3),
+              'new_modelled_rim_offset_in':round(corrected[k]['radial_in'],2)
+            } for k in (('0022600021',223),('0022600138',387))],
+            'physical_release_certified':False
+          },sort_keys=True))
+          PY
       - name: Render all three Matplotlib/Pillow charts twice with identical PNG SHA
         run: |
           set -euo pipefail
