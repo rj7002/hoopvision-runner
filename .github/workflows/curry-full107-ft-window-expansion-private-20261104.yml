@@ -1,4 +1,4 @@
-# Allowlisted private-only SHA-original Curry FT temporal window study. Public file is an opaque runner.
+# Allowlisted private-only SHA-original Curry FT temporal window study with adjacent source-frame evidence. Public file is an opaque runner.
 name: Curry Full107 52-shot earlier-later original frames study
 on:
   push:
