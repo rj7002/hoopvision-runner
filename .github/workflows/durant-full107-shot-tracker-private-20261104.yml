@@ -182,11 +182,12 @@ jobs:
           assert d['repeat_render_byte_identical'] and d['official_total']==61
           for key,f in [('main','durant_full107_shot_tracker.png'),
                         ('side_view','durant_full107_side_view.png'),
-                        ('birds_eye','durant_full107_birds_eye.png')]:
+                        ('birds_eye','durant_full107_birds_eye.png'),
+                        ('preview','durant_full107_shot_tracker_preview.png')]:
             b=(root/f).read_bytes()
             assert b[:8]==b'\x89PNG\r\n\x1a\n'
             assert hashlib.sha256(b).hexdigest()==d['image_sha256'][key]['sha256']
-          print('DURANT_THREE_DETERMINISTIC_PNG_SHAS',json.dumps(
+          print('DURANT_THREE_MASTER_PNGS_AND_PREVIEW_SHAS',json.dumps(
             {k:v['sha256'] for k,v in d['image_sha256'].items()},sort_keys=True))
           PY
       - name: Persist all source-derived QA and original CDN headshot to private 104
