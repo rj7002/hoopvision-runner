@@ -30,6 +30,7 @@ jobs:
           git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
             /gamepulse/fusion/analysis/igp_full107_player_z_airtime_calibration_pilot_20261105.py \
             /gamepulse/fusion/analysis/igp_full107_player_z_airtime_9game_shadow_v2_20261105.py \
+            /gamepulse/fusion/analysis/igp_full107_player_z_sampling_alignment_v3_20261105.py \
             /gamepulse/fusion/materialized/igp_all_original_xyz/0022600138/ \
             /gamepulse/fusion/materialized/igp_all_original_xyz/0022600139/ \
             /gamepulse/fusion/materialized/igp_all_original_xyz/0022600170/ \
@@ -127,6 +128,33 @@ jobs:
               'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
               'airtime_ground_truth':False},sort_keys=True))
           PY
+      - name: Independently diagnose original cadence and shot-to-frame match across nine games
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/analysis/igp_full107_player_z_sampling_alignment_v3_20261105.py
+          if test -f gamepulse/fusion/qa/analysis/full107_player_z_sampling_alignment_v3_20261105.json; then
+            echo FULL107_NATIVE_CADENCE_QA_EXISTING
+          else
+            python3 -B gamepulse/fusion/analysis/igp_full107_player_z_sampling_alignment_v3_20261105.py > "$RUNNER_TEMP/native-cadence-private.log" 2>&1 || {
+              echo 'NATIVE_CADENCE_AIRTIME_DIAGNOSTIC_FAILED; original source not logged'
+              tail -n 3 "$RUNNER_TEMP/native-cadence-private.log" | grep -E '^[A-Za-z]+Error:|^[A-Za-z]+Exception:' || true
+              exit 1
+            }
+          fi
+          python3 - <<'PY'
+          import json,hashlib,pathlib
+          p=pathlib.Path('gamepulse/fusion/qa/analysis/full107_player_z_sampling_alignment_v3_20261105.json')
+          q=json.loads(p.read_bytes());assert len(q['games'])==9 and q['game_airtime_not_validated']
+          print('FULL107_Z_NATIVE_CADENCE_SOURCE_QA',json.dumps({
+            'shooter':q['shooter'],'defender':q['defender'],
+            'bounded_episodes':q['bounded_shot_episode_n'],
+            'shooter_bound_lower_p50_s':q['bounded_shooter_duration_lower_p50_s'],
+            'shooter_bound_upper_p50_s':q['bounded_shooter_duration_upper_p50_s'],
+            'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
+            'physical_airtime_certified':False},sort_keys=True))
+          PY
       - name: Persist per-shot research observations only in private GitHub
         shell: bash
         run: |
@@ -136,6 +164,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_airtime_pilot_20261105.json
           git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_9game_shadow_v2_20261105.json
+          git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_sampling_alignment_v3_20261105.json
           git diff --cached --check
           if git diff --cached --quiet; then echo 'PLAYER_Z_RESEARCH_QA_ALREADY_PRESERVED'; exit 0; fi
           git commit -qm 'qa(private): original NBA player Z vs shot engineered jump P0'
