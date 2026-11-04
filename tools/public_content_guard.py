@@ -644,7 +644,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
-    ".github/workflows/full107-first81-doubleteam-audit-private-20261104.yml": "ba2e112cb04a6496f26a8eb2f650a6d5c7439493",  # reviewed SHA-pinned private-only first81 manifest/reference validation; aggregate public counters
+    ".github/workflows/full107-first81-doubleteam-audit-private-20261104.yml": "6714684763a643d138963e670bb4f8bf6a859f99",  # reviewed SHA-pinned private-only first81 manifest/reference validation; aggregate public counters
     ".github/workflows/nba-eason-0022600153-exact-action.yml": "5451e1d4731d4d7ad40186b36c30c64e89701896",  # reviewed immutable NBA public shot metadata and public replay locator only
     ".github/workflows/reed-0022600125-exact-action.yml": "1f039e96c534a7ea842e3053b6eb3b3d8fed041e",  # reviewed manual-only official public PBP, no signed media retrieval/persistence
     "reed_0022600125_official_action.json": "935a9ebcbe4177b8d642065e9392fc4f5952b069",  # immutable public NBA action metadata; hls_options empty, no signed URL
