@@ -29,15 +29,34 @@ jobs:
           git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
             /gamepulse/fusion/analysis/igp_full107_player_z_airtime_calibration_pilot_20261105.py \
+            /gamepulse/fusion/analysis/igp_full107_player_z_airtime_9game_shadow_v2_20261105.py \
             /gamepulse/fusion/materialized/igp_all_original_xyz/0022600138/ \
             /gamepulse/fusion/materialized/igp_all_original_xyz/0022600139/ \
             /gamepulse/fusion/materialized/igp_all_original_xyz/0022600170/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600171/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600167/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600153/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600147/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600137/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600136/ \
             /gamepulse/fusion/evidence/companion_sdk_original_0022600138/sdk_observed_original.json \
             /gamepulse/fusion/evidence/companion_sdk_original_0022600138/shotdetails_official_action_crosswalk_v1.json \
             /gamepulse/fusion/evidence/companion_sdk_original_0022600139/sdk_observed_original.json \
             /gamepulse/fusion/evidence/companion_sdk_original_0022600139/shotdetails_official_action_crosswalk_v1.json \
             /gamepulse/fusion/evidence/companion_sdk_original_0022600170/sdk_observed_original.json \
-            /gamepulse/fusion/evidence/companion_sdk_original_0022600170/shotdetails_official_action_crosswalk_v1.json
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600170/shotdetails_official_action_crosswalk_v1.json \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600171/sdk_observed_original.json \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600171/shotdetails_official_action_crosswalk_v1.json \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600167/sdk_observed_original.json \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600167/shotdetails_official_action_crosswalk_v1.json \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600153/sdk_observed_original.json \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600153/shotdetails_official_action_crosswalk_v1.json \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600147/sdk_observed_original.json \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600147/shotdetails_official_action_crosswalk_v1.json \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600137/sdk_observed_original.json \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600137/shotdetails_official_action_crosswalk_v1.json \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600136/sdk_observed_original.json \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600136/shotdetails_official_action_crosswalk_v1.json
           echo "PRIVATE_SOURCE_CHECKOUT_SHA_$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)"
       - name: Execute exact official-shot source join and original Z calibration privately
         shell: bash
@@ -45,10 +64,14 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           python3 -m py_compile gamepulse/fusion/analysis/igp_full107_player_z_airtime_calibration_pilot_20261105.py
-          python3 -B gamepulse/fusion/analysis/igp_full107_player_z_airtime_calibration_pilot_20261105.py > "$RUNNER_TEMP/private-calibration.log" 2>&1 || {
+          if test -f gamepulse/fusion/qa/analysis/full107_player_z_airtime_pilot_20261105.json; then
+            echo "P0_PRIVATE_SHA_EXISTING_ACCEPTED"
+          else
+            python3 -B gamepulse/fusion/analysis/igp_full107_player_z_airtime_calibration_pilot_20261105.py > "$RUNNER_TEMP/private-calibration.log" 2>&1 || {
             echo 'PRIVATE_PLAYER_Z_POSE_CALIBRATION_FAILED; proprietary coordinates suppressed'
             exit 1
-          }
+            }
+          fi
           python3 - <<'PY'
           import json,hashlib,pathlib
           p=pathlib.Path('gamepulse/fusion/qa/analysis/full107_player_z_airtime_pilot_20261105.json')
@@ -67,6 +90,43 @@ jobs:
              'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
              'physical_foot_contact_certified':False},sort_keys=True))
           PY
+      - name: Run 9-game held-out shooter defender calibration plus continuous Z elevation shadow
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/analysis/igp_full107_player_z_airtime_9game_shadow_v2_20261105.py
+          if test -f gamepulse/fusion/qa/analysis/full107_player_z_9game_shadow_v2_20261105.json; then
+            echo NINE_GAME_RESEARCH_QA_EXISTING
+          else
+            python3 -B gamepulse/fusion/analysis/igp_full107_player_z_airtime_9game_shadow_v2_20261105.py > "$RUNNER_TEMP/ninegame-research-private.log" 2>&1 || {
+              echo 'PRIVATE_NINE_GAME_Z_CONTINUOUS_RESEARCH_FAILED; licensed source withheld'
+              tail -n 4 "$RUNNER_TEMP/ninegame-research-private.log" | grep -E '^[A-Za-z]+Error:|^[A-Za-z]+Exception:' || true
+              exit 1
+            }
+          fi
+          python3 - <<'PY'
+          import json,hashlib,pathlib
+          p=pathlib.Path('gamepulse/fusion/qa/analysis/full107_player_z_9game_shadow_v2_20261105.json')
+          d=json.loads(p.read_bytes())
+          assert d['population_games']==9 and not d['certified_player_airtime_leaderboard']
+          assert d['continuous_Z_is_body_elevation_not_ground_contact']
+          for actor in ['shooter','defender']:
+            q=d['shots'][actor]
+            assert q['n']>100 and q['leave_one_game_out_regression']['heldout_games']>=8
+          print('FULL107_NINE_GAME_Z_CONTINUOUS_RESEARCH_SHADOW',json.dumps({
+              'games':9,'shot_source_compares':{a:{'n':q['n'],
+                 'Pearson_r':round(q['release_pearson'],4),
+                 'heldout_p50_feature_error':round(q['leave_one_game_out_regression']['pooled_median_abs_error_feature_units'],3),
+                 'heldout_games':q['leave_one_game_out_regression']['heldout_games'],
+                 'source_high_recall':q['leave_one_game_out_high_low_classifier']['heldout_high_recall'],
+                 'source_low_specificity':q['leave_one_game_out_high_low_classifier']['heldout_low_specificity']}
+                 for a,q in d['shots'].items()},
+              'continuous_event_anchor':d['shot_anchor_continuous'],
+              'candidate_elevation_episode_counts':{k:v['episodes'] for k,v in d['continuous'].items()},
+              'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
+              'airtime_ground_truth':False},sort_keys=True))
+          PY
       - name: Persist per-shot research observations only in private GitHub
         shell: bash
         run: |
@@ -75,6 +135,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_airtime_pilot_20261105.json
+          git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_9game_shadow_v2_20261105.json
           git diff --cached --check
           if git diff --cached --quiet; then echo 'PLAYER_Z_RESEARCH_QA_ALREADY_PRESERVED'; exit 0; fi
           git commit -qm 'qa(private): original NBA player Z vs shot engineered jump P0'
