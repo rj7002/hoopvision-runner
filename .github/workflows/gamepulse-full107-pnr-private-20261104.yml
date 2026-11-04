@@ -8,7 +8,7 @@ on:
 permissions: {contents: read}
 concurrency:
   group: igp-full107-pnr-original-private-cpu-20261104
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   controls:
     runs-on: ubuntu-24.04
