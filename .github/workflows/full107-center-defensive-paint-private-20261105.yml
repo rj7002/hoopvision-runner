@@ -22,7 +22,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       SHARD: ${{ matrix.shard }}
       PRIVATE_BRANCH: analysis/full107-center-defensive-paint-20261105
-      PIN: da5c634cf2ae0ee52e814e5dfdeb92f8a7afe98a
+      PIN: b4ae8466432130093b79418c5f4db73560faaf16
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
