@@ -61,7 +61,7 @@ jobs:
           raw=pathlib.Path(os.environ['RUNNER_TEMP'],'result.json').read_bytes()
           target=f'repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/full107_center_defensive_paint_20261105/shard_{shard}.json'
           for trial in range(15):
-              existing=subprocess.run(['gh','api',target,'-f',f'ref={private}'],text=True,capture_output=True)
+              existing=subprocess.run(['gh','api',target+'?ref='+private],text=True,capture_output=True)
               p={'branch':private,'message':f'data: Full107 NBA source-direct defensive center paint shard {shard}',
                  'content':base64.b64encode(raw).decode()}
               if existing.returncode==0:p['sha']=json.loads(existing.stdout)['sha']
@@ -71,7 +71,7 @@ jobs:
               if not any(x in result.stderr for x in ('409','422','429','500','502','503')):raise RuntimeError(result.stderr[:400])
               time.sleep(min(3+trial,15))
           else:raise RuntimeError('PRIVATE_SHARD_WRITE_RETRIES_EXHAUSTED')
-          receipt=subprocess.check_output(['gh','api',target,'-f',f'ref={private}','--jq','.content'],timeout=60)
+          receipt=subprocess.check_output(['gh','api',target+'?ref='+private,'--jq','.content'],timeout=60)
           got=base64.b64decode(receipt)
           assert hashlib.sha256(raw).hexdigest()==hashlib.sha256(got).hexdigest()
           print('PRIVATE_SOURCE_CENTRE_PAINT_SHARD_SHA_READBACK_VERIFIED',shard)
@@ -98,7 +98,7 @@ jobs:
           docs=[]
           for shard in range(9):
               target=f'repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/full107_center_defensive_paint_20261105/shard_{shard}.json'
-              c=subprocess.check_output(['gh','api',target,'-f',f'ref={private}','--jq','.content'],timeout=90)
+              c=subprocess.check_output(['gh','api',target+'?ref='+private,'--jq','.content'],timeout=90)
               obj=json.loads(base64.b64decode(c))
               assert obj['shard']==shard and obj['shards']==9 and obj['processed_games']==len(obj['selected_games'])
               docs.append(obj)
@@ -147,7 +147,7 @@ jobs:
           raw=(json.dumps(leaderboard,sort_keys=True,separators=(',',':'))+'\n').encode()
           target='repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/full107_center_defensive_paint_20261105/leaderboard.json'
           for trial in range(15):
-              old=subprocess.run(['gh','api',target,'-f',f'ref={private}'],text=True,capture_output=True)
+              old=subprocess.run(['gh','api',target+'?ref='+private],text=True,capture_output=True)
               payload={'branch':private,'message':'qa: publish reproducible Full107 defensive-center paint leaderboard','content':base64.b64encode(raw).decode()}
               if old.returncode==0:payload['sha']=json.loads(old.stdout)['sha']
               elif '404' not in old.stderr and 'Not Found' not in old.stderr:raise RuntimeError(old.stderr)
@@ -156,7 +156,7 @@ jobs:
               if not any(e in updated.stderr for e in ('409','422','429','500','502','503')):raise RuntimeError(updated.stderr[:400])
               time.sleep(min(3+trial,15))
           else:raise RuntimeError('LEADERBOARD_PUBLISH_RETRY_EXHAUSTED')
-          downloaded=base64.b64decode(subprocess.check_output(['gh','api',target,'-f',f'ref={private}','--jq','.content'],timeout=60))
+          downloaded=base64.b64decode(subprocess.check_output(['gh','api',target+'?ref='+private,'--jq','.content'],timeout=60))
           assert hashlib.sha256(downloaded).hexdigest()==hashlib.sha256(raw).hexdigest()
           print('FULL107_CENTER_PAINT_FINAL_SOURCE_HASH_VERIFIED',hashlib.sha256(raw).hexdigest(),'qualified',len(qualified))
           PY
