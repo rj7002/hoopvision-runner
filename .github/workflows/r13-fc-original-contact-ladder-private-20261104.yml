@@ -1,4 +1,4 @@
-name: R13 v2 source-consensus eight-variant development on exposed NBA four
+name: R13 second frozen 4 untouched NBA shot touch V2 3-frame source consensus
 on:
   push:
     branches: [main]
@@ -14,34 +14,58 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        game: ['0022600112','0022600113','0022600114','0022600115']
+        game: ['0022600116','0022600117','0022600118','0022600119']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: research/r13-shot-terminal-source-consensus-v2-20261104
+      PRIVATE_TASK_SOURCE_SHA: bed86fa79a5d8db3e12b828491d93cab10232721
       R13_GAME_ID: ${{ matrix.game }}
-      PRIVATE_TASK_SOURCE_SHA: 8e75fa802b6d648f6214a43fe5cba9ea34a86c6c
-      R13_V2_MODULE_BLOB: 0d43315e8c3395291063fafd5e8ea325d47b5aad
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Validate public-to-private data boundary
+      - name: Verify public-content boundary
         run: python3 tools/public_content_guard.py
-      - name: Verify immutable original sources and evaluate shadow candidates
+      - name: Recover original 13-part SDK labels and execute frozen SHA-pinned challenger privately
         shell: bash
         run: |
           set -euo pipefail
           test -n "$GH_TOKEN"
           gh auth setup-git
-          root="$RUNNER_TEMP/r13-v2-private-research"
-          git clone -q --filter=blob:none --depth=1 --no-checkout -b research/r13-shot-terminal-source-consensus-v2-20261104 https://github.com/timeedmonds-maker/104.git "$root"
-          for sha in 622de5c2d754f97193acfbdddac6bd886a206637 231448fa9065c380504d13627fba022861e59b8b 8e75fa802b6d648f6214a43fe5cba9ea34a86c6c; do
-            git -C "$root" fetch -q --filter=blob:none --depth=1 origin "$sha"
-          done
-          p="gamepulse/fusion/analysis/r13_shot_source_consensus_dev4_git_replay_v1.py"
-          test "$(git -C "$root" rev-parse "8e75fa802b6d648f6214a43fe5cba9ea34a86c6c:$p")" = "0c65a04ad32541a8ec82cd37ae2492f0da195659"
-          git -C "$root" show "8e75fa802b6d648f6214a43fe5cba9ea34a86c6c:$p" > "$RUNNER_TEMP/r13_v2_dev.py"
-          export R13_PRIVATE_GIT_ROOT="$root"
-          cd "$RUNNER_TEMP"
-          python3 -m py_compile ./r13_v2_dev.py
-          python3 ./r13_v2_dev.py
-          echo "R13_V2_NATIVE_SOURCE_DEVELOPMENT_COMPLETE game=$R13_GAME_ID"
+          root="$RUNNER_TEMP/r13-independent-original"
+          git clone -q --filter=blob:none --depth=1 --no-checkout -b "$PRIVATE_BRANCH" "https://github.com/$PRIVATE_REPO.git" "$root"
+          script_path="gamepulse/fusion/analysis/r13_shot_source_consensus_fresh4_private_replay_v1.py"
+          expected_blob="ce60b70ea09b6425fc27a763c59a1366642ab2ad"
+          test "$(git -C "$root" rev-parse "HEAD:$script_path")" = "$expected_blob"
+          work="$RUNNER_TEMP/r13-frozen-$R13_GAME_ID"
+          mkdir -p "$work"
+          git -C "$root" show "HEAD:$script_path" > "$work/replay.py"
+          cd "$work"
+          python3 -m py_compile ./replay.py
+          if python3 ./replay.py > run.stdout 2> run.stderr; then
+            echo "R13_V2_SECOND_FOUR_ORIGINAL_SDK_REPLAY_COMPLETE game=$R13_GAME_ID"
+          else
+            python3 - <<'PY'
+          import base64,json,os,subprocess,time
+          repo=os.environ["PRIVATE_REPO"];branch=os.environ["PRIVATE_BRANCH"]
+          gid=os.environ["R13_GAME_ID"]
+          path="gamepulse/fusion/qa/r13_shot_source_consensus_v2_20261104/private_failure_"+gid+".json"
+          payload={"game_id":gid,"source_pin":os.environ["PRIVATE_TASK_SOURCE_SHA"],
+              "stderr_tail":open("run.stderr").read()[-15000:],
+              "stdout_tail":open("run.stdout").read()[-3500:],
+              "private_source_not_exported":True}
+          body={"branch":branch,"message":"qa(private): frozen original SDK runner diagnostics [skip ci]",
+                "content":base64.b64encode((json.dumps(payload,sort_keys=True,indent=2)+"\\n").encode()).decode()}
+          endpoint=f"repos/{repo}/contents/{path}"
+          for i in range(10):
+              get=subprocess.run(["gh","api",endpoint+"?ref="+branch],capture_output=True,text=True)
+              if get.returncode==0:body["sha"]=json.loads(get.stdout)["sha"]
+              out=subprocess.run(["gh","api","-X","PUT",endpoint,"--input","-"],
+                    input=json.dumps(body),capture_output=True,text=True)
+              if out.returncode==0:break
+              time.sleep(1+i)
+          print("R13_V2_FRESH4_SOURCE_REPLAY_PRIVATE_DIAGNOSTIC game="+gid)
+          PY
+            exit 1
+          fi
