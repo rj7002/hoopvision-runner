@@ -1,0 +1,186 @@
+# Reviewed source-first 26-game official NBA lineup reconstruction. No public private data.
+name: Full107 V3 all-26 original NBA ten lineup PNR QA
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/gamepulse-full107-pnr-v3-late26-original-ten-20261104.yml
+      - tools/public_content_guard.py
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: full107-pnr-v3-late26-original-ten
+  cancel-in-progress: true
+jobs:
+  controls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PIN: fc76c4f5e49d29c53b43938477d1a6c9bbf3a149
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: python3 tools/public_content_guard.py
+      - name: Pinned source-free Full107 V2 and official-ten V3 module tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone --quiet --filter=blob:none --depth=1 --sparse -b research/full107-pick-pair-detector-20261104 \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PIN"
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$PIN"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/analysis
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PIN"
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion/analysis
+          python3 -B -m unittest -q \
+             gamepulse/fusion/analysis/test_igp_full107_pnr_detector_v1.py \
+             gamepulse/fusion/analysis/test_igp_full107_pnr_detector_v2.py \
+             gamepulse/fusion/analysis/test_igp_full107_pnr_outcomes_v2.py
+          python3 -B -m py_compile gamepulse/fusion/analysis/igp_full107_pnr_late26_all_source_lineup_v3.py
+          echo FULL107_V3_SOURCE_INTEGRITY_AND_SYNTHETIC_TESTS_PASS
+  shards:
+    needs: [controls]
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        shard: [0,1,2,3]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 85
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PIN: fc76c4f5e49d29c53b43938477d1a6c9bbf3a149
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: research/full107-pick-pair-detector-20261104
+      DEST: gamepulse/fusion/qa/analysis/full107_pnr_v3_26game_source_20261104
+      SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: python3 tools/public_content_guard.py
+      - name: Compare original SDK every frame under no-window and official-ten contexts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone --quiet --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PIN"
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$PIN"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PIN"
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion
+          python3 -B gamepulse/fusion/analysis/igp_full107_pnr_late26_all_source_lineup_v3.py \
+            --root . --shard "$SHARD" --shards 4 --out "$RUNNER_TEMP/result.json" \
+            > "$RUNNER_TEMP/PRIVATE_SOURCE_QA_DONOTPRINT.log"
+          python3 - <<'PY'
+          import pathlib,json,os
+          v=json.loads(pathlib.Path(os.environ['RUNNER_TEMP'],'result.json').read_bytes())
+          assert v['shard']==int(os.environ['SHARD'])
+          assert v['games_count']==len(v['selected_games'])
+          assert v['first81_frozen_unchanged'] and v['original_native_sha_preserved']
+          assert not v['publishing_allowed']
+          print('LATE26_SOURCE_SHA_V3_COMPARE_PASS',v['shard'],'games',v['games_count'],
+                'v2',v['grade_counts']['native_v2_candidates'],
+                'v3',v['grade_counts']['official_ten_v3_candidates'])
+          PY
+      - name: Write source QA exclusively to authenticated private 104
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,json,os,subprocess,time,pathlib
+          repo=os.environ['PRIVATE_REPO'];branch=os.environ['PRIVATE_BRANCH'];shard=os.environ['SHARD']
+          url=f'repos/{repo}/contents/{os.environ["DEST"]}/shard_{shard}.json'
+          body={'branch':branch,'message':'qa(private): Full107 26-game original ten v3 shard '+shard+' [skip ci]',
+                'content':base64.b64encode(pathlib.Path(os.environ['RUNNER_TEMP'],'result.json').read_bytes()).decode()}
+          for n in range(20):
+              old=subprocess.run(['gh','api',url+'?ref='+branch],capture_output=True,text=True)
+              data=dict(body)
+              if old.returncode==0:data['sha']=json.loads(old.stdout)['sha']
+              ok=subprocess.run(['gh','api','-X','PUT',url,'--input','-'],input=json.dumps(data),capture_output=True,text=True)
+              if ok.returncode==0:
+                  print('LATE26_V3_PRIVATE_QA_PERSISTED',shard)
+                  break
+              time.sleep(2+n)
+          else:raise RuntimeError('PRIVATE_V3_LATE26_PERSISTENCE_FAILED')
+          PY
+  reduce:
+    needs: [controls, shards]
+    if: success()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/full107-pick-pair-detector-20261104
+      PRIVATE_REPO: timeedmonds-maker/104
+      DEST: gamepulse/fusion/qa/analysis/full107_pnr_v3_26game_source_20261104
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: python3 tools/public_content_guard.py
+      - name: Conserve 26 additive original manifests and unchanged first81 V2 baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone --quiet --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/qa/analysis/full107_pnr_v3_26game_source_20261104
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          import json,pathlib,collections,hashlib,os,base64,subprocess,time
+          root=pathlib.Path(os.environ['DEST'])
+          data=[json.loads((root/f'shard_{i}.json').read_bytes()) for i in range(4)]
+          ids=data[0]['late26_exact'];allids=data[0]['cohort_107']
+          assert len(ids)==26 and len(set(ids))==26 and len(allids)==107
+          assert all(d['late26_exact']==ids and d['cohort_107']==allids for d in data)
+          seen=set();t=collections.Counter();games={}
+          for i,d in enumerate(data):
+              assert d['shard']==i and d['shards']==4 and d['games_count']==len(d['per_game'])
+              assert not d['publishing_allowed'] and d['first81_frozen_unchanged']
+              assert not seen.intersection(d['per_game']);seen.update(d['per_game'])
+              t.update(d['grade_counts'])
+              games.update({gid:{'native_manifest_sha256':r['original_sha256'],
+                   'strict_window_count':r['strict_official_ten_windows'],
+                   'strict_window_fraction':r['strict_window_fraction'],
+                   'v2_candidate_count':r['old_v2_candidates'],
+                   'v3_candidate_count':r['with_official_windows_v2_candidates']}
+                   for gid,r in d['per_game'].items()})
+          assert seen==set(ids)
+          assert t['original_frames']>t['new_strict_ten_frames']>0
+          v3_total=18332-t['native_v2_candidates']+t['official_ten_v3_candidates']
+          strong_total=3645-t['native_v2_strong']+t['official_ten_v3_strong']
+          report={'schema':'igp.full107.pnr.v3.late26_original_ten_paired_QA',
+             'original_source_games':107,'first81_unchanged':True,'late26':26,
+             'native_original_sha256':games,'per_26_source_count':dict(t),
+             'new_official_pbp_ten_frames_pct':round(100*t['new_strict_ten_frames']/t['original_frames'],4),
+             'v2_frozen_candidate_count_all107':18332,'v3_lineup_context_candidate_count_all107':v3_total,
+             'v2_frozen_strong_all107':3645,'v3_lineup_context_strong_all107':strong_total,
+             'physical_ball_screen_accuracy_certified':False,
+             'source_original_mutated':False,'provider_direct_equivalent':False,
+             'promote_pick_detector_to_default':False}
+          b=(json.dumps(report,sort_keys=True,separators=(',',':'))+'\n').encode()
+          url=f'repos/{os.environ["PRIVATE_REPO"]}/contents/{os.environ["DEST"]}/full107_v3_late26_source_qa.json'
+          body={'branch':os.environ['PRIVATE_BRANCH'],'message':'qa(private): Full107 26-game official-ten paired source reduction [skip ci]',
+                'content':base64.b64encode(b).decode()}
+          for trial in range(20):
+              old=subprocess.run(['gh','api',url+'?ref='+os.environ['PRIVATE_BRANCH']],capture_output=True,text=True)
+              req=dict(body)
+              if old.returncode==0:req['sha']=json.loads(old.stdout)['sha']
+              done=subprocess.run(['gh','api','-X','PUT',url,'--input','-'],input=json.dumps(req),capture_output=True,text=True)
+              if done.returncode==0:break
+              time.sleep(2+trial)
+          else:raise RuntimeError('PRIVATE_V3_26_REDUCER_WRITE_FAILED')
+          print('FULL107_V3_LATE26_SOURCE_QA_ACCEPTED','all107',107,'late26',26,
+                'strict_frames',t['new_strict_ten_frames'],'original_frames',t['original_frames'],
+                'v2',18332,'v3',v3_total,'strong_v2',3645,'strong_v3',strong_total,
+                'independent_screen_accuracy','UNKNOWN')
+          PY
