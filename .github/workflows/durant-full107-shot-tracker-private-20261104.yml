@@ -1,0 +1,145 @@
+name: Durant Full107 original free throws and deterministic figures
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/durant-full107-shot-tracker-private-20261104.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: durant-full107-ft-private-20261104
+  cancel-in-progress: false
+jobs:
+  source-physics-render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    env:
+      GH_TOKEN: \${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/full107-durant-ft-shot-tracker-20261104
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Public source guard and private checkout
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
+            /gamepulse/fusion/durant_ft_full107_original_3d_v1.py \
+            /gamepulse/fusion/durant_ft_full107_source_physics_v1.py \
+            /gamepulse/fusion/durant_ft_full107_deterministic_renderer_v1.py \
+            /gamepulse/fusion/official_pbp_timing/games/0022600091.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600009.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600107.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600125.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600138.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600021.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600153.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600167.json \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600091/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600009/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600107/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600125/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600138/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600021/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600153/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600167/
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/durant_ft_full107_original_3d_v1.py \
+            gamepulse/fusion/durant_ft_full107_source_physics_v1.py \
+            gamepulse/fusion/durant_ft_full107_deterministic_renderer_v1.py
+      - name: Extract SHA-original Durant source and all official FT outcomes
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 gamepulse/fusion/durant_ft_full107_original_3d_v1.py > "$RUNNER_TEMP/durant-private-extract.log" 2>&1 || {
+            echo 'PRIVATE_DURANT_FT_EXTRACT_FAILED'; exit 1;
+          }
+          python3 - <<'PY'
+          import json,hashlib,pathlib
+          p=pathlib.Path('gamepulse/fusion/qa/durant_ft_full107/durant_free_throw_original_tracking_20261104.json')
+          q=json.loads(p.read_text()); s=q['summary']
+          assert (s['total_attempts'],s['makes'],s['misses'],len(q['games']))==(61,50,11,8)
+          print('DURANT_OFFICIAL_FT_LEDGER_PASS',json.dumps({
+            'attempts':61,'makes':50,'misses':11,'matched':s['shot_flights_matched'],
+            'unresolved':s['missing_or_unresolved'],'sha256':hashlib.sha256(p.read_bytes()).hexdigest()}))
+          PY
+      - name: Analyze source, cross-game masked physics and all rim-plane models
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/durant-venv"
+          "$RUNNER_TEMP/durant-venv/bin/pip" --disable-pip-version-check -q install \
+            'numpy==2.2.6' 'matplotlib==3.10.3' 'Pillow==11.3.0'
+          cd "$RUNNER_TEMP/private"
+          "$RUNNER_TEMP/durant-venv/bin/python" gamepulse/fusion/durant_ft_full107_source_physics_v1.py \
+            > "$RUNNER_TEMP/durant-private-physics.log" 2>&1 || {
+            echo 'PRIVATE_DURANT_FT_PHYSICS_FAILED'; exit 1;
+          }
+          python3 - <<'PY'
+          import json,hashlib,pathlib
+          p=pathlib.Path('gamepulse/fusion/qa/durant_ft_full107/durant_full107_shot_qa.json')
+          x=json.loads(p.read_text())
+          assert (x['official_attempts'],x['makes'],x['misses'])==(61,50,11)
+          print('DURANT_PHYSICS_SOURCE_QA_PASS',json.dumps({
+            'matched':x['matched_original_flights'],'rim_models':x['with_model_rim_plane'],
+            'release_brackets':x['release_near_shooter_brackets'],
+            'masked_frames':x['masked_frame_count'],
+            'fixed_p50_ft':x['masked_original_3d_error_ft_fixed']['p50'],
+            'crossgame_p50_ft':x['masked_original_3d_error_ft_game_disjoint']['p50'],
+            'physical_accuracy_certified':False,
+            'sha256':hashlib.sha256(p.read_bytes()).hexdigest()}))
+          PY
+      - name: Render all three Matplotlib/Pillow charts twice with identical PNG SHA
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          "$RUNNER_TEMP/durant-venv/bin/python" gamepulse/fusion/durant_ft_full107_deterministic_renderer_v1.py \
+            > "$RUNNER_TEMP/durant-private-render.log" 2>&1 || {
+            echo 'PRIVATE_DURANT_FT_RENDER_FAILED'; exit 1;
+          }
+          python3 - <<'PY'
+          import json,hashlib,pathlib
+          root=pathlib.Path('gamepulse/fusion/qa/durant_ft_full107')
+          d=json.loads((root/'durant_full107_render_manifest.json').read_text())
+          assert d['repeat_render_byte_identical'] and d['official_total']==61
+          for key,f in [('main','durant_full107_shot_tracker.png'),
+                        ('side_view','durant_full107_side_view.png'),
+                        ('birds_eye','durant_full107_birds_eye.png')]:
+            b=(root/f).read_bytes()
+            assert b[:8]==b'\x89PNG\r\n\x1a\n'
+            assert hashlib.sha256(b).hexdigest()==d['image_sha256'][key]['sha256']
+          print('DURANT_THREE_DETERMINISTIC_PNG_SHAS',json.dumps(
+            {k:v['sha256'] for k,v in d['image_sha256'].items()},sort_keys=True))
+          PY
+      - name: Export rendered PNGs only as inspectable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Durant-Full107-Shot-Tracker-PNGs
+          path: |
+            \${{ runner.temp }}/private/gamepulse/fusion/qa/durant_ft_full107/durant_full107_shot_tracker.png
+            \${{ runner.temp }}/private/gamepulse/fusion/qa/durant_ft_full107/durant_full107_side_view.png
+            \${{ runner.temp }}/private/gamepulse/fusion/qa/durant_ft_full107/durant_full107_birds_eye.png
+          if-no-files-found: error
+          retention-days: 30
+      - name: Persist all source-derived QA and original CDN headshot to private 104
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f gamepulse/fusion/qa/durant_ft_full107/
+          git diff --cached --check
+          if git diff --cached --quiet; then echo 'DURANT_QA_UNCHANGED'; exit 0; fi
+          git commit -qm 'qa(private): Full107 Durant original-source FT trajectory figures and QA'
+          gh auth setup-git
+          for attempt in 1 2 3 4; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo "DURANT_PRIVATE_SOURCE_QA_COMMIT_$(git rev-parse HEAD)"
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 31
