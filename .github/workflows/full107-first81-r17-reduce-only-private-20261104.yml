@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/full107-first81-r17-reduce-only-private-20261104.yml'
+      - 'tools/public_content_guard.py'
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
