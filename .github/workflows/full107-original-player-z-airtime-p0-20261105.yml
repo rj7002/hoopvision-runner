@@ -31,6 +31,10 @@ jobs:
             /gamepulse/fusion/analysis/igp_full107_player_z_airtime_calibration_pilot_20261105.py \
             /gamepulse/fusion/analysis/igp_full107_player_z_airtime_9game_shadow_v2_20261105.py \
             /gamepulse/fusion/analysis/igp_full107_player_z_sampling_alignment_v3_20261105.py \
+            /gamepulse/fusion/analysis/igp_full107_player_z_9game_reconcile_v4_20261105.py \
+            /gamepulse/fusion/qa/analysis/full107_player_z_airtime_pilot_20261105.json \
+            /gamepulse/fusion/qa/analysis/full107_player_z_9game_shadow_v2_20261105.json \
+            /gamepulse/fusion/qa/analysis/full107_player_z_sampling_alignment_v3_20261105.json \
             /gamepulse/fusion/analysis/igp_full107_player_z_sampling_alignment_v3_20261105.py \
             /gamepulse/fusion/materialized/igp_all_original_xyz/0022600138/ \
             /gamepulse/fusion/materialized/igp_all_original_xyz/0022600139/ \
@@ -189,6 +193,36 @@ print('FULL107_Z_V3_SOURCE_CADENCE',json.dumps({
  'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
  'physical_airtime_certified':False},sort_keys=True))
 PY
+      - name: Correct nine-game count aggregation; independent event crosscheck and hangTime sensitivity
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/analysis/igp_full107_player_z_9game_reconcile_v4_20261105.py
+          if test -f gamepulse/fusion/qa/analysis/full107_player_z_9game_reconciled_v4_20261105.json; then
+            echo PLAYER_Z_INDEPENDENT_V4_RECONCILIATION_EXISTING
+          else
+            python3 -B gamepulse/fusion/analysis/igp_full107_player_z_9game_reconcile_v4_20261105.py > "$RUNNER_TEMP/native-v4-private.log" 2>&1 || {
+              echo 'PRIVATE_PLAYER_Z_9GAME_SOURCE_CROSSCHECK_FAILED'
+              tail -n 5 "$RUNNER_TEMP/native-v4-private.log" | grep -E '^[A-Za-z]+Error:|^[A-Za-z]+Exception:' || true
+              exit 1
+            }
+          fi
+          python3 - <<'PY'
+          import json,hashlib,pathlib
+          p=pathlib.Path('gamepulse/fusion/qa/analysis/full107_player_z_9game_reconciled_v4_20261105.json')
+          x=json.loads(p.read_bytes())
+          assert x['validated_source_event_anchor']['shooter']['all_direct_matched']==805
+          assert x['validated_source_event_anchor']['defender']['all_direct_matched']==788
+          assert x['independent_video_foot_contact'] is False and not x['publishable_airtime_leaderboard']
+          print('FULL107_PLAYER_Z_NINE_GAME_RECONCILED_V4',json.dumps({
+            'games':x['games'],'shooter':x['validated_source_event_anchor']['shooter'],
+            'defender':x['validated_source_event_anchor']['defender'],
+            'source_candidate_elevation':x['source_candidate_elevation'],
+            'hangTime_comparison':x['source_hangtime_comparison'],
+            'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
+            'independent_airtime_ground_truth':False},sort_keys=True))
+          PY
       - name: Persist per-shot research observations only in private GitHub
         shell: bash
         run: |
@@ -199,6 +233,7 @@ PY
           git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_airtime_pilot_20261105.json
           git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_9game_shadow_v2_20261105.json
           git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_sampling_alignment_v3_20261105.json
+          git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_9game_reconciled_v4_20261105.json
           git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_sampling_alignment_v3_20261105.json
           git diff --cached --check
           if git diff --cached --quiet; then echo 'PLAYER_Z_RESEARCH_QA_ALREADY_PRESERVED'; exit 0; fi
