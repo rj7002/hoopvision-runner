@@ -1,6 +1,6 @@
 # Source-locked prior human-review test (13 coarse player-action episodes).
 # No private timestamp, player IDs, source XYZ, or per-play identifiers are public.
-name: R19 prior 13 human-reviewed action-run validation private
+name: R19 v4 source-conflict-graded prior 13 human-reviewed action-run validation private
 on:
   push:
     branches: [main]
@@ -16,8 +16,8 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: analysis/igp-r19-native-temporal-20261104
-      PIN: c222f4dd90b15f32407f75e6ff97fa11dc7e4cf6
-      DEST: gamepulse/fusion/qa/analysis/igp_r19_native_rebuild_20261104
+      PIN: 5479eefe066b09884cbb2fb602a3f2927751bb9b
+      DEST: gamepulse/fusion/qa/analysis/igp_r19_native_rebuild_v4_20261104
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,7 +36,7 @@ jobs:
           git fetch -q --depth=1 origin "$PIN"
           git checkout -q --detach "$PIN"
           test "$(git rev-parse HEAD)" = "$PIN"
-          script=gamepulse/fusion/analysis/igp_r19_original_13_human_review_crosswalk_v1.py
+          script=gamepulse/fusion/analysis/igp_r19_original_13_human_review_crosswalk_v4.py
           python3 -B "$script" --root . --out "$RUNNER_TEMP/full.json" > "$RUNNER_TEMP/stdout" 2> "$RUNNER_TEMP/stderr" || {
             echo R19_PRIVATE_ORIGINAL_USER_VIDEO_REVIEW_QA_FAILED_DETAILS_REDACTED
             exit 1
@@ -56,11 +56,11 @@ jobs:
           git fetch -q origin "$PRIVATE_BRANCH"
           git checkout -q -B qa-private "origin/$PRIVATE_BRANCH"
           mkdir -p "$DEST"
-          cp "$RUNNER_TEMP/full.json" "$DEST/human_13_run_review_full_private_v1.json"
-          cp "$RUNNER_TEMP/summary.json" "$DEST/human_13_run_review_summary_v1.json"
+          cp "$RUNNER_TEMP/full.json" "$DEST/human_13_run_review_full_private_v4.json"
+          cp "$RUNNER_TEMP/summary.json" "$DEST/human_13_run_review_summary_v4.json"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f "$DEST/human_13_run_review_full_private_v1.json" "$DEST/human_13_run_review_summary_v1.json"
+          git add -f "$DEST/human_13_run_review_full_private_v4.json" "$DEST/human_13_run_review_summary_v4.json"
           git diff --cached --check
           if ! git diff --cached --quiet; then
             git commit -q -m 'qa(private): source-locked R19 versus 13 user-reviewed action runs [skip ci]'
