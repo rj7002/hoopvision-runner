@@ -1,0 +1,201 @@
+# Full107 NBA source-derived center spatial heatmaps: private 2ft aggregate only.
+name: Full107 defensive centre original XY heat maps
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/full107-defensive-centre-heatmaps-20261105.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: full107-defensive-centre-heatmaps-20261105
+  cancel-in-progress: true
+jobs:
+  shards:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 85
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        shard: [0,1,2,3,4,5,6,7,8]
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: analysis/full107-center-defensive-paint-20261105
+      PIN: 47c6221a4135ab8537b4259ba407abd42679fe31
+      SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Public-data guard
+        run: python3 tools/public_content_guard.py
+      - name: Source-private original-native histogram with exact prior-shard parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+          git clone --quiet --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PIN"
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$PIN"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PIN"
+          cd "$RUNNER_TEMP/private"
+          PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion python3 -B -m py_compile gamepulse/fusion/analysis/igp_full107_center_defensive_heatmaps_v1.py
+          PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion python3 -B gamepulse/fusion/analysis/igp_full107_center_defensive_heatmaps_v1.py --shard "$SHARD" --out "$RUNNER_TEMP/heatmap_{SHARD{'}'}.json" > "$RUNNER_TEMP/full107_center_heatmap_source.log"
+          python3 - <<'PY'
+          import json,os,pathlib
+          v=json.loads(pathlib.Path(os.environ['RUNNER_TEMP'],f"heatmap_{os.environ['SHARD']}.json").read_text())
+          assert v['source_games']==107 and v['processed_games']==len(v['selected_games'])
+          assert v['same_denominator_as_full107_leaderboard'] and not v['original_xyz_in_output']
+          assert all(sum(row['grid_ms'])==row['defensive_end_ms'] for row in v['rows'])
+          print('FULL107_CENTER_SPATIAL_AGGREGATE_SOURCE_PARITY_VERIFIED',v['shard'],v['processed_games'],len(v['rows']))
+          PY
+      - name: Preserve derived histogram privately and verify checksum readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,hashlib,json,os,pathlib,subprocess,time
+          shard=int(os.environ['SHARD'])
+          raw=pathlib.Path(os.environ['RUNNER_TEMP'],f'heatmap_{shard}.json').read_bytes()
+          target=f'repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/full107_center_defensive_heatmaps_v1_20261105/shard_{shard}.json'
+          for trial in range(14):
+              existing=subprocess.run(['gh','api',target+'?ref='+os.environ['PRIVATE_BRANCH']],text=True,capture_output=True)
+              p={'branch':os.environ['PRIVATE_BRANCH'],'message':f'qa: Full107 defensive-center native XY heatmap 2ft shard {shard}', 'content':base64.b64encode(raw).decode()}
+              if existing.returncode==0:p['sha']=json.loads(existing.stdout)['sha']
+              elif '404' not in existing.stderr and 'Not Found' not in existing.stderr:raise RuntimeError(existing.stderr[:250])
+              result=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],text=True,input=json.dumps(p),capture_output=True,timeout=95)
+              if result.returncode==0:break
+              if not any(x in result.stderr for x in ('409','422','429','500','502','503')):raise RuntimeError(result.stderr[:350])
+              time.sleep(min(3+trial,15))
+          else:raise RuntimeError('HEATMAP_SHARD_WRITE_RETRY_EXHAUSTED')
+          got=base64.b64decode(subprocess.check_output(['gh','api',target+'?ref='+os.environ['PRIVATE_BRANCH'],'--jq','.content'],timeout=95))
+          assert hashlib.sha256(got).digest()==hashlib.sha256(raw).digest()
+          print('HEATMAP_PRIVATE_SHARD_SHA256_READBACK_VALID',shard,hashlib.sha256(raw).hexdigest())
+          PY
+  reduce:
+    needs: [shards]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: analysis/full107-center-defensive-paint-20261105
+      PIN: 47c6221a4135ab8537b4259ba407abd42679fe31
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: python3 tools/public_content_guard.py
+      - name: Pool 107 source games; select leading official starting C in all 30 teams
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone --quiet --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PIN"
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$PIN"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/official_pbp_timing/original_nba_20261029
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          import base64,collections,hashlib,json,os,pathlib,struct,subprocess,time,zlib
+          private=os.environ['PRIVATE_BRANCH']
+          base='gamepulse/fusion/qa/analysis/full107_center_defensive_heatmaps_v1_20261105'
+          leaderpath='gamepulse/fusion/qa/analysis/full107_center_defensive_paint_expanded_v2_20261105/leaderboard.json'
+          def get(path):
+              c=subprocess.check_output(['gh','api',f'repos/timeedmonds-maker/104/contents/{path}?ref={private}','--jq','.content'],timeout=100)
+              return json.loads(base64.b64decode(c))
+          docs=[get(f'{base}/shard_{i}.json') for i in range(9)]
+          old=get(leaderpath)
+          assert len(old['selected_games'])==107 and old['all107_games_processed']
+          assert all(d['source_games']==107 and d['shard']==i and d['shards']==9 and
+                     d['same_denominator_as_full107_leaderboard'] for i,d in enumerate(docs))
+          selected=sum((d['selected_games'] for d in docs),[])
+          assert len(selected)==len(set(selected))==107 and set(selected)==set(old['selected_games'])
+          pooled={}
+          for d in docs:
+              assert d['xbins']==25 and d['ybins']==24 and d['bin_width_ft']==2.0
+              for p in d['rows']:
+                  k=p['id']
+                  o=pooled.setdefault(k,{'id':k,'name':p['name'],'teams':set(),'games':set(),
+                                         'grid_ms':[0]*600,'paint_ms':0,'defensive_end_ms':0})
+                  o['teams'].update(p['teams']);o['games'].update(p['games'])
+                  o['paint_ms']+=p['paint_ms'];o['defensive_end_ms']+=p['defensive_end_ms']
+                  for i,v in enumerate(p['grid_ms']):o['grid_ms'][i]+=v
+          lookup={p['id']:p for p in old['players']}
+          for k,p in pooled.items():
+              if (p['defensive_end_ms']!=lookup[k]['defensive_half_qualifying_ms'] or
+                  p['paint_ms']!=lookup[k]['defensive_paint_ms'] or
+                  sum(p['grid_ms'])!=p['defensive_end_ms']):
+                  raise ValueError('FULL107_HEATMAP_AGGREGATE_NOT_EXACT:'+k)
+          boxroot=pathlib.Path('gamepulse/fusion/official_pbp_timing/original_nba_20261029')
+          starts=collections.defaultdict(lambda:collections.Counter())
+          names={};official_games=0;team_boxgames=collections.Counter()
+          for game in old['selected_games']:
+              file=boxroot/game/'boxscore.json'
+              if not file.is_file():continue
+              b=json.loads(file.read_bytes())['game'];official_games+=1
+              for side in ['homeTeam','awayTeam']:
+                  obj=b[side];team=obj['teamTricode'];team_boxgames[team]+=1
+                  cs=[x for x in obj['players'] if x.get('position')=='C']
+                  if len(cs)>1:raise ValueError('AMBIGUOUS_TWO_STARTING_C:'+game+':'+team)
+                  if cs:
+                      p=cs[0];pid=str(p['personId'])
+                      starts[team][pid]+=1
+                      names[pid]=p.get('name') or (' '.join([p.get('firstName',''),p.get('familyName','')])).strip()
+          assert official_games==71, ('BOXGAME_COUNT',official_games)
+          teams=['ATL','BOS','BKN','CHA','CHI','CLE','DAL','DEN','DET','GSW','HOU','IND','LAC','LAL','MEM','MIA','MIL','MIN','NOP','NYK','OKC','ORL','PHI','PHX','POR','SAC','SAS','TOR','UTA','WAS']
+          rows=[]
+          for team in teams:
+              if not starts[team]:raise ValueError('MISSING_C_STARTS:'+team)
+              candidates=sorted(starts[team].items(),key=lambda e:(-e[1],-pooled.get(e[0],{}).get('defensive_end_ms',0),e[0]))
+              pid,n=candidates[0];p=pooled.get(pid)
+              if not p:raise ValueError('STARTER_TRACKING_MISSING:'+team+':'+pid)
+              oldrow=lookup[pid]
+              if not oldrow['qualified_high_coverage']:raise ValueError('STARTER_INSUFFICIENT_EXPOSURE:'+team)
+              b=struct.pack('<600I',*p['grid_ms'])
+              rows.append({'team':team,'player':names[pid],'player_id':pid,
+                  'official_starting_C_games':n,'official_games_with_team_boxscore':team_boxgames[team],
+                  'starting_center_tie':sum(v==n for v in starts[team].values())>1,
+                  'other_starting_centers':[
+                      {'name':names[alt],'starts':m} for alt,m in candidates[1:]],
+                  'games_in_tracking':oldrow['games'],
+                  'defensive_end_seconds':round(p['defensive_end_ms']/1000,3),
+                  'paint_seconds':round(p['paint_ms']/1000,3),
+                  'paint_pct':oldrow['paint_pct_defensive_half'],
+                  'grid_ms_uint32_le_zlib_b64':base64.b64encode(zlib.compress(b,9)).decode()})
+          rows.sort(key=lambda r:(-r['paint_pct'],r['team']))
+          assert len(rows)==len({r['team'] for r in rows})==30
+          assert rows[0]['player']=='Donovan Clingan' and rows[-1]['player']=='Bam Adebayo'
+          res={'schema':'igp.full107.defensive-centre.position-density.v1',
+            'all_107_games_source_verified':True,'original_xyz_exported':False,
+            'boxscore_games_for_starter_identification':official_games,
+            'selection':'one player/team with most recorded official starting position C; tied by observed defensive-end time',
+            'definition':'native clock-running observed player-and-ball same defensive half in originally accepted v2 Full107 source',
+            'bins':'25 x 24 grid, 2ft square, flattened row-major [depth y, lateral x]; native direct-source ms, no imputation',
+            'court_x_bounds_ft':[-25,25],'court_y_bounds_ft':[0,48],
+            'layout':'x=-25..25 lateral across court, y=0..48 feet from defended basket baseline, basket centered at x=0 y=5.25; paint x=-8..8 y=0..19',
+            'source_shards_sha256':[hashlib.sha256((json.dumps(d,sort_keys=True,separators=(',',':'))+'\n').encode()).hexdigest() for d in docs],
+            'teams':rows}
+          raw=(json.dumps(res,sort_keys=True,separators=(',',':'))+'\n').encode()
+          dest=f'repos/timeedmonds-maker/104/contents/{base}/starting_centres_30team_heatmaps.json'
+          for trial in range(14):
+              oldfile=subprocess.run(['gh','api',dest+'?ref='+private],text=True,capture_output=True)
+              payload={'branch':private,'message':'qa: 30 official starting centre Full107 exact-source spatial heatmap, private only',
+                       'content':base64.b64encode(raw).decode()}
+              if oldfile.returncode==0:payload['sha']=json.loads(oldfile.stdout)['sha']
+              elif '404' not in oldfile.stderr and 'Not Found' not in oldfile.stderr:raise RuntimeError(oldfile.stderr[:300])
+              response=subprocess.run(['gh','api','-X','PUT',dest,'--input','-'],input=json.dumps(payload),text=True,capture_output=True,timeout=100)
+              if response.returncode==0:break
+              if not any(e in response.stderr for e in ('409','422','429','500','502','503')):raise RuntimeError(response.stderr[:400])
+              time.sleep(min(3+trial,15))
+          else:raise RuntimeError('PRIVATE_FINAL_HEATMAP_PUBLISH_RETRIES_EXHAUSTED')
+          got=base64.b64decode(subprocess.check_output(['gh','api',dest+'?ref='+private,'--jq','.content'],timeout=100))
+          assert hashlib.sha256(got).digest()==hashlib.sha256(raw).digest()
+          print('FULL107_HEATMAP_ALL30_PRIVATE_SHA_VERIFIED',hashlib.sha256(raw).hexdigest(),
+               'boxscore_games',official_games,'games',len(selected),
+               'players',len(rows),'source_not_leaked',True)
+          print('FULL107_HEATMAP_COMPARISON',json.dumps([
+             {k:v for k,v in p.items() if k!='grid_ms_uint32_le_zlib_b64'}
+             for p in (rows[0],rows[-1])],sort_keys=True))
+          PY
