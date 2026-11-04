@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-r19-pnr-halfcourt-private-xy-review-20261105.yml",  # source-SHA private original NBA 10-player+ball per-frame XY for PNR classification GUI, never public licensed coordinates
+
     ".github/workflows/jabari-full107-3pt-trajectory-private-20261104.yml",  # vetted original SHA-tracking and scorer readback; private PNG/shot ledger only; public aggregates
     ".github/workflows/igp-r19-human-review-13-private-20261104.yml",  # private original-source R19 vs 13 prior user-reviewed action-run QA; public counts only
 
