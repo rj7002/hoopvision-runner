@@ -1,0 +1,97 @@
+name: Full107 Jabari 3PT Original Ball Flights
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/jabari-full107-3pt-private-20261104.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: jabari-full107-3pt-20261104
+  cancel-in-progress: false
+jobs:
+  jabari-3pt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/full107-jabari-threepoint-tracker-20261104
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify public source guard and checkout licensed source privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone --quiet --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
+            /gamepulse/fusion/jabari_full107_3pt_trajectory_v1.py \
+            /gamepulse/fusion/durant_ft_full107_original_3d_v1.py \
+            /gamepulse/fusion/official_pbp_timing/games/0022600091.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600009.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600107.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600125.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600138.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600021.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600153.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600167.json \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600091/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600009/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600107/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600125/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600138/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600021/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600153/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600167/
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/jabari_full107_3pt_trajectory_v1.py
+      - name: Setup deterministic Python
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/jabari-venv"
+          "$RUNNER_TEMP/jabari-venv/bin/pip" --disable-pip-version-check -q install numpy==2.2.6 matplotlib==3.10.3 Pillow==11.3.0
+      - name: Analyze SHA-native ball flights and render deterministic figures
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          "$RUNNER_TEMP/jabari-venv/bin/python" gamepulse/fusion/jabari_full107_3pt_trajectory_v1.py > "$RUNNER_TEMP/jabari-private.log" 2>&1 || {
+            echo "JABARI_PRIVATE_EXTRACTION_OR_RENDER_FAILED"
+            python3 -c 'import os,pathlib; a=(pathlib.Path(os.environ["RUNNER_TEMP"])/"jabari-private.log").read_text().splitlines(); print("SOURCE_GAME_COUNT",sum(x.startswith("SOURCE_GAME_QA") for x in a));print("FAIL_CLASS",(a[-1].split(":")[0][:70] if a else "UNKNOWN"))'
+            exit 1
+          }
+          python3 - <<'PY'
+          import json,pathlib,hashlib
+          p=pathlib.Path("gamepulse/fusion/qa/jabari_full107_3pt")
+          q=json.loads((p/"jabari_full107_3pt_render_qa.json").read_text())
+          assert (q["attempts"],q["makes"],q["misses"])==(52,25,27)
+          assert q["png_repeat_render_identical"]
+          png=(p/"jabari_full107_threepoint_trajectory.png").read_bytes()
+          assert png.startswith(b"\x89PNG\r\n\x1a\n")
+          assert hashlib.sha256(png).hexdigest()==q["sha256_png"]
+          print("JABARI_SOURCE_GRADE_QA",json.dumps(q,sort_keys=True))
+          PY
+      - name: Persist private deterministic figure and shot-level evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f gamepulse/fusion/qa/jabari_full107_3pt/
+          git diff --cached --check
+          if git diff --cached --quiet; then echo "JABARI_OUTPUTS_ALREADY_IDENTICAL"; exit 0; fi
+          git commit -qm "qa(private): deterministic Full107 Jabari 3PT trajectories"
+          for n in 1 2 3 4 5; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo "JABARI_PRIVATE_DETERMINISTIC_OUTPUT_COMMITTED"
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 31
