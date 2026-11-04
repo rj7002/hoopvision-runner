@@ -69,7 +69,7 @@ jobs:
             'ranked_sampled_players':len(d['player_summaries']),
             'top_five_at_8_12_16':{k:[{'source_player_id':s['nba_player_id'],
               'games':s['games_with_120plus_source_seconds'],
-              'candidate_per_game':s[k[:4]]['candidate_seconds_per_observed_game'],
+              'candidate_per_game':s[k.split("_")[0]]['candidate_seconds_per_observed_game'],
               'coverage':s['source_coverage_to_official_minutes']} for s in v[:5]]
               for k,v in d['ranking_candidates'].items() if k.endswith('_per_game')},
             'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
