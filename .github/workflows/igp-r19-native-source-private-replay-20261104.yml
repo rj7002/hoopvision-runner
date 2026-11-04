@@ -49,7 +49,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$PIN"
           BASE=gamepulse/fusion/analysis
           base64 -d "$BASE/igp_r19_v3_source_bundle.b64" > "$RUNNER_TEMP/r19-source.tar.xz"
-          echo "$BUNDLE_SHA  $RUNNER_TEMP/r19-source.tar.xz" | sha256sum -c -q
+          echo "$BUNDLE_SHA  $RUNNER_TEMP/r19-source.tar.xz" | sha256sum --check --status
           tar -xJf "$RUNNER_TEMP/r19-source.tar.xz" -C "$BASE"
           export PYTHONPATH="$BASE:gamepulse/fusion"
           RESULT="$RUNNER_TEMP/r19-result.json"
@@ -147,7 +147,7 @@ jobs:
           git sparse-checkout set gamepulse/fusion
           BASE=gamepulse/fusion/analysis
           base64 -d "$BASE/igp_r19_v3_source_bundle.b64" > "$RUNNER_TEMP/r19-source.tar.xz"
-          echo "$BUNDLE_SHA  $RUNNER_TEMP/r19-source.tar.xz" | sha256sum -c -q
+          echo "$BUNDLE_SHA  $RUNNER_TEMP/r19-source.tar.xz" | sha256sum --check --status
           tar -xJf "$RUNNER_TEMP/r19-source.tar.xz" -C "$BASE"
           export PYTHONPATH="$BASE:gamepulse/fusion"
           python3 -B "$BASE/igp_r19_private_fourgame_reducer_v2.py" --root . --out "$RUNNER_TEMP/four_game_crosswalk.json" > "$RUNNER_TEMP/reduce.out" 2> "$RUNNER_TEMP/reduce.err" || {
