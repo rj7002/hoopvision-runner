@@ -124,3 +124,79 @@ jobs:
             done
             test "$DONE" = 1
           fi
+
+  pressure-atlas:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: analysis/igp-r19-native-temporal-20261104
+      PIN: 61e35b9a63bc0e4f31b87222964d125fb518f38d
+      DEST: gamepulse/fusion/qa/analysis/igp_r19_native_rebuild_v4_20261104
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Public source confidentiality guard
+        run: python3 tools/public_content_guard.py
+      - name: Private evidence-graded physical two-defender pressure atlas
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          git sparse-checkout set gamepulse/fusion
+          git fetch -q --depth=1 origin "$PIN"
+          git checkout -q --detach "$PIN"
+          test "$(git rev-parse HEAD)" = "$PIN"
+          script=gamepulse/fusion/analysis/igp_r19_two_defender_pressure_atlas_v1.py
+          python3 -B "$script" --root . --out "$RUNNER_TEMP/atlas.json" > "$RUNNER_TEMP/output" 2> "$RUNNER_TEMP/error" || {
+            echo R19_PRIVATE_PRESSURE_ATLAS_FAILED_DIAGNOSTICS_REDACTED
+            exit 1
+          }
+          python3 - <<'PY'
+          import json,os,pathlib
+          p=pathlib.Path(os.environ["RUNNER_TEMP"])
+          data=json.loads((p/"atlas.json").read_bytes())
+          c=data["counts"]
+          assert c["all_touches"]==1991
+          assert c["r19_DOUBLE_CANDIDATE"]==179
+          assert c["r13_double_not_reproduced"]==75
+          assert c["new_r19_double_vs_r13"]==73
+          assert data["production_promotion_allowed"] is False
+          assert data["all_source_touch_boundaries_and_sha_reconciled"] is True
+          agg={k:v for k,v in data.items()
+               if k not in ("private_disagreement_review_queue","private_source_sha256")}
+          (p/"atlas-summary.json").write_text(json.dumps(agg,sort_keys=True,indent=2)+"\n")
+          public_keys=("all_touches","any_two_defender_pressure",
+                       "any_native_two_defender_pressure",
+                       "tactically_ambiguous_but_pressure_observed",
+                       "r13_double_not_reproduced_native_pressure",
+                       "r13_double_not_reproduced_neither_pressure",
+                       "r19_double_native_blitz","r19_double_model_only_blitz")
+          print("R19_TWO_DEFENDER_PRESSURE_ATLAS_SOURCE_QA_PASS",
+                {k:c[k] for k in public_keys})
+          PY
+          git fetch -q origin "$PRIVATE_BRANCH"
+          git checkout -q -B qa-pressure-atlas "origin/$PRIVATE_BRANCH"
+          mkdir -p "$DEST"
+          cp "$RUNNER_TEMP/atlas.json" "$DEST/two_defender_pressure_atlas_full_private_v1.json"
+          cp "$RUNNER_TEMP/atlas-summary.json" "$DEST/two_defender_pressure_atlas_summary_v1.json"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$DEST/two_defender_pressure_atlas_full_private_v1.json" "$DEST/two_defender_pressure_atlas_summary_v1.json"
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -q -m 'qa(private): R19 two-defender pressure vs tactical classification source atlas [skip ci]'
+            DONE=0
+            for k in 1 2 3 4 5; do
+              git fetch -q origin "$PRIVATE_BRANCH"
+              git rebase -q "origin/$PRIVATE_BRANCH"
+              if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then DONE=1; break; fi
+              sleep "$k"
+            done
+            test "$DONE" = 1
+          fi
