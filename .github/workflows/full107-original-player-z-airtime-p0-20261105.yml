@@ -33,8 +33,10 @@ jobs:
             /gamepulse/fusion/analysis/igp_full107_player_z_sampling_alignment_v3_20261105.py \
             /gamepulse/fusion/analysis/igp_full107_player_z_9game_reconcile_v4_20261105.py \
             /gamepulse/fusion/analysis/igp_full107_player_z_6unseen_sealed_v4_20261105.py \
+            /gamepulse/fusion/analysis/igp_full107_z_ballistic_apex_physics_v5_20261105.py \
             /gamepulse/fusion/qa/analysis/full107_player_z_airtime_pilot_20261105.json \
             /gamepulse/fusion/qa/analysis/full107_player_z_9game_shadow_v2_20261105.json \
+            /gamepulse/fusion/qa/analysis/full107_player_z_6unseen_sealed_v4_20261105.json \
             /gamepulse/fusion/qa/analysis/full107_player_z_sampling_alignment_v3_20261105.json \
             /gamepulse/fusion/analysis/igp_full107_player_z_sampling_alignment_v3_20261105.py \
             /gamepulse/fusion/materialized/igp_all_original_xyz/0022600138/ \
@@ -254,6 +256,29 @@ jobs:
               'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
               'independent_airborne_truth':False},sort_keys=True))
           PY
+      - name: 15-game source-native ballistic apex acceleration vs gravity — 9 train 6 unseen
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -B -m py_compile gamepulse/fusion/analysis/igp_full107_z_ballistic_apex_physics_v5_20261105.py
+          if test ! -f gamepulse/fusion/qa/analysis/full107_player_z_ballistic_apex_v5_20261105.json; then
+            python3 -B gamepulse/fusion/analysis/igp_full107_z_ballistic_apex_physics_v5_20261105.py > "$RUNNER_TEMP/private-ballistic-physics.log" 2>&1 || {
+              echo 'FIFTEEN_GAME_NATIVE_Z_PHYSICS_RESEARCH_FAILED'
+              exit 1
+            }
+          fi
+          python3 - <<'PY'
+          import pathlib,json,hashlib
+          p=pathlib.Path('gamepulse/fusion/qa/analysis/full107_player_z_ballistic_apex_v5_20261105.json')
+          d=json.loads(p.read_bytes())
+          assert len(d['original_9game_DEV'])==9 and len(d['sealed_6newgame_VAL'])==6
+          assert d['no_external_video_foot_contact_truth']
+          print('FULL107_15GAME_BALLISTIC_NATIVE_Z',json.dumps({
+            'cohorts':d['research'],
+            'qa_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
+            'foot_contact_certified':False},sort_keys=True))
+          PY
       - name: Persist per-shot research observations only in private GitHub
         shell: bash
         run: |
@@ -266,6 +291,7 @@ jobs:
           git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_sampling_alignment_v3_20261105.json
           git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_9game_reconciled_v4_20261105.json
           git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_6unseen_sealed_v4_20261105.json
+          git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_ballistic_apex_v5_20261105.json
           git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_sampling_alignment_v3_20261105.json
           git diff --cached --check
           if git diff --cached --quiet; then echo 'PLAYER_Z_RESEARCH_QA_ALREADY_PRESERVED'; exit 0; fi
