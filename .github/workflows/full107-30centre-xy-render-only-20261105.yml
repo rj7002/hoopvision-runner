@@ -33,7 +33,7 @@ jobs:
           git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PIN"
           git -C "$RUNNER_TEMP/private" checkout -q --detach "$PIN"
-          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/analysis/render_full107_30_centre_true_xy_heatmaps_20261105.py gamepulse/fusion/qa/analysis/full107_center_defensive_heatmaps_v1_20261105
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/analysis gamepulse/fusion/qa/analysis/full107_center_defensive_heatmaps_v1_20261105
           test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PIN"
           python3 -m pip install -q --disable-pip-version-check --break-system-packages numpy matplotlib
           cd "$RUNNER_TEMP/private"
