@@ -1,0 +1,98 @@
+# Original NBA licensed XYZ, original Time#show and individual player candidates remain exclusively in private 104.
+name: Full107 player Z original live body-elevation research atlas
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/full107-player-z-live-elevation-atlas-20261105.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: full107-player-z-live-elevation-atlas-20261105
+  cancel-in-progress: false
+jobs:
+  full107-native-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/full107-player-z-airtime-calibration-20261105
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Public source license boundary and SHA-verified private original checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
+            /gamepulse/fusion/analysis/igp_full107_player_z_airtime_calibration_pilot_20261105.py \
+            /gamepulse/fusion/analysis/igp_full107_player_z_airtime_9game_shadow_v2_20261105.py \
+            /gamepulse/fusion/analysis/igp_full107_player_z_live_atlas_v5_20261105.py \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/ \
+            /gamepulse/fusion/evidence/ \
+            /gamepulse/fusion/official_pbp_timing/original_nba_20261029/ \
+            /data/extensions/nba_blueprint_2026_27/games/
+          echo "PRIVATE_ONLY_SHA_$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)"
+      - name: Derive full107 player-game live body elevation and source-availability grades privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -B -m py_compile gamepulse/fusion/analysis/igp_full107_player_z_live_atlas_v5_20261105.py
+          if test ! -f gamepulse/fusion/qa/analysis/full107_player_z_live_elevation_atlas_v5_20261105.json; then
+            python3 -B gamepulse/fusion/analysis/igp_full107_player_z_live_atlas_v5_20261105.py > "$RUNNER_TEMP/private-player-z-atlas.log" 2>&1 || {
+              echo 'FULL107_PRIVATE_Z_ATLAS_VALIDATION_NOT_PASSED'
+              python3 - <<'PY'
+          import os,pathlib,re
+          p=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-player-z-atlas.log"
+          s=p.read_text().splitlines() if p.exists() else []
+          line=next((v for v in reversed(s) if re.match(r'^[A-Za-z]+(?:Error|Exception|AssertionError):',v)),None)
+          print('PRIVATE_ERROR_CLASS',line.split(':',1)[0] if line else 'UNKNOWN')
+          PY
+              exit 1
+            }
+          fi
+          python3 - <<'PY'
+          import json,hashlib,pathlib
+          p=pathlib.Path('gamepulse/fusion/qa/analysis/full107_player_z_live_elevation_atlas_v5_20261105.json')
+          d=json.loads(p.read_bytes())
+          assert d['games']==107 and d['airtime_foot_contact_certified'] is False
+          assert len(d['all_player_game_rows'])>500 and len(d['ranking_candidates']['th12_per_game'])>=10
+          print('FULL107_PLAYER_Z_LIVE_RESEARCH_QA',json.dumps({
+            'games':d['games'],'source_clock_games':d['source_with_clock'],
+            'official_boxscore_games':d['official_boxscores_present'],
+            'source_player_game_rows':len(d['all_player_game_rows']),
+            'ranked_sampled_players':len(d['player_summaries']),
+            'top_five_at_8_12_16':{k:[{'source_player_id':s['nba_player_id'],
+              'games':s['games_with_120plus_source_seconds'],
+              'candidate_per_game':s[k[:4]]['candidate_seconds_per_observed_game'],
+              'coverage':s['source_coverage_to_official_minutes']} for s in v[:5]]
+              for k,v in d['ranking_candidates'].items() if k.endswith('_per_game')},
+            'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
+            'physical_airtime_seconds_certified':False},sort_keys=True))
+          PY
+      - name: Save source QA and player leaderboard research privately only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_live_elevation_atlas_v5_20261105.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo FULL107_ATLAS_RESEARCH_ALREADY_PRESERVED; exit 0; fi
+          git commit -qm 'qa(private): Full107 original player Z live-elevation source and coverage research'
+          gh auth setup-git
+          for retry in 1 2 3 4 5 6; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo FULL107_PLAYER_Z_RESEARCH_ATLAS_PRESERVED_PRIVATELY
+              exit 0
+            fi
+            sleep "$retry"
+          done
+          exit 41
