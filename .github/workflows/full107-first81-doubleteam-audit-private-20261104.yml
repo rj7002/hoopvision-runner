@@ -63,7 +63,7 @@ jobs:
           PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f "$result"
+          git add --sparse -f "$result"
           git diff --cached --check
           git commit -q -m "qa(private): Full107 exact81 double-team reference audit [skip ci]"
           for n in 1 2 3 4 5 6; do
