@@ -1,0 +1,102 @@
+# Source-private reduction only: reuse nine immutable, previously executed source shards.
+# Frozen R13 parity and explicit non-promotion gates. No native XYZ in public logs.
+name: Full107 first81 R17 same-source paired reduction
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/full107-first81-r17-reduce-only-private-20261104.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  reduce:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      REPO: timeedmonds-maker/104
+      BRANCH: analysis/full107-first81-doubleteam-validation-20261104
+      PIN: e1a685756e11334145ba58ad800c9f0998632af6
+      SHARD_DIR: gamepulse/fusion/qa/analysis/igp81_double_team_r17_screen_assignment_20261104
+      BASELINE_SHA: ff2c58ffb7078876de220f10ff3ba02afe764be6
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: python3 tools/public_content_guard.py
+      - name: Reuse previously SHA-verified nine original-source shards and score without new detection
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          python3 - <<'PY'
+          import base64,json,os,pathlib,subprocess,sys,time
+          repo=os.environ["REPO"];branch=os.environ["BRANCH"]
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"data"
+          root.mkdir()
+          def obj(path,ref):
+              return json.loads(subprocess.check_output(
+                  ["gh","api",f"repos/{repo}/contents/{path}?ref={ref}"],
+                  stderr=subprocess.DEVNULL))
+          def blob(sha):
+              assert len(sha)==40
+              o=json.loads(subprocess.check_output(
+                  ["gh","api",f"repos/{repo}/git/blobs/{sha}"],
+                  stderr=subprocess.DEVNULL))
+              assert o.get("encoding")=="base64" and o.get("content")
+              return base64.b64decode(o["content"])
+          def fetch(path,ref):
+              meta=obj(path,ref)
+              return blob(meta["sha"])
+          for i in range(9):
+              data=fetch(f'{os.environ["SHARD_DIR"]}/shard_{i}.json',branch)
+              parsed=json.loads(data)
+              assert parsed["shard"]==i and parsed["shards"]==9 and parsed["original_source_modified"] is False
+              (root/f"shard_{i}.json").write_bytes(data)
+          (root/"baseline.json").write_bytes(blob(os.environ["BASELINE_SHA"]))
+          script=fetch("gamepulse/fusion/analysis/igp81_double_team_r17_reduce_20261104.py",os.environ["PIN"])
+          (root/"reduce.py").write_bytes(script)
+          outputs={
+              "out":root/"all_league_players.json",
+              "csv":root/"player.csv",
+              "team":root/"teams.csv"}
+          proc=subprocess.run([sys.executable,str(root/"reduce.py"),
+              "--dir",str(root),"--baseline",str(root/"baseline.json"),
+              "--out",str(outputs["out"]),
+              "--league-json",str(outputs["out"]),
+              "--league-csv",str(outputs["csv"]),"--team-csv",str(outputs["team"])],
+              cwd=root,capture_output=True,text=True)
+          if proc.returncode:
+              details={"state":"PRIVATE_REDUCER_FAILED","returncode":proc.returncode,
+                  "stderr":proc.stderr[-9000:],"stdout":proc.stdout[-3000:],
+                  "pin":os.environ["PIN"]}
+              output=root/"failure.json"
+              output.write_text(json.dumps(details))
+          else:
+              output=outputs["out"]
+          target=f'repos/{repo}/contents/{os.environ["SHARD_DIR"]}/'+(
+              "all_league_players.json" if proc.returncode==0 else "private_reducer_diagnostic_v2.json")
+          body={"branch":branch,"message":"qa(private): R17 corrected conservative paired-source reduction [skip ci]",
+                "content":base64.b64encode(output.read_bytes()).decode()}
+          for attempt in range(12):
+              before=subprocess.run(["gh","api",target+"?ref="+branch],
+                  capture_output=True,text=True)
+              request=dict(body)
+              if before.returncode==0:
+                  request["sha"]=json.loads(before.stdout)["sha"]
+              response=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
+                  input=json.dumps(request),capture_output=True,text=True)
+              if response.returncode==0:break
+              time.sleep(1+attempt)
+          else:raise RuntimeError("PRIVATE_REDUCER_OUTPUT_NOT_SAVED")
+          if proc.returncode:
+              print("R17_REDUCER_PRIVATE_DIAGNOSTIC_SAVED")
+              sys.exit(1)
+          z=json.loads(output.read_bytes())
+          assert z["games_processed"]==81
+          assert z["r17_comparison_to_frozen_r13"]["baseline_original81_profiles_exact_unchanged"]
+          assert z["r17_comparison_to_frozen_r13"]["publication_or_promotion_allowed"] is False
+          for q in ("guarded","screen_guard_secondary","screen_guard_both"):
+              p=z["profile_totals"][q]
+              print("R17_ALL81_REAL_SOURCE_RESULT",q,p["DOUBLE"],p["NO_DOUBLE"],p["UNKNOWN_TRACKING"])
+          print("R17_81_GAME_PRIVATE_REDUCER_SAVED_R13_FROZEN_AND_NO_PROMOTION")
+          PY
