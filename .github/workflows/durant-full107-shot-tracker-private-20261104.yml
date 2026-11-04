@@ -91,7 +91,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           python3 gamepulse/fusion/durant_ft_full107_clock_sequence_rescue_v2.py \
             > "$RUNNER_TEMP/durant-original-stopclock-private.log" 2>&1 || {
-              python3 -c 'import pathlib,os,re; d=(pathlib.Path(os.environ["RUNNER_TEMP"])/"durant-original-stopclock-private.log").read_text().splitlines(); m=re.match(r"^[A-Za-z]+(?:Error|Exception):\s*([A-Z0-9_]+)",d[-1] if d else ""); print("DURANT_STOPCLOCK_FAILURE_CODE",m.group(1) if m else "UNCLASSIFIED")'
+              python3 -c 'import pathlib,os,re; d=(pathlib.Path(os.environ["RUNNER_TEMP"])/"durant-original-stopclock-private.log").read_text().splitlines(); m=re.match(r"^([A-Za-z]+(?:Error|Exception)):\s*(.*)",d[-1] if d else ""); print("DURANT_STOPCLOCK_FAILURE_CLASS",m.group(1) if m else "UNKNOWN", "REASON_CODE", (re.match(r"[A-Z0-9_]+",m.group(2) or "") or [None]).group(0) if m and re.match(r"[A-Z0-9_]+",m.group(2) or "") else "UNCLASSIFIED")'
               echo 'PRIVATE_DURANT_CLOCK_SEQUENCE_QA_FAILED'; exit 1;
             }
           python3 - <<'PY'
