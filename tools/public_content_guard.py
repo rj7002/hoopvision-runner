@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/full107-original-player-z-airtime-p0-20261105.yml",  # reviewed private original NBA Z/shot jump P0 pilot; no licensed XYZ in public logs
     ".github/workflows/igp-r19-pnr-dho-real-8clip-private-20261105.yml",  # private SHA locked actual 10Hz player ball PNR/DHO temporal action classifier, source-only aggregate public
 
     ".github/workflows/full107-30centre-xy-render-only-20261105.yml",  # reviewed private 2ft Full107 source bins to deterministic PNG in private repo only; no direct source XYZ export
