@@ -4,7 +4,7 @@ name: Full81 R18 native touch unknown root cause (private)
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/full107-first81-r18-rootcause-private-source-20261104.yml']
+    paths: ['.github/workflows/full107-first81-r18-rootcause-private-source-20261104.yml', 'tools/public_content_guard.py']
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
