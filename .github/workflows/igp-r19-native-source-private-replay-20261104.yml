@@ -1,6 +1,6 @@
 # R19 native-first source audit. Licensed NBA coordinates and touch records
 # are read and persisted ONLY inside private timeedmonds-maker/104.
-name: R19 private native-first four-game double-team replay
+name: R19 v4 private source-conflict-graded four-game double-team replay
 on:
   push:
     branches: [main]
@@ -22,10 +22,10 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: analysis/igp-r19-native-temporal-20261104
-      PIN: ec3eb0603b932841deb89c5852ee07b706440ba1
-      BUNDLE_SHA: f623015924448c39fed064515cf50ceeda28bdb4c1163615c278e112ab17ced2
+      PIN: 53edc86b9882f41af7fc9d5f5b2dfd31597a9c2e
+      BUNDLE_SHA: e8ea37031e4f7ec1bfbf41db537baec4450f2b675419c3a7fe2fd34034b46be0
       GID: ${{ matrix.gid }}
-      DEST: gamepulse/fusion/qa/analysis/igp_r19_native_rebuild_20261104
+      DEST: gamepulse/fusion/qa/analysis/igp_r19_native_rebuild_v4_20261104
     steps:
       - uses: actions/checkout@v4
         with:
@@ -48,7 +48,7 @@ jobs:
           git checkout -q --detach "$PIN"
           test "$(git rev-parse HEAD)" = "$PIN"
           BASE=gamepulse/fusion/analysis
-          base64 -d "$BASE/igp_r19_v3_source_bundle.b64" > "$RUNNER_TEMP/r19-source.tar.xz"
+          base64 -d "$BASE/igp_r19_v4_source_bundle.b64" > "$RUNNER_TEMP/r19-source.tar.xz"
           echo "$BUNDLE_SHA  $RUNNER_TEMP/r19-source.tar.xz" | sha256sum --check --status
           tar -xJf "$RUNNER_TEMP/r19-source.tar.xz" -C "$BASE"
           export PYTHONPATH="$BASE:gamepulse/fusion"
@@ -129,8 +129,8 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: analysis/igp-r19-native-temporal-20261104
-      BUNDLE_SHA: f623015924448c39fed064515cf50ceeda28bdb4c1163615c278e112ab17ced2
-      DEST: gamepulse/fusion/qa/analysis/igp_r19_native_rebuild_20261104
+      BUNDLE_SHA: e8ea37031e4f7ec1bfbf41db537baec4450f2b675419c3a7fe2fd34034b46be0
+      DEST: gamepulse/fusion/qa/analysis/igp_r19_native_rebuild_v4_20261104
     steps:
       - uses: actions/checkout@v4
         with:
@@ -146,11 +146,11 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git sparse-checkout set gamepulse/fusion
           BASE=gamepulse/fusion/analysis
-          base64 -d "$BASE/igp_r19_v3_source_bundle.b64" > "$RUNNER_TEMP/r19-source.tar.xz"
+          base64 -d "$BASE/igp_r19_v4_source_bundle.b64" > "$RUNNER_TEMP/r19-source.tar.xz"
           echo "$BUNDLE_SHA  $RUNNER_TEMP/r19-source.tar.xz" | sha256sum --check --status
           tar -xJf "$RUNNER_TEMP/r19-source.tar.xz" -C "$BASE"
           export PYTHONPATH="$BASE:gamepulse/fusion"
-          python3 -B "$BASE/igp_r19_private_fourgame_reducer_v2.py" --root . --out "$RUNNER_TEMP/four_game_crosswalk.json" > "$RUNNER_TEMP/reduce.out" 2> "$RUNNER_TEMP/reduce.err" || {
+          python3 -B "$BASE/igp_r19_private_fourgame_reducer_v4.py" --root . --out "$RUNNER_TEMP/four_game_crosswalk.json" > "$RUNNER_TEMP/reduce.out" 2> "$RUNNER_TEMP/reduce.err" || {
             echo R19_PRIVATE_REDUCER_FAILED_DETAILS_REDACTED
             exit 1
           }
@@ -167,10 +167,10 @@ jobs:
                 'source_native_frames',d['source_original_native_frames'])
           PY
           mkdir -p "$DEST"
-          cp "$RUNNER_TEMP/four_game_crosswalk.json" "$DEST/four_game_source_crosswalk_v3.json"
+          cp "$RUNNER_TEMP/four_game_crosswalk.json" "$DEST/four_game_source_crosswalk_v4.json"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f "$DEST/four_game_source_crosswalk_v3.json"
+          git add -f "$DEST/four_game_source_crosswalk_v4.json"
           git diff --cached --check
           if ! git diff --cached --quiet; then
             git commit -q -m 'qa(private): R19 full four-game SHA touch crosswalk [skip ci]'
