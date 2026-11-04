@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/full107-player-z-gravity-ballistic-20261105.yml",  # vetted original NBA 15game gravity-shaped source QA; private positions only
     ".github/workflows/full107-player-z-live-elevation-atlas-20261105.yml",  # original licensed NBA XYZ and clock restricted to private GitHub; aggregate source QA only public
     ".github/workflows/full107-z-v4-aggregate-reconcile-20261105.yml",  # reviewed three SHA-verified private QA receipts; source-free aggregate crosscheck only
     ".github/workflows/full107-original-player-z-airtime-p0-20261105.yml",  # reviewed private original NBA Z/shot jump P0 pilot; no licensed XYZ in public logs
