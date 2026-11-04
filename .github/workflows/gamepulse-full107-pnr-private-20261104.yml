@@ -16,7 +16,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: research/full107-pick-pair-detector-20261104
-      PRIVATE_PIN: 9f968208f0905219ce06a9edcffd5714d36536aa
+      PRIVATE_PIN: 2a10b3e05a760ed65cd28585a7aa5489956e42d0
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -50,7 +50,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: research/full107-pick-pair-detector-20261104
-      PRIVATE_PIN: 9f968208f0905219ce06a9edcffd5714d36536aa
+      PRIVATE_PIN: 2a10b3e05a760ed65cd28585a7aa5489956e42d0
       SHARD: ${{ matrix.shard }}
       PRIVATE_DEST: gamepulse/fusion/qa/analysis/full107_pnr_20261104
     steps:
