@@ -35,6 +35,7 @@ jobs:
             /gamepulse/fusion/curry_ft_full107_original_3d_v1.py \
             /gamepulse/fusion/curry_ft_full107_physics_validation_v2.py \
             /gamepulse/fusion/curry_ft_full107_deterministic_figure_v1.py \
+            /gamepulse/fusion/curry_ft_full107_game_disjoint_mask_v3.py \
             /gamepulse/fusion/official_pbp_timing/games/0022600005.json \
             /gamepulse/fusion/official_pbp_timing/games/0022600101.json \
             /gamepulse/fusion/official_pbp_timing/games/0022600127.json \
@@ -105,6 +106,35 @@ jobs:
             'ten_foot_brackets':q['shots_with_observed_descending_10ft_bracket'],
             'sha256':hashlib.sha256(p.read_bytes()).hexdigest()},sort_keys=True))
           PY
+      - name: Game-disjoint empirical gravity holdout and six-game cluster bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 gamepulse/fusion/curry_ft_full107_game_disjoint_mask_v3.py --self-test
+          python3 gamepulse/fusion/curry_ft_full107_game_disjoint_mask_v3.py > "$RUNNER_TEMP/private-v3-game-disjoint.log" 2>&1 || {
+            echo 'CURRY_V3_GAME_DISJOINT_RESEARCH_FAILED; private per-shot details remain private'
+            exit 1
+          }
+          python3 - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          p=Path('gamepulse/fusion/qa/curry_ft_full107/curry_ft_game_disjoint_source_mask_v3_20261104.json')
+          d=json.loads(p.read_text())
+          assert d['games']==6 and d['shots']==52 and d['masked_original_frame_count']==189
+          assert d['fixed_g_masked_original_error_ft']['n']==d['game_disjoint_g_masked_original_error_ft']['n']
+          assert d['seeded_six_game_cluster_bootstrap']['replicates']==5000
+          assert not d['physical_accuracy_certified']
+          print('CURRY_V3_GAME_DISJOINT_GITHUB_QA',json.dumps({
+            'frames':189,'fixed_p50':d['fixed_g_masked_original_error_ft']['p50'],
+            'game_disjoint_p50':d['game_disjoint_g_masked_original_error_ft']['p50'],
+            'fixed_p95':d['fixed_g_masked_original_error_ft']['p95'],
+            'game_disjoint_p95':d['game_disjoint_g_masked_original_error_ft']['p95'],
+            'shot_gain_count':d['game_disjoint_shots_improved_p50'],
+            'p50_bootstrap_ci':d['seeded_six_game_cluster_bootstrap']['median_improvement_ft_95pct_interval'],
+            'p95_bootstrap_ci':d['seeded_six_game_cluster_bootstrap']['p95_improvement_ft_95pct_interval'],
+            'sha256':hashlib.sha256(p.read_bytes()).hexdigest()},sort_keys=True))
+          PY
       - name: Deterministic Matplotlib and verified official NBA CDN PNG compositing
         shell: bash
         run: |
@@ -141,6 +171,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add --sparse -f gamepulse/fusion/qa/curry_ft_full107/curry_free_throw_original_tracking_20261104.json
           git add --sparse -f gamepulse/fusion/qa/curry_ft_full107/curry_ft_physics_masked_original_v2_20261104.json
+          git add --sparse -f gamepulse/fusion/qa/curry_ft_full107/curry_ft_game_disjoint_source_mask_v3_20261104.json
           git add --sparse -f gamepulse/fusion/qa/curry_ft_full107/curry_full107_ft_physics_research_source_cdn.png
           git add --sparse -f gamepulse/fusion/qa/curry_ft_full107/curry_full107_ft_physics_research_source_cdn_manifest.json
           git diff --cached --check
