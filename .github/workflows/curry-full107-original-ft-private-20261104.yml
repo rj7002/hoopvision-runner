@@ -1,4 +1,4 @@
-# Reviewed and allowlisted: public workflow contains NO private NBA ball/player coordinates.
+# Reviewed and allowlisted: public workflow contains NO private NBA ball/player coordinates. Source-free v3 quantile test corrected.
 name: Full107 Curry 52 free-throw original source private audit
 on:
   push:
