@@ -1,0 +1,179 @@
+# SHA-pinned original-NBA source only in private 104. No XYZ or actor data in public logs.
+name: Full107 restricted first81 R17 double-team screen assignment (private)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/full107-first81-doubleteam-r17-private-20261104.yml'
+      - 'tools/public_content_guard.py'
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: full107-first81-doubleteam-r17-private
+  cancel-in-progress: false
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PIN: 6f4b84c1bcb60e77b7feb4ae02a0489c3df1a4ba
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: python3 tools/public_content_guard.py
+      - name: Check private SHA-pinned research and deterministic adversarial controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b analysis/full107-first81-doubleteam-validation-20261104 \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/analysis
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PIN"
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion
+          python3 -B gamepulse/fusion/analysis/test_igp81_double_team_reboot_v1.py > "$RUNNER_TEMP/oldcontrols.log"
+          python3 -B gamepulse/fusion/analysis/test_igp81_double_team_r17_screen_assignment_shadow_20261104.py
+          echo SOURCE_FREE_SHADOW_AND_FROZEN_BASELINE_CONTROLS_PASS
+
+  shards:
+    needs: [preflight]
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        shard: [0,1,2,3,4,5,6,7,8]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 95
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PIN: 6f4b84c1bcb60e77b7feb4ae02a0489c3df1a4ba
+      SHARD: ${{ matrix.shard }}
+      BRANCH: analysis/full107-first81-doubleteam-validation-20261104
+      PRIVATE_REPO: timeedmonds-maker/104
+      DEST: gamepulse/fusion/qa/analysis/igp81_double_team_r17_screen_assignment_20261104
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: python3 tools/public_content_guard.py
+      - name: Read original full81 XYZ, compare frozen and screen-aware hypotheses; write private shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PIN"
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion
+          script=gamepulse/fusion/analysis/igp81_double_team_r17_screen_assignment_shadow_20261104.py
+          python3 -B "$script" --root . --shard "$SHARD" --shards 9 \
+            --out "$RUNNER_TEMP/shard.json" > "$RUNNER_TEMP/shard-private.log"
+          python3 - "$RUNNER_TEMP/shard.json" <<'PY'
+          import json,sys
+          s=json.load(open(sys.argv[1]))
+          assert s['shards']==9 and s['original_source_modified'] is False
+          assert s['shard'] in range(9)
+          assert s['engine_id']=='IGP_FULL107_FIRST81_R17_SCREEN_ASSIGNMENT_SHADOW_20261104'
+          assert len(s['all81_games'])==81
+          assert all('screen_guard_both' in p['profiles'] for g in s['per_game'].values() for p in g['players'].values())
+          print('ORIGINAL_NATIVE_81_SHARD_PASS',s['shard'],'source_games',len(s['per_game']))
+          PY
+          python3 - "$RUNNER_TEMP/shard.json" <<'PY'
+          import base64,json,os,subprocess,time,sys
+          data=open(sys.argv[1],'rb').read()
+          path=f"repos/{os.environ['PRIVATE_REPO']}/contents/{os.environ['DEST']}/shard_{os.environ['SHARD']}.json"
+          body={'branch':os.environ['BRANCH'],'message':'qa(private): original-native R17 screen-assignment source shadow [skip ci]',
+                'content':base64.b64encode(data).decode()}
+          for attempt in range(12):
+              old=subprocess.run(['gh','api',path+'?ref='+os.environ['BRANCH']],capture_output=True,text=True)
+              request=dict(body)
+              if old.returncode==0:request['sha']=json.loads(old.stdout)['sha']
+              r=subprocess.run(['gh','api','-X','PUT',path,'--input','-'],
+                    input=json.dumps(request),capture_output=True,text=True)
+              if r.returncode==0:
+                  print('R17_PRIVATE_SHARD_PERSISTED',os.environ['SHARD'])
+                  break
+              time.sleep(1+attempt)
+          else:raise RuntimeError('PRIVATE_ONLY_SHARD_PERSISTENCE_FAILED')
+          PY
+
+  reduce:
+    needs: [preflight, shards]
+    if: success()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PIN: 6f4b84c1bcb60e77b7feb4ae02a0489c3df1a4ba
+      BRANCH: analysis/full107-first81-doubleteam-validation-20261104
+      PRIVATE_REPO: timeedmonds-maker/104
+      DEST: gamepulse/fusion/qa/analysis/igp81_double_team_r17_screen_assignment_20261104
+      BASELINE_BLOB: ff2c58ffb7078876de220f10ff3ba02afe764be6
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: python3 tools/public_content_guard.py
+      - name: Reduce immutable 9-shard 81-game paired native results and enforce frozen R13 parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          mkdir -p "$RUNNER_TEMP/data"
+          python3 - <<'PY'
+          import base64,json,os,subprocess,pathlib
+          repo=os.environ['PRIVATE_REPO'];branch=os.environ['BRANCH']
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'data'
+          def fetch(path,ref):
+              a=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/contents/{path}?ref={ref}'],stderr=subprocess.DEVNULL))
+              if a.get('content') and a.get('encoding')=='base64':
+                  return base64.b64decode(a['content'])
+              b=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/git/blobs/{a["sha"]}'],stderr=subprocess.DEVNULL))
+              return base64.b64decode(b['content'])
+          for shard in range(9):
+              (root/f'shard_{shard}.json').write_bytes(fetch(f'{os.environ["DEST"]}/shard_{shard}.json',branch))
+          b=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/git/blobs/{os.environ["BASELINE_BLOB"]}']))
+          (root/'baseline.json').write_bytes(base64.b64decode(b['content']))
+          code=fetch('gamepulse/fusion/analysis/igp81_double_team_r17_reduce_20261104.py',os.environ['PIN'])
+          (root/'reduce.py').write_bytes(code)
+          print('R17_PRIVATE_SHARDS_AND_FROZEN_BASELINE_LOADED=9')
+          PY
+          python3 -B "$RUNNER_TEMP/data/reduce.py" --dir "$RUNNER_TEMP/data" \
+            --baseline "$RUNNER_TEMP/data/baseline.json" \
+            --out "$RUNNER_TEMP/data/all_league_players.json" \
+            --league-json "$RUNNER_TEMP/data/all_league_players.json" \
+            --league-csv "$RUNNER_TEMP/data/players.csv" \
+            --team-csv "$RUNNER_TEMP/data/teams.csv" > "$RUNNER_TEMP/reducer-private.log"
+          python3 - "$RUNNER_TEMP/data/all_league_players.json" <<'PY'
+          import json,sys
+          x=json.load(open(sys.argv[1]))
+          assert x['games_processed']==81
+          assert x['r17_comparison_to_frozen_r13']['baseline_original81_profiles_exact_unchanged']
+          assert not x['r17_comparison_to_frozen_r13']['publication_or_promotion_allowed']
+          print('FROZEN_R13_PER_PLAYER_COUNTS_AND_NATIVE_SOURCES_CONSERVED')
+          for key,val in x['r17_comparison_to_frozen_r13']['shadow_profiles'].items():
+              print('R17_SCREEN_SHADOW',key,'retained',val['retained_doubles'],
+                    'screen_risk_review_candidates',val['screen_risk_review_candidates'])
+          PY
+          python3 - "$RUNNER_TEMP/data/all_league_players.json" <<'PY'
+          import base64,json,os,subprocess,time,sys
+          data=open(sys.argv[1],'rb').read()
+          path=f'repos/{os.environ["PRIVATE_REPO"]}/contents/{os.environ["DEST"]}/all_league_players.json'
+          body={'branch':os.environ['BRANCH'],'message':'qa(private): R17 first81 exact paired source-graded reduction [skip ci]',
+                'content':base64.b64encode(data).decode()}
+          for attempt in range(12):
+              old=subprocess.run(['gh','api',path+'?ref='+os.environ['BRANCH']],capture_output=True,text=True)
+              request=dict(body)
+              if old.returncode==0:request['sha']=json.loads(old.stdout)['sha']
+              r=subprocess.run(['gh','api','-X','PUT',path,'--input','-'],
+                    input=json.dumps(request),capture_output=True,text=True)
+              if r.returncode==0:
+                  print('R17_PRIVATE_PAIRED_81GAME_QA_SAVED')
+                  break
+              time.sleep(1+attempt)
+          else:raise RuntimeError('PRIVATE_REDUCER_RESULT_WRITE_FAILED')
+          PY
