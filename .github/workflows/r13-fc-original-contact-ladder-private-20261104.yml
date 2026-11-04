@@ -39,6 +39,17 @@ jobs:
           else
             echo "R13_PRIVATE_GIT_TRANSPORT_READ_DENIED"
           fi
+          url="https://github.com/timeedmonds-maker/104/releases/download/gamepulse-sdk-0022600112/sdk-COMPLETE.json"
+          if curl -sSLf --connect-timeout 10 --max-time 40 --retry 1 \
+               -H "Authorization: Bearer $GH_TOKEN" \
+               -H "Accept: application/octet-stream" \
+               -o "$RUNNER_TEMP/r13-sdk-complete-probe.json" "$url"; then
+            echo "R13_PRIVATE_RELEASE_BROWSER_AUTH_READ_OK"
+            sha256sum "$RUNNER_TEMP/r13-sdk-complete-probe.json" | awk '{print "R13_RELEASE_PROBE_SHA256="$1}'
+          else
+            echo "R13_PRIVATE_RELEASE_BROWSER_AUTH_READ_DENIED"
+          fi
+          exit 0
           python3 - <<'PY'
           import base64,hashlib,json,os,pathlib,subprocess,sys,time
           repo=os.environ["PRIVATE_REPO"]
