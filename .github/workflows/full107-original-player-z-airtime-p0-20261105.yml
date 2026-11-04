@@ -1,4 +1,4 @@
-# Original licensed NBA tracking stays exclusively in private repo; public prints aggregate QA only.
+# Security-reviewed and allowlisted. Original licensed NBA tracking stays private; only aggregate QA is printed.
 name: Full107 original player Z vs NBA shot jump P0 calibration
 on:
   push:
