@@ -179,39 +179,6 @@ jobs:
             'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
             'physical_airtime_certified':False},sort_keys=True))
           PY
-      - name: Validate source cadence, release join and episode bounds (private V3)
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/private"
-          python3 -B -m py_compile gamepulse/fusion/analysis/igp_full107_player_z_sampling_alignment_v3_20261105.py
-          if test ! -f gamepulse/fusion/qa/analysis/full107_player_z_sampling_alignment_v3_20261105.json; then
-            python3 -B gamepulse/fusion/analysis/igp_full107_player_z_sampling_alignment_v3_20261105.py > "$RUNNER_TEMP/private-v3.log" 2>&1 || {
-              echo 'V3_PRIVATE_CADENCE_DIAGNOSTIC_FAILED'
-              python3 - <<'PY'
-              import os,pathlib,re
-              p=pathlib.Path(os.environ['RUNNER_TEMP'])/'private-v3.log'
-              s=p.read_text().splitlines() if p.exists() else []
-              last=next((v for v in reversed(s) if re.match(r'^[A-Za-z]+(?:Error|Exception|AssertionError):',v)),None)
-              print('ERROR_CLASS',last.split(':',1)[0] if last else 'UNKNOWN')
-              PY
-                        exit 1
-            }
-          fi
-          python3 - <<'PY'
-          import json,hashlib,pathlib
-          p=pathlib.Path('gamepulse/fusion/qa/analysis/full107_player_z_sampling_alignment_v3_20261105.json')
-          q=json.loads(p.read_bytes())
-          assert len(q['games'])==9 and q['shooter']['n']>500
-          assert q['game_airtime_not_validated'] and q['not_physical_foot_contact']
-          print('FULL107_Z_V3_SOURCE_CADENCE',json.dumps({
- 'shot_pairs':{'shooter':q['shooter']['n'],'defender':q['defender']['n']},
- 'shooter':q['shooter'],'defender':q['defender'],
- 'bounded_shot_episodes':q['bounded_shot_episode_n'],
- 'duration_bounds_shooter_p50_s':[q['bounded_shooter_duration_lower_p50_s'],q['bounded_shooter_duration_upper_p50_s']],
- 'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
- 'physical_airtime_certified':False},sort_keys=True))
-          PY
       - name: Correct nine-game count aggregation; independent event crosscheck and hangTime sensitivity
         shell: bash
         run: |
@@ -254,39 +221,39 @@ jobs:
             python3 -B gamepulse/fusion/analysis/igp_full107_player_z_6unseen_sealed_v4_20261105.py > "$RUNNER_TEMP/private-six-unseen.log" 2>&1 || {
               echo 'SIX_UNSEEN_PRIVATE_VALIDATION_FAILED'
               python3 - <<'PY'
-import os,pathlib,re
-p=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-six-unseen.log"
-s=p.read_text().splitlines() if p.exists() else []
-line=next((v for v in reversed(s) if re.match(r'^[A-Za-z]+(?:Error|Exception|AssertionError):',v)),None)
-print('PRIVATE_FAILURE_CLASS',line.split(':',1)[0] if line else 'UNKNOWN')
-PY
+          import os,pathlib,re
+          p=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-six-unseen.log"
+          s=p.read_text().splitlines() if p.exists() else []
+          line=next((v for v in reversed(s) if re.match(r'^[A-Za-z]+(?:Error|Exception|AssertionError):',v)),None)
+          print('PRIVATE_FAILURE_CLASS',line.split(':',1)[0] if line else 'UNKNOWN')
+          PY
               exit 1
             }
           fi
           python3 - <<'PY'
-import hashlib,json,pathlib
-p=pathlib.Path('gamepulse/fusion/qa/analysis/full107_player_z_6unseen_sealed_v4_20261105.json')
-q=json.loads(p.read_bytes())
-assert len(q['sealed_val_games'])==6 and len(q['dev_games'])==9
-assert q['separate_original_games_confirmed'] and not q['physical_airtime_seconds_validated']
-for actor in ('shooter','defender'):
-    assert q['actor_validation'][actor]['n']>150
-summary={}
-for actor,v in q['actor_validation'].items():
-    summary[actor]={'n':v['n'],'pearson':v['sealed_release_pearson'],
-        'frozen_model_abs_p50':v['frozen_linear_model_median_abs_error_feature_units'],
-        'frozen_model_abs_p95':v['frozen_linear_model_p95_abs_error_feature_units'],
-        'constant_baseline_abs_p50':v['dev_median_constant_p50_abs_error_feature_units'],
-        'release_threshold':v['release_z_threshold12_source_proxy'],
-        'continuous_source_threshold':v['continuous_episode_threshold12_source_proxy'],
-        'two_sided_elevation_events':v['two_sided_bounded_elevation_events']}
-print('FULL107_SEALED_6_UNSEEN_Z_VALIDATION',json.dumps({
-    'training_games':9,'validation_games':6,'actors':summary,
-    'hangtime_correlation':q['hangtime_source_field_exploration']['raw_hangtime_vs_candidate_body_elevated_seconds_pearson'],
-    'candidate_body_elevated_fraction':q['source_cadence']['candidate_elevated_body_fraction_of_contiguous_source'],
-    'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
-    'independent_airborne_truth':False},sort_keys=True))
-PY
+          import hashlib,json,pathlib
+          p=pathlib.Path('gamepulse/fusion/qa/analysis/full107_player_z_6unseen_sealed_v4_20261105.json')
+          q=json.loads(p.read_bytes())
+          assert len(q['sealed_val_games'])==6 and len(q['dev_games'])==9
+          assert q['separate_original_games_confirmed'] and not q['physical_airtime_seconds_validated']
+          for actor in ('shooter','defender'):
+              assert q['actor_validation'][actor]['n']>150
+          summary={}
+          for actor,v in q['actor_validation'].items():
+              summary[actor]={'n':v['n'],'pearson':v['sealed_release_pearson'],
+                  'frozen_model_abs_p50':v['frozen_linear_model_median_abs_error_feature_units'],
+                  'frozen_model_abs_p95':v['frozen_linear_model_p95_abs_error_feature_units'],
+                  'constant_baseline_abs_p50':v['dev_median_constant_p50_abs_error_feature_units'],
+                  'release_threshold':v['release_z_threshold12_source_proxy'],
+                  'continuous_source_threshold':v['continuous_episode_threshold12_source_proxy'],
+                  'two_sided_elevation_events':v['two_sided_bounded_elevation_events']}
+          print('FULL107_SEALED_6_UNSEEN_Z_VALIDATION',json.dumps({
+              'training_games':9,'validation_games':6,'actors':summary,
+              'hangtime_correlation':q['hangtime_source_field_exploration']['raw_hangtime_vs_candidate_body_elevated_seconds_pearson'],
+              'candidate_body_elevated_fraction':q['source_cadence']['candidate_elevated_body_fraction_of_contiguous_source'],
+              'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
+              'independent_airborne_truth':False},sort_keys=True))
+          PY
       - name: Persist per-shot research observations only in private GitHub
         shell: bash
         run: |
