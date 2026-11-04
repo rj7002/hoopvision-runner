@@ -1,6 +1,6 @@
-# Reviewed public CPU bridge: private original NBA SDK and accepted-model data
-# remain in private 104. No per-touch positions, events or timestamps public.
-name: Full81 R18 accepted 10Hz paired source replay (private)
+# R18 private source-preserving reduction: exact 1991 original-source touches,
+# accepted Full92 10Hz replay, conservative review gates; public counts only.
+name: Full81 R18 source-preserving paired accepted10Hz reducer
 on:
   push:
     branches: [main]
@@ -8,27 +8,21 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
-  paired-replay:
-    strategy:
-      fail-fast: false
-      max-parallel: 2
-      matrix:
-        gid: ['0022600021', '0022600091', '0022600125', '0022600138']
+  private-reduce:
     runs-on: ubuntu-24.04
-    timeout-minutes: 105
+    timeout-minutes: 30
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       REPO: timeedmonds-maker/104
       BRANCH: analysis/igp81-r18-unknown-rootcause-v1-20261104
-      PIN: 370e703e29d92264ac3ef170f759cd4c11c1acd6
-      GID: ${{ matrix.gid }}
-      DEST: gamepulse/fusion/qa/analysis/igp81_r18_paired_accepted10hz_20261104
+      PIN: 5d3dd6ff061d0f018d174935983eaa5849d2fcb5
+      DEST: gamepulse/fusion/qa/analysis/igp81_r18_paired_accepted10hz_20261104/reduced_source_preserving_v1.json
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: Public licensed source confidentiality boundary
+      - name: Reviewed public source confidentiality boundary
         run: python3 tools/public_content_guard.py
-      - name: Private source QA and accepted 10 Hz exact-touch paired replay
+      - name: Exact private source-locked 1991 touch reduction and test
         shell: bash
         run: |
           set -euo pipefail
@@ -41,69 +35,57 @@ jobs:
           test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PIN"
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion
-          script=gamepulse/fusion/analysis/igp81_r18_paired_accepted10hz_replay_v1.py
-          if python3 -B "$script" --selftest > "$RUNNER_TEMP/test-stdout" 2> "$RUNNER_TEMP/test-stderr" &&
-             python3 -B "$script" --root . --game-id "$GID" --out "$RUNNER_TEMP/pairs.json" > "$RUNNER_TEMP/qa-stdout" 2> "$RUNNER_TEMP/qa-stderr"; then
-            FILE="game_$GID.json"
+          script=gamepulse/fusion/analysis/igp81_r18_source_preserving_accepted10hz_reduce_v1.py
+          if python3 -B "$script" --selftest > "$RUNNER_TEMP/selftest" 2> "$RUNNER_TEMP/selferr" &&
+             python3 -B "$script" --root . --out "$RUNNER_TEMP/result.json" > "$RUNNER_TEMP/qaout" 2> "$RUNNER_TEMP/qaerr"; then
             python3 - <<'PY'
           import json,os,pathlib
-          root=pathlib.Path(os.environ["RUNNER_TEMP"])
-          d=json.loads((root/"pairs.json").read_bytes())
-          assert d["source_game_id"]==os.environ["GID"]
-          assert d["run_changed_default"] is False
-          assert d["independent_accuracy_certified"] is False
-          assert d["summary"]["all_source_touch_ids_unique"]
-          assert d["summary"]["all_original_source_classifications_retained"]
-          assert d["summary"]["eligible_touches"] in (465,510,537,479)
-          print("R18_ACCEPTED10HZ_PAIRED_PRIVATE_PASS",
-                d["source_game_id"],
-                "touches",d["summary"]["eligible_touches"],
-                "unknowns",d["summary"]["original_native_unresolved_tracking_or_control"],
-                "candidate_double",d["summary"]["original_native_unresolved_new_candidate_double"],
-                "candidate_negative",d["summary"]["original_native_unresolved_new_candidate_negative"],
-                "native_doubles_lost",d["summary"]["native_source_double_removed_in_replay"])
+          d=json.loads((pathlib.Path(os.environ["RUNNER_TEMP"])/"result.json").read_bytes())
+          assert d["eligible_touches"]==1991
+          assert d["source_touch_denominator_changed"] is False
+          assert d["original_native_double_episodes_erased"]==0
+          assert d["promoted_double_team_change_count"]==0
+          assert d["publication_allowed"] is False
+          print("R18_1991_SOURCE_PRESERVING_REDUCE_PASS",
+                d["all_touch_status_counts"].get("R18_NEW_DOUBLE_REVIEW_CANDIDATE_ONLY",0),
+                d["all_touch_status_counts"].get("R18_NEW_NEGATIVE_REVIEW_CANDIDATE_ONLY",0))
           PY
-            cp "$RUNNER_TEMP/pairs.json" "$RUNNER_TEMP/private-result.json"
           else
-            FILE="failure_$GID.json"
             python3 - <<'PY'
-          import os,pathlib,json
+          import json,pathlib,os
           root=pathlib.Path(os.environ["RUNNER_TEMP"])
           errors={}
-          for name in ("test-stderr","qa-stderr"):
-              path=root/name
-              if path.is_file():errors[name]=path.read_text()[-16000:]
-          (root/"private-result.json").write_text(json.dumps({
-              "game_id":os.environ["GID"],
-              "status":"ACCEPTED10HZ_PRIVATE_PAIRED_REPLAY_FAILED",
-              "private_error_details":errors
-          },sort_keys=True)+"\n")
+          for name in ("qaerr","selferr"):
+              p=root/name
+              if p.is_file():errors[name]=p.read_text()[-16000:]
+          (root/"result.json").write_text(json.dumps({
+              "status":"PRIVATE_SOURCE_PAIRED_REDUCE_FAILED",
+              "private_diagnostics":errors})+"\n")
           PY
-            echo R18_ACCEPTED10HZ_FAILURE_DIAGNOSTIC_PRIVATE_ONLY
+            echo R18_REDUCER_FAILED_DIAGNOSTIC_PRIVATE
+            FAILED=1
           fi
           git fetch -q origin "$BRANCH"
           git checkout -q -B qa-publish "origin/$BRANCH"
-          mkdir -p "$DEST"
-          cp "$RUNNER_TEMP/private-result.json" "$DEST/$FILE"
+          mkdir -p "$(dirname "$DEST")"
+          cp "$RUNNER_TEMP/result.json" "$DEST"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f "$DEST/$FILE"
+          git add -f "$DEST"
           git diff --cached --check
-          if git diff --cached --quiet; then
-            echo R18_PRIVATE_RESULT_ALREADY_PERSISTED
-          else
-            git commit -q -m "qa(private): R18 paired accepted10Hz $GID [skip ci]"
-            complete=0
+          if ! git diff --cached --quiet; then
+            git commit -q -m "qa(private): exact 1991-touch R18 source-preserving reducer [skip ci]"
+            done=0
             for n in 1 2 3 4 5; do
               git fetch -q origin "$BRANCH"
               git rebase -q "origin/$BRANCH"
               if git push -q origin "HEAD:refs/heads/$BRANCH"; then
-                complete=1
-                echo R18_ACCEPTED10HZ_PRIVATE_RESULT_SAVED "$GID"
+                done=1
+                echo R18_1991_PRIVATE_REDUCE_PERSISTED
                 break
               fi
               sleep "$n"
             done
-            test "$complete" -eq 1
+            test "$done" = 1
           fi
-          test "$FILE" = "game_$GID.json"
+          test "${FAILED:-0}" = 0
