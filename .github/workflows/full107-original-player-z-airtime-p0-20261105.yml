@@ -32,6 +32,7 @@ jobs:
             /gamepulse/fusion/analysis/igp_full107_player_z_airtime_9game_shadow_v2_20261105.py \
             /gamepulse/fusion/analysis/igp_full107_player_z_sampling_alignment_v3_20261105.py \
             /gamepulse/fusion/analysis/igp_full107_player_z_9game_reconcile_v4_20261105.py \
+            /gamepulse/fusion/analysis/igp_full107_player_z_6unseen_sealed_v4_20261105.py \
             /gamepulse/fusion/qa/analysis/full107_player_z_airtime_pilot_20261105.json \
             /gamepulse/fusion/qa/analysis/full107_player_z_9game_shadow_v2_20261105.json \
             /gamepulse/fusion/qa/analysis/full107_player_z_sampling_alignment_v3_20261105.json \
@@ -62,7 +63,25 @@ jobs:
             /gamepulse/fusion/evidence/companion_sdk_original_0022600137/sdk_observed_original.json \
             /gamepulse/fusion/evidence/companion_sdk_original_0022600137/shotdetails_official_action_crosswalk_v1.json \
             /gamepulse/fusion/evidence/companion_sdk_original_0022600136/sdk_observed_original.json \
-            /gamepulse/fusion/evidence/companion_sdk_original_0022600136/shotdetails_official_action_crosswalk_v1.json
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600136/shotdetails_official_action_crosswalk_v1.json \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600148/ \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600148/sdk_observed_original.json \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600148/shotdetails_official_action_crosswalk_v1.json \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600154/ \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600154/sdk_observed_original.json \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600154/shotdetails_official_action_crosswalk_v1.json \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600158/ \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600158/sdk_observed_original.json \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600158/shotdetails_official_action_crosswalk_v1.json \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600163/ \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600163/sdk_observed_original.json \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600163/shotdetails_official_action_crosswalk_v1.json \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600168/ \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600168/sdk_observed_original.json \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600168/shotdetails_official_action_crosswalk_v1.json \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600172/ \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600172/sdk_observed_original.json \
+            /gamepulse/fusion/evidence/companion_sdk_original_0022600172/shotdetails_official_action_crosswalk_v1.json
           echo "PRIVATE_SOURCE_CHECKOUT_SHA_$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)"
       - name: Execute exact official-shot source join and original Z calibration privately
         shell: bash
@@ -223,6 +242,51 @@ PY
             'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
             'independent_airtime_ground_truth':False},sort_keys=True))
           PY
+      - name: Sealed six previously unseen games – frozen nine-game release-Z and continuous detector
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -B -m py_compile gamepulse/fusion/analysis/igp_full107_player_z_6unseen_sealed_v4_20261105.py
+          if test -f gamepulse/fusion/qa/analysis/full107_player_z_6unseen_sealed_v4_20261105.json; then
+            echo 'SIX_UNSEEN_RESEARCH_QA_EXISTING'
+          else
+            python3 -B gamepulse/fusion/analysis/igp_full107_player_z_6unseen_sealed_v4_20261105.py > "$RUNNER_TEMP/private-six-unseen.log" 2>&1 || {
+              echo 'SIX_UNSEEN_PRIVATE_VALIDATION_FAILED'
+              python3 - <<'PY'
+import os,pathlib,re
+p=pathlib.Path(os.environ["RUNNER_TEMP"])/"private-six-unseen.log"
+s=p.read_text().splitlines() if p.exists() else []
+line=next((v for v in reversed(s) if re.match(r'^[A-Za-z]+(?:Error|Exception|AssertionError):',v)),None)
+print('PRIVATE_FAILURE_CLASS',line.split(':',1)[0] if line else 'UNKNOWN')
+PY
+              exit 1
+            }
+          fi
+          python3 - <<'PY'
+import hashlib,json,pathlib
+p=pathlib.Path('gamepulse/fusion/qa/analysis/full107_player_z_6unseen_sealed_v4_20261105.json')
+q=json.loads(p.read_bytes())
+assert len(q['sealed_val_games'])==6 and len(q['dev_games'])==9
+assert q['separate_original_games_confirmed'] and not q['physical_airtime_seconds_validated']
+for actor in ('shooter','defender'):
+    assert q['actor_validation'][actor]['n']>150
+summary={}
+for actor,v in q['actor_validation'].items():
+    summary[actor]={'n':v['n'],'pearson':v['sealed_release_pearson'],
+        'frozen_model_abs_p50':v['frozen_linear_model_median_abs_error_feature_units'],
+        'frozen_model_abs_p95':v['frozen_linear_model_p95_abs_error_feature_units'],
+        'constant_baseline_abs_p50':v['dev_median_constant_p50_abs_error_feature_units'],
+        'release_threshold':v['release_z_threshold12_source_proxy'],
+        'continuous_source_threshold':v['continuous_episode_threshold12_source_proxy'],
+        'two_sided_elevation_events':v['two_sided_bounded_elevation_events']}
+print('FULL107_SEALED_6_UNSEEN_Z_VALIDATION',json.dumps({
+    'training_games':9,'validation_games':6,'actors':summary,
+    'hangtime_correlation':q['hangtime_source_field_exploration']['raw_hangtime_vs_candidate_body_elevated_seconds_pearson'],
+    'candidate_body_elevated_fraction':q['source_cadence']['candidate_elevated_body_fraction_of_contiguous_source'],
+    'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
+    'independent_airborne_truth':False},sort_keys=True))
+PY
       - name: Persist per-shot research observations only in private GitHub
         shell: bash
         run: |
@@ -234,6 +298,7 @@ PY
           git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_9game_shadow_v2_20261105.json
           git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_sampling_alignment_v3_20261105.json
           git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_9game_reconciled_v4_20261105.json
+          git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_6unseen_sealed_v4_20261105.json
           git add --sparse -f gamepulse/fusion/qa/analysis/full107_player_z_sampling_alignment_v3_20261105.json
           git diff --cached --check
           if git diff --cached --quiet; then echo 'PLAYER_Z_RESEARCH_QA_ALREADY_PRESERVED'; exit 0; fi
