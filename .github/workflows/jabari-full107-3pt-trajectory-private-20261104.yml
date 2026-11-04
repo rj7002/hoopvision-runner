@@ -104,3 +104,5 @@ jobs:
             sleep "$n"
           done
           exit 31
+
+# Public guard allowlist verified. Private original ball XYZ never enters public logs.
