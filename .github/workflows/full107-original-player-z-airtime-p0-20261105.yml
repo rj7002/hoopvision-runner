@@ -189,29 +189,29 @@ jobs:
             python3 -B gamepulse/fusion/analysis/igp_full107_player_z_sampling_alignment_v3_20261105.py > "$RUNNER_TEMP/private-v3.log" 2>&1 || {
               echo 'V3_PRIVATE_CADENCE_DIAGNOSTIC_FAILED'
               python3 - <<'PY'
-import os,pathlib,re
-p=pathlib.Path(os.environ['RUNNER_TEMP'])/'private-v3.log'
-s=p.read_text().splitlines() if p.exists() else []
-last=next((v for v in reversed(s) if re.match(r'^[A-Za-z]+(?:Error|Exception|AssertionError):',v)),None)
-print('ERROR_CLASS',last.split(':',1)[0] if last else 'UNKNOWN')
-PY
-              exit 1
+              import os,pathlib,re
+              p=pathlib.Path(os.environ['RUNNER_TEMP'])/'private-v3.log'
+              s=p.read_text().splitlines() if p.exists() else []
+              last=next((v for v in reversed(s) if re.match(r'^[A-Za-z]+(?:Error|Exception|AssertionError):',v)),None)
+              print('ERROR_CLASS',last.split(':',1)[0] if last else 'UNKNOWN')
+              PY
+                        exit 1
             }
           fi
           python3 - <<'PY'
-import json,hashlib,pathlib
-p=pathlib.Path('gamepulse/fusion/qa/analysis/full107_player_z_sampling_alignment_v3_20261105.json')
-q=json.loads(p.read_bytes())
-assert len(q['games'])==9 and q['shooter']['n']>500
-assert q['game_airtime_not_validated'] and q['not_physical_foot_contact']
-print('FULL107_Z_V3_SOURCE_CADENCE',json.dumps({
+          import json,hashlib,pathlib
+          p=pathlib.Path('gamepulse/fusion/qa/analysis/full107_player_z_sampling_alignment_v3_20261105.json')
+          q=json.loads(p.read_bytes())
+          assert len(q['games'])==9 and q['shooter']['n']>500
+          assert q['game_airtime_not_validated'] and q['not_physical_foot_contact']
+          print('FULL107_Z_V3_SOURCE_CADENCE',json.dumps({
  'shot_pairs':{'shooter':q['shooter']['n'],'defender':q['defender']['n']},
  'shooter':q['shooter'],'defender':q['defender'],
  'bounded_shot_episodes':q['bounded_shot_episode_n'],
  'duration_bounds_shooter_p50_s':[q['bounded_shooter_duration_lower_p50_s'],q['bounded_shooter_duration_upper_p50_s']],
  'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
  'physical_airtime_certified':False},sort_keys=True))
-PY
+          PY
       - name: Correct nine-game count aggregation; independent event crosscheck and hangTime sensitivity
         shell: bash
         run: |
