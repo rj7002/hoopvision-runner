@@ -1,4 +1,4 @@
-name: R13 original NBA shot-touch archived eight - Git transport
+name: R13 shot-touch candidate second cohort NBA game-disjoint four - Git transport
 on:
   push:
     branches: [main]
@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        game: ['0022600125','0022600138','0022600021','0022600153','0022600017','0022600018','0022600019','0022600020']
+        game: ['0022600001','0022600003','0022600004','0022600005']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       R13_GAME_ID: ${{ matrix.game }}
@@ -33,15 +33,15 @@ jobs:
           gh auth setup-git
           root="$RUNNER_TEMP/r13-archived-source"
           git clone -q --filter=blob:none --depth=1 --no-checkout -b research/r13-source-onset-frontcourt-v3-20261104 https://github.com/timeedmonds-maker/104.git "$root"
-          for sha in 622de5c2d754f97193acfbdddac6bd886a206637 231448fa9065c380504d13627fba022861e59b8b 5bdb2649f480ebf671e4c1a5f1afdb1420feaf3c 20c11501a2a7ecb2563f75bfe43784cbada850d8; do
+          for sha in 622de5c2d754f97193acfbdddac6bd886a206637 231448fa9065c380504d13627fba022861e59b8b 5bdb2649f480ebf671e4c1a5f1afdb1420feaf3c 0b8bf4805de02dcec736f472b8cff45e4fbbdd34; do
             git -C "$root" fetch -q --filter=blob:none --depth=1 origin "$sha"
           done
-          path="gamepulse/fusion/analysis/r13_shot_terminal_archived8_git_transport_v1.py"
-          expected="8abfc31367e3081fb340a0efb31d1e0d0ddebbb3"
-          test "$(git -C "$root" rev-parse "20c11501a2a7ecb2563f75bfe43784cbada850d8:$path")" = "$expected"
-          git -C "$root" show "20c11501a2a7ecb2563f75bfe43784cbada850d8:$path" > "$RUNNER_TEMP/r13_archived8.py"
+          path="gamepulse/fusion/analysis/r13_shot_terminal_second_panel_git_transport_v1.py"
+          expected="0a1f97a2a6ef8d816c6a9fbade0da63c7ede4621"
+          test "$(git -C "$root" rev-parse "0b8bf4805de02dcec736f472b8cff45e4fbbdd34:$path")" = "$expected"
+          git -C "$root" show "0b8bf4805de02dcec736f472b8cff45e4fbbdd34:$path" > "$RUNNER_TEMP/r13_second_panel.py"
           export R13_PRIVATE_GIT_ROOT="$root"
           cd "$RUNNER_TEMP"
-          python3 -m py_compile ./r13_archived8.py
-          python3 ./r13_archived8.py
-          echo "R13_ARCHIVED8_PRIVATE_REPLICATION_DONE game=$R13_GAME_ID"
+          python3 -m py_compile ./r13_second_panel.py
+          python3 ./r13_second_panel.py
+          echo "R13_SECOND_PANEL_PRIVATE_REPLICATION_DONE game=$R13_GAME_ID"
