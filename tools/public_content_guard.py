@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/full107-z-v4-aggregate-reconcile-20261105.yml",  # reviewed three SHA-verified private QA receipts; source-free aggregate crosscheck only
     ".github/workflows/full107-original-player-z-airtime-p0-20261105.yml",  # reviewed private original NBA Z/shot jump P0 pilot; no licensed XYZ in public logs
     ".github/workflows/igp-r19-pnr-dho-real-8clip-private-20261105.yml",  # private SHA locked actual 10Hz player ball PNR/DHO temporal action classifier, source-only aggregate public
 
