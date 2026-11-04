@@ -33,6 +33,7 @@ jobs:
           git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
             /gamepulse/fusion/curry_ft_full107_original_3d_v1.py \
+            /gamepulse/fusion/curry_ft_full107_physics_validation_v2.py \
             /gamepulse/fusion/official_pbp_timing/games/0022600005.json \
             /gamepulse/fusion/official_pbp_timing/games/0022600101.json \
             /gamepulse/fusion/official_pbp_timing/games/0022600127.json \
@@ -74,6 +75,35 @@ jobs:
             'derived_json_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
             'source_recovery_grade':'P0_ORIGINAL_XYZ_NOT_INDEPENDENT_VIDEO'},sort_keys=True))
           PY
+      - name: Physics P0 masked-original compare and independent 10ft bracket audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 gamepulse/fusion/curry_ft_full107_physics_validation_v2.py --self-test
+          python3 gamepulse/fusion/curry_ft_full107_physics_validation_v2.py > "$RUNNER_TEMP/private-physics.log" 2>&1 || {
+            echo "PRIVATE_CURRY_P0_PHYSICS_FAILED; private source and per-shot logs withheld"
+            exit 1
+          }
+          python3 - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          p=Path('gamepulse/fusion/qa/curry_ft_full107/curry_ft_physics_masked_original_v2_20261104.json')
+          q=json.loads(p.read_text())
+          assert q['shots']==52 and q['makes']==51 and q['game_count']==6
+          assert q['paired_masked_frames']>=100
+          assert q['fixed_g_source_masked_3d_ft']['n']==q['loso_g_source_masked_3d_ft']['n']
+          assert 0<=q['shots_with_observed_descending_10ft_bracket']<=52
+          assert not q['physical_accuracy_certified'] and not q['true_rim_anchor_certified']
+          print('PRIVATE_CURRY_P0_PHYSICS_QA',json.dumps({
+            'shots':q['shots'],'masked_frames':q['paired_masked_frames'],
+            'fixed_g_p50_ft':q['fixed_g_source_masked_3d_ft']['p50'],
+            'fixed_g_p95_ft':q['fixed_g_source_masked_3d_ft']['p95'],
+            'calibrated_g_p50_ft':q['loso_g_source_masked_3d_ft']['p50'],
+            'calibrated_g_p95_ft':q['loso_g_source_masked_3d_ft']['p95'],
+            'ten_foot_brackets':q['shots_with_observed_descending_10ft_bracket'],
+            'sha256':hashlib.sha256(p.read_bytes()).hexdigest()},sort_keys=True))
+          PY
       - name: Write private QA only; never upload licensed XYZ publicly
         shell: bash
         run: |
@@ -82,6 +112,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add --sparse -f gamepulse/fusion/qa/curry_ft_full107/curry_free_throw_original_tracking_20261104.json
+          git add --sparse -f gamepulse/fusion/qa/curry_ft_full107/curry_ft_physics_masked_original_v2_20261104.json
           git diff --cached --check
           if git diff --cached --quiet; then echo 'Curry original-FT private QA unchanged'; exit 0; fi
           git commit -qm 'qa(private): source SHA verified Full107 Curry 52 free throws'
