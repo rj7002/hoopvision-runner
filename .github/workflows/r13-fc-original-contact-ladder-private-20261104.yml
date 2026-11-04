@@ -1,4 +1,4 @@
-name: R13 fresh-four high-Z source reception single challenger private
+name: R13 source DNP and official-ten roster guard private development
 # Existing approved R13 private-only isolated CPU workflow: fresh-four SHA-pinned holdout.
 on:
   push:
@@ -19,8 +19,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PRIVATE_BRANCH: research/r13-fc-highz-fresh4-20261104
-      PRIVATE_TASK_SOURCE_SHA: 16cf35d869dd124ec70a18dd79442a8bfd20b385
+      PRIVATE_BRANCH: research/r13-fc-roster-guard-devfour-20261104
+      PRIVATE_TASK_SOURCE_SHA: a110b69983472ec74a0074e62f5dbb18a49fe1c4
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
           pin=os.environ["PRIVATE_TASK_SOURCE_SHA"]
           branch=os.environ["PRIVATE_BRANCH"]
           game=os.environ["R13_GAME_ID"]
-          path="gamepulse/fusion/analysis/r13_fresh_four_highz_single_20261104.py"
+          path="gamepulse/fusion/analysis/r13_roster_guard_devfour_20261104.py"
           source=None
           for retry in range(8):
               r=subprocess.run(["gh","api",f"repos/{repo}/contents/{path}?ref={pin}"],capture_output=True,text=True)
@@ -59,7 +59,7 @@ jobs:
           script.write_bytes(raw)
           run=subprocess.run([sys.executable,str(script)],cwd=root,env=os.environ.copy(),capture_output=True,text=True)
           if run.returncode:
-              endpoint=f"repos/{repo}/contents/gamepulse/fusion/qa/r13_highz_fresh_four_20261104/private_failure_{game}.json"
+              endpoint=f"repos/{repo}/contents/gamepulse/fusion/qa/r13_roster_guard_devfour_20261104/private_failure_{game}.json"
               payload={"branch":branch,"message":"qa(private): R13 original gate ladder failure [skip ci]",
                        "content":base64.b64encode(json.dumps({
                            "game_id":game,"pin":pin,"return_code":run.returncode,
