@@ -1,4 +1,4 @@
-name: R13 second frozen 4 untouched NBA shot touch V2 3-frame source consensus
+name: R13 third frozen 8 untouched NBA original-SDK frontcourt v2 source consensus
 on:
   push:
     branches: [main]
@@ -12,14 +12,14 @@ jobs:
     timeout-minutes: 60
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 3
       matrix:
-        game: ['0022600116','0022600117','0022600118','0022600119']
+        game: ['0022600120','0022600121','0022600122','0022600123','0022600124','0022600126','0022600127','0022600128']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-shot-terminal-source-consensus-v2-20261104
-      PRIVATE_TASK_SOURCE_SHA: 6c4c0aca2c9e1c916706590c63e6993d1fe4042b
+      PRIVATE_TASK_SOURCE_SHA: 205a576cbf1e9f20c0cd2b113f69bc83ced944f5
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
@@ -35,8 +35,8 @@ jobs:
           gh auth setup-git
           root="$RUNNER_TEMP/r13-independent-original"
           git clone -q --filter=blob:none --depth=1 --no-checkout -b "$PRIVATE_BRANCH" "https://github.com/$PRIVATE_REPO.git" "$root"
-          script_path="gamepulse/fusion/analysis/r13_shot_source_consensus_fresh4_private_replay_v1.py"
-          expected_blob="3e6346dc61ac66d321ab26b073bd1ed180fe069d"
+          script_path="gamepulse/fusion/analysis/r13_shot_source_consensus_fresh8_private_replay_v1.py"
+          expected_blob="bc8e36056b1b9bc9896da5f21ccadf7eab7ab827"
           test "$(git -C "$root" rev-parse "HEAD:$script_path")" = "$expected_blob"
           work="$RUNNER_TEMP/r13-frozen-$R13_GAME_ID"
           mkdir -p "$work"
@@ -44,13 +44,13 @@ jobs:
           cd "$work"
           python3 -m py_compile ./replay.py
           if python3 ./replay.py > run.stdout 2> run.stderr; then
-            echo "R13_V2_SECOND_FOUR_ORIGINAL_SDK_REPLAY_COMPLETE game=$R13_GAME_ID"
+            echo "R13_V2_THIRD_EIGHT_ORIGINAL_SDK_REPLAY_COMPLETE game=$R13_GAME_ID"
           else
             python3 - <<'PY'
           import base64,json,os,subprocess,time
           repo=os.environ["PRIVATE_REPO"];branch=os.environ["PRIVATE_BRANCH"]
           gid=os.environ["R13_GAME_ID"]
-          path="gamepulse/fusion/qa/r13_shot_source_consensus_v2_20261104/private_failure_"+gid+".json"
+          path="gamepulse/fusion/qa/r13_shot_source_consensus_v2_eight_20261104/private_failure_"+gid+".json"
           payload={"game_id":gid,"source_pin":os.environ["PRIVATE_TASK_SOURCE_SHA"],
               "stderr_tail":open("run.stderr").read()[-15000:],
               "stdout_tail":open("run.stdout").read()[-3500:],
