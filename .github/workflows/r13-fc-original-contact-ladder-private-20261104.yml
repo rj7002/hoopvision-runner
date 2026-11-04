@@ -33,6 +33,12 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$GH_TOKEN"
+          gh auth setup-git
+          if git ls-remote -q https://github.com/timeedmonds-maker/104.git HEAD >/dev/null 2>&1; then
+            echo "R13_PRIVATE_GIT_TRANSPORT_READ_OK"
+          else
+            echo "R13_PRIVATE_GIT_TRANSPORT_READ_DENIED"
+          fi
           python3 - <<'PY'
           import base64,hashlib,json,os,pathlib,subprocess,sys,time
           repo=os.environ["PRIVATE_REPO"]
