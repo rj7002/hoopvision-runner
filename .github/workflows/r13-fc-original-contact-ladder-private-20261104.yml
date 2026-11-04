@@ -20,7 +20,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-reception-transition-v1-20261104
-      PRIVATE_TASK_SOURCE_SHA: ee2ca9f1320db21e2b798675ebb5f72e53d90ae0
+      PRIVATE_TASK_SOURCE_SHA: 476e12c00d4805b79ad00cb22ce4cf504a3489c2
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
