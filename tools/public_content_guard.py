@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/full107-first81-r18-rootcause-private-source-20261104.yml",  # reviewed: four SHA-original source games, private-only per-touch evidence, aggregate-only public logs, nonpromotion
     ".github/workflows/durant-full107-ft-original-private-20261104.yml",  # reviewed: 8-game private SHA-original Durant P0 extraction; aggregate counts only public
     ".github/workflows/durant-full107-shot-tracker-private-20261104.yml",  # reviewed: private SHA-original Durant 8-game FT flight and P0 model; public PNG artifact only
     ".github/workflows/curry-full107-ft-window-expansion-private-20261104.yml",  # reviewed: six-game SHA-original Curry source pre/post FT window audit, no private coordinates public
