@@ -20,7 +20,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/r13-fc-highz-fresh4-20261104
-      PRIVATE_TASK_SOURCE_SHA: 44e57c4841a29bd469417488ded03184443bd24b
+      PRIVATE_TASK_SOURCE_SHA: 16cf35d869dd124ec70a18dd79442a8bfd20b385
       R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
