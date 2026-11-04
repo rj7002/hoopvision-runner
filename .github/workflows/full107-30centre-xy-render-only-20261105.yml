@@ -1,0 +1,78 @@
+# Public runner reads vetted 2-foot time-weighted histograms only from private 104.
+# Original individual NBA XYZ is never printed, uploaded, or copied to public repository.
+name: Full107 30-centre deterministic defensive XY PNG render
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/full107-30centre-xy-render-only-20261105.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: full107-30centre-xy-render-only-20261105
+  cancel-in-progress: false
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: analysis/full107-center-defensive-paint-20261105
+      PIN: 3f76654697621b0ce021bf39b3bced1ccdb9636d
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify repository content guard
+        run: python3 -m py_compile tools/public_content_guard.py && python3 tools/public_content_guard.py
+      - name: Render exact-source 30-centre and Clingan-Bam images in private checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PIN"
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$PIN"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/analysis/render_full107_30_centre_true_xy_heatmaps_20261105.py gamepulse/fusion/qa/analysis/full107_center_defensive_heatmaps_v1_20261105
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PIN"
+          python3 -m pip install -q --disable-pip-version-check --break-system-packages numpy matplotlib
+          cd "$RUNNER_TEMP/private"
+          python3 -B gamepulse/fusion/analysis/render_full107_30_centre_true_xy_heatmaps_20261105.py --input gamepulse/fusion/qa/analysis/full107_center_defensive_heatmaps_v1_20261105/starting_centres_30team_heatmaps.json --outdir "$RUNNER_TEMP/figures" > "$RUNNER_TEMP/private_render_receipt.json"
+          python3 - <<'PY'
+          import json,os,pathlib,hashlib
+          path=pathlib.Path(os.environ['RUNNER_TEMP'],'private_render_receipt.json')
+          j=json.loads(path.read_text())
+          assert j['source_player_count']==30 and j['source_games']==107
+          assert abs(j['Clingan_pct']-64.799)<.001 and abs(j['Bam_pct']-36.558)<.001
+          for key in ['all30_png','comparison_png']:
+              p=pathlib.Path(j[key])
+              assert p.read_bytes()[:8]==b'\x89PNG\r\n\x1a\n'
+              assert hashlib.sha256(p.read_bytes()).hexdigest()==j[key.replace('_png','_png_sha256')]
+          print('FULL107_ALL30_DETERMINISTIC_PNG_QA_VERIFIED',j['source_player_count'],j['source_games'])
+          PY
+      - name: Publish ONLY deterministic PNG figures to PRIVATE 104 and read back checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,hashlib,json,os,pathlib,subprocess,time
+          src=pathlib.Path(os.environ['RUNNER_TEMP'],'figures')
+          targetbase='gamepulse/fusion/qa/analysis/full107_center_defensive_heatmaps_v1_20261105'
+          for name in ['full107_all_30_starting_centres_true_xy_heatmaps.png','full107_clingan_bam_true_xy_comparison.png']:
+              data=(src/name).read_bytes()
+              dest=f'repos/timeedmonds-maker/104/contents/{targetbase}/{name}'
+              for trial in range(14):
+                  existing=subprocess.run(['gh','api',dest+'?ref='+os.environ['PRIVATE_BRANCH']],capture_output=True,text=True,timeout=75)
+                  p={'branch':os.environ['PRIVATE_BRANCH'],'message':'viz: verified deterministic Full107 original XY map '+name,
+                     'content':base64.b64encode(data).decode()}
+                  if existing.returncode==0:p['sha']=json.loads(existing.stdout)['sha']
+                  elif '404' not in existing.stderr and 'Not Found' not in existing.stderr:raise RuntimeError(existing.stderr[:250])
+                  w=subprocess.run(['gh','api','-X','PUT',dest,'--input','-'],input=json.dumps(p),text=True,capture_output=True,timeout=100)
+                  if w.returncode==0:break
+                  if not any(x in w.stderr for x in ('409','422','429','500','502','503')):raise RuntimeError(w.stderr[:350])
+                  time.sleep(min(4+trial,20))
+              else:raise RuntimeError('PRIVATE_PNG_WRITE_RETRY_EXHAUSTED')
+              got=base64.b64decode(subprocess.check_output(['gh','api',dest+'?ref='+os.environ['PRIVATE_BRANCH'],'--jq','.content'],timeout=100))
+              assert hashlib.sha256(data).digest()==hashlib.sha256(got).digest()
+              print('FULL107_PRIVATE_DETERMINISTIC_PNG_SHA_READBACK_VERIFIED',name,hashlib.sha256(data).hexdigest(),len(data))
+          PY
