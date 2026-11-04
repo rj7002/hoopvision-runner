@@ -33,7 +33,6 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$GH_TOKEN"
-          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
           gh auth setup-git
           git clone --quiet --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PIN"
@@ -51,29 +50,42 @@ jobs:
           assert all(sum(row['grid_ms'])==row['defensive_end_ms'] for row in v['rows'])
           print('FULL107_CENTER_SPATIAL_AGGREGATE_SOURCE_PARITY_VERIFIED',v['shard'],v['processed_games'],len(v['rows']))
           PY
-      - name: Preserve derived histogram privately and verify checksum readback
+      - name: Privately commit exact source-time bin counts by authenticated git
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import base64,hashlib,json,os,pathlib,subprocess,time
-          shard=int(os.environ['SHARD'])
-          raw=pathlib.Path(os.environ['RUNNER_TEMP'],f'heatmap_{shard}.json').read_bytes()
-          target=f'repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/full107_center_defensive_heatmaps_v1_20261105/shard_{shard}.json'
-          for trial in range(14):
-              existing=subprocess.run(['gh','api',target+'?ref='+os.environ['PRIVATE_BRANCH']],text=True,capture_output=True)
-              p={'branch':os.environ['PRIVATE_BRANCH'],'message':f'qa: Full107 defensive-center native XY heatmap 2ft shard {shard}', 'content':base64.b64encode(raw).decode()}
-              if existing.returncode==0:p['sha']=json.loads(existing.stdout)['sha']
-              elif '404' not in existing.stderr and 'Not Found' not in existing.stderr:raise RuntimeError(existing.stderr[:250])
-              result=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],text=True,input=json.dumps(p),capture_output=True,timeout=95)
-              if result.returncode==0:break
-              if not any(x in result.stderr for x in ('409','422','429','500','502','503')):raise RuntimeError(result.stderr[:350])
-              time.sleep(min(3+trial,15))
-          else:raise RuntimeError('HEATMAP_SHARD_WRITE_RETRY_EXHAUSTED')
-          got=base64.b64decode(subprocess.check_output(['gh','api',target+'?ref='+os.environ['PRIVATE_BRANCH'],'--jq','.content'],timeout=95))
-          assert hashlib.sha256(got).digest()==hashlib.sha256(raw).digest()
-          print('HEATMAP_PRIVATE_SHARD_SHA256_READBACK_VALID',shard,hashlib.sha256(raw).hexdigest())
-          PY
+          rel="gamepulse/fusion/qa/analysis/full107_center_defensive_heatmaps_v1_20261105/shard_$SHARD.json"
+          repo="$RUNNER_TEMP/private"
+          git -C "$repo" checkout -q -B source-shard-write "origin/$PRIVATE_BRANCH"
+          git -C "$repo" config user.name "Integrated Pulse Source QA"
+          git -C "$repo" config user.email "41882018272+igp-source@users.noreply.github.com"
+          mkdir -p "$repo/$(dirname "$rel")"
+          cp "$RUNNER_TEMP/heatmap_$SHARD.json" "$repo/$rel"
+          git -C "$repo" add "$rel"
+          if ! git -C "$repo" diff --cached --quiet; then
+            git -C "$repo" commit -qm "qa: source-verified Full107 centre defensive-grid shard $SHARD"
+          fi
+          success=0
+          for i in $(seq 1 20); do
+            git -C "$repo" fetch -q origin "$PRIVATE_BRANCH"
+            if ! git -C "$repo" rebase "origin/$PRIVATE_BRANCH"; then
+              git -C "$repo" rebase --abort || true
+              echo "SOURCE_SHARD_REBASE_CONFLICT"
+              exit 3
+            fi
+            if git -C "$repo" push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              success=1
+              break
+            fi
+            sleep $((2+i))
+          done
+          test "$success" = 1
+          git -C "$repo" fetch -q origin "$PRIVATE_BRANCH"
+          actual="$(git -C "$repo" show "origin/$PRIVATE_BRANCH:$rel" | sha256sum | cut -d' ' -f1)"
+          expected="$(sha256sum "$RUNNER_TEMP/heatmap_$SHARD.json" | cut -d' ' -f1)"
+          test "$actual" = "$expected"
+          echo "FULL107_PRIVATE_SOURCE_GRID_SHA_READBACK_VALID shard=$SHARD sha=$expected"
+
   reduce:
     needs: [shards]
     runs-on: ubuntu-24.04
@@ -93,9 +105,7 @@ jobs:
           test -n "$GH_TOKEN"
           gh auth setup-git
           git clone --quiet --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
-          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PIN"
-          git -C "$RUNNER_TEMP/private" checkout -q --detach "$PIN"
-          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/official_pbp_timing/original_nba_20261029
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/official_pbp_timing/original_nba_20261029 gamepulse/fusion/qa/analysis/full107_center_defensive_heatmaps_v1_20261105 gamepulse/fusion/qa/analysis/full107_center_defensive_paint_expanded_v2_20261105
           cd "$RUNNER_TEMP/private"
           python3 - <<'PY'
           import base64,collections,hashlib,json,os,pathlib,struct,subprocess,time,zlib
@@ -103,8 +113,7 @@ jobs:
           base='gamepulse/fusion/qa/analysis/full107_center_defensive_heatmaps_v1_20261105'
           leaderpath='gamepulse/fusion/qa/analysis/full107_center_defensive_paint_expanded_v2_20261105/leaderboard.json'
           def get(path):
-              c=subprocess.check_output(['gh','api',f'repos/timeedmonds-maker/104/contents/{path}?ref={private}','--jq','.content'],timeout=100)
-              return json.loads(base64.b64decode(c))
+              return json.loads(pathlib.Path(path).read_bytes())
           docs=[get(f'{base}/shard_{i}.json') for i in range(9)]
           old=get(leaderpath)
           assert len(old['selected_games'])==107 and old['all107_games_processed']
@@ -178,20 +187,7 @@ jobs:
             'source_shards_sha256':[hashlib.sha256((json.dumps(d,sort_keys=True,separators=(',',':'))+'\n').encode()).hexdigest() for d in docs],
             'teams':rows}
           raw=(json.dumps(res,sort_keys=True,separators=(',',':'))+'\n').encode()
-          dest=f'repos/timeedmonds-maker/104/contents/{base}/starting_centres_30team_heatmaps.json'
-          for trial in range(14):
-              oldfile=subprocess.run(['gh','api',dest+'?ref='+private],text=True,capture_output=True)
-              payload={'branch':private,'message':'qa: 30 official starting centre Full107 exact-source spatial heatmap, private only',
-                       'content':base64.b64encode(raw).decode()}
-              if oldfile.returncode==0:payload['sha']=json.loads(oldfile.stdout)['sha']
-              elif '404' not in oldfile.stderr and 'Not Found' not in oldfile.stderr:raise RuntimeError(oldfile.stderr[:300])
-              response=subprocess.run(['gh','api','-X','PUT',dest,'--input','-'],input=json.dumps(payload),text=True,capture_output=True,timeout=100)
-              if response.returncode==0:break
-              if not any(e in response.stderr for e in ('409','422','429','500','502','503')):raise RuntimeError(response.stderr[:400])
-              time.sleep(min(3+trial,15))
-          else:raise RuntimeError('PRIVATE_FINAL_HEATMAP_PUBLISH_RETRIES_EXHAUSTED')
-          got=base64.b64decode(subprocess.check_output(['gh','api',dest+'?ref='+private,'--jq','.content'],timeout=100))
-          assert hashlib.sha256(got).digest()==hashlib.sha256(raw).digest()
+          pathlib.Path(base,'starting_centres_30team_heatmaps.json').write_bytes(raw)
           print('FULL107_HEATMAP_ALL30_PRIVATE_SHA_VERIFIED',hashlib.sha256(raw).hexdigest(),
                'boxscore_games',official_games,'games',len(selected),
                'players',len(rows),'source_not_leaked',True)
@@ -199,3 +195,27 @@ jobs:
              {k:v for k,v in p.items() if k!='grid_ms_uint32_le_zlib_b64'}
              for p in (rows[0],rows[-1])],sort_keys=True))
           PY
+          git config user.name "Integrated Pulse Source QA"
+          git config user.email "41882018272+igp-source@users.noreply.github.com"
+          rel="gamepulse/fusion/qa/analysis/full107_center_defensive_heatmaps_v1_20261105/starting_centres_30team_heatmaps.json"
+          git add "$rel"
+          git commit -qm "qa: Full107 source-certified all30 defensive-center heatmaps"
+          success=0
+          for i in $(seq 1 20); do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            if ! git rebase "origin/$PRIVATE_BRANCH"; then
+              git rebase --abort || true
+              exit 3
+            fi
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              success=1
+              break
+            fi
+            sleep $((2+i))
+          done
+          test "$success" = 1
+          git fetch -q origin "$PRIVATE_BRANCH"
+          actual="$(git show "origin/$PRIVATE_BRANCH:$rel" | sha256sum | cut -d' ' -f1)"
+          expected="$(sha256sum "$rel" | cut -d' ' -f1)"
+          test "$actual" = "$expected"
+          echo "FULL107_30CENTRE_SPATIAL_SOURCE_SHA_READBACK_OK $actual"
