@@ -1,0 +1,84 @@
+# Only 2ft binned aggregate position durations ever leave the protected source checkout.
+name: Full107 all starting centres defensive position heatmaps
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/full107-starting-centre-heatmaps-20261105.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: full107-starting-centre-heatmaps-20261105
+  cancel-in-progress: true
+jobs:
+  aggregate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        shard: [0,1,2,3,4,5,6,7,8,9]
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: analysis/full107-center-defensive-paint-20261105
+      PIN: 4dbe99fab4380635ddd5c4a7e63ff71fc75d0ce5
+      SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: python3 tools/public_content_guard.py
+      - name: Run SHA-verified original XYZ source, official starter and clock filters
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PIN"
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$PIN"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PIN"
+          cd "$RUNNER_TEMP/private"
+          if test "$SHARD" = 9; then
+            PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion python3 -B gamepulse/fusion/analysis/igp_full107_starting_center_heatmap_v1.py --root . --shard 0 --shards 1 --teams POR,MIA --out "$RUNNER_TEMP/result.json"
+          else
+            PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion python3 -B gamepulse/fusion/analysis/igp_full107_starting_center_heatmap_v1.py --root . --shard "$SHARD" --shards 9 --out "$RUNNER_TEMP/result.json"
+          fi
+          python3 - <<'PY'
+          import json,os,pathlib
+          r=json.loads(pathlib.Path(os.environ['RUNNER_TEMP'],'result.json').read_bytes())
+          assert r['n_full107_games']==107 and r['raw_source_coordinates_exposed'] is False
+          assert len(r['rows'])==(2 if int(os.environ['SHARD'])==9 else 30)
+          for row in r['rows']:
+              assert len(row['grid_ms'])==24 and all(len(a)==25 for a in row['grid_ms'])
+              assert sum(map(sum,row['grid_ms']))==row['defensive_ms']
+          print('HEATMAP_SOURCE_AGGREGATE_VALIDATED',r['shard'],r['shards'],len(r['rows']))
+          PY
+      - name: Publish only aggregate 2ft duration histograms to private branch with SHA readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,hashlib,json,os,pathlib,subprocess,time
+          raw=pathlib.Path(os.environ['RUNNER_TEMP'],'result.json').read_bytes()
+          n=int(os.environ['SHARD'])
+          name='headtohead_clingan_adebayo.json' if n==9 else f'shard_{n}.json'
+          target='repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/analysis/full107_starting_centres_heatmaps_20261105/'+name
+          branch=os.environ['PRIVATE_BRANCH']
+          for attempt in range(18):
+              current=subprocess.run(['gh','api',target+'?ref='+branch],capture_output=True,text=True,timeout=60)
+              payload={'branch':branch,'message':'qa: original Full107 starting centre time-binned defensive position '+name,
+                       'content':base64.b64encode(raw).decode()}
+              if current.returncode==0:payload['sha']=json.loads(current.stdout)['sha']
+              elif '404' not in current.stderr and 'Not Found' not in current.stderr:raise RuntimeError(current.stderr[:300])
+              put=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],input=json.dumps(payload),
+                                 text=True,capture_output=True,timeout=110)
+              if put.returncode==0:break
+              if not any(s in put.stderr for s in ('409','422','429','500','502','503')):raise RuntimeError(put.stderr[:500])
+              time.sleep(min(3+attempt,16))
+          else:raise RuntimeError('SOURCE_AGGREGATE_WRITE_RETRIES_EXHAUSTED')
+          downloaded=subprocess.check_output(['gh','api',target+'?ref='+branch,'--jq','.content'],timeout=90)
+          assert hashlib.sha256(base64.b64decode(downloaded)).digest()==hashlib.sha256(raw).digest()
+          print('PRIVATE_STARTING_CENTER_HEATMAP_SHA_READBACK',name,hashlib.sha256(raw).hexdigest())
+          PY
