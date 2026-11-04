@@ -645,6 +645,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
+    ".github/workflows/full107-first81-r13v2-0125-git-transport-20261104.yml": "b0cf74b51e93135a0b7ca736e289f14d275a398d",  # isolated original 0125 native replay via SHA git transport; private outputs only
     ".github/workflows/full107-first81-r17-reduce-only-private-20261104.yml": "c436551b7b9046fa01e31723e670c276c5691413",  # reviewed pinned private 9-shard R17 source-only analytical reduction; no public data
     ".github/workflows/full107-first81-r13v2-double-touchjoin-private-20261104.yml": "b0b514cec20dd55b85fbad7c885d62f1eb4855c9",  # reviewed original source 4-game first81 touch+double QA; private-only result
     ".github/workflows/full107-first81-doubleteam-r17-private-20261104.yml": "8e238e2107cc07980475bee27148a36666cc3b20",  # reviewed R17 81-game source-native paired CPU private-only, protected public logging
