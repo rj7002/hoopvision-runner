@@ -1,5 +1,5 @@
 # V7 original NBA source processing restricted to private 104, no source coordinates public.
-name: Full107 source player Z gravity-shaped elevation ranking crosscheck
+name: Full107 source player Z gravity-shaped elevation ranking crosscheck v7
 on:
   push:
     branches: [main]
