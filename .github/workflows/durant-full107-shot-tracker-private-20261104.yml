@@ -30,6 +30,7 @@ jobs:
             /gamepulse/fusion/durant_ft_full107_source_physics_v1.py \
             /gamepulse/fusion/durant_ft_full107_deterministic_renderer_v1.py \
             /gamepulse/fusion/durant_ft_full107_unmatched_diagnostic_v2.py \
+            /gamepulse/fusion/durant_ft_full107_clock_sequence_rescue_v2.py \
             /gamepulse/fusion/official_pbp_timing/games/0022600091.json \
             /gamepulse/fusion/official_pbp_timing/games/0022600009.json \
             /gamepulse/fusion/official_pbp_timing/games/0022600107.json \
@@ -83,6 +84,29 @@ jobs:
             'unmatched_official_actions':3,'source_candidates_inspected':4,
             'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
             'private_source_coordinates_exposed_publicly':False}))
+          PY
+      - name: Clock-stopped original source recovery and strict unique-shooting-flight QA
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 gamepulse/fusion/durant_ft_full107_clock_sequence_rescue_v2.py \
+            > "$RUNNER_TEMP/durant-original-stopclock-private.log" 2>&1 || {
+              echo 'PRIVATE_DURANT_CLOCK_SEQUENCE_QA_FAILED'; exit 1;
+            }
+          python3 - <<'PY'
+          import json,hashlib,pathlib
+          p=pathlib.Path('gamepulse/fusion/qa/durant_ft_full107/durant_free_throw_original_tracking_clock_reconciled_v2_20261104.json')
+          d=json.loads(p.read_text())
+          assert d['summary']['total_attempts']==61
+          assert d['summary']['makes']==51 and d['summary']['misses']==10
+          assert d['summary']['shot_flights_matched']==61
+          assert d['summary']['missing_or_unresolved']==0
+          assert len(d['stage2_clock_reconciliation']['groups'])==3
+          print('DURANT_NATIVE_STOPPED_CLOCK_61_61',json.dumps({
+            'attempts':61,'matched_source_flight_candidates':61,
+            'clock_groups_resolved':3,
+            'candidate_source_not_physical_truth':True,
+            'private_QA_SHA256':hashlib.sha256(p.read_bytes()).hexdigest()},sort_keys=True))
           PY
       - name: Analyze source, cross-game masked physics and all rim-plane models
         run: |
