@@ -3,7 +3,7 @@ name: Full107 original-native center defensive paint percent
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/full107-center-defensive-paint-private-20261105.yml']
+    paths: ['.github/workflows/full107-center-defensive-paint-private-20261105.yml', 'tools/public_content_guard.py']
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
