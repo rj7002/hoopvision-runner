@@ -644,6 +644,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
+    ".github/workflows/full107-first81-r13v2-double-touchjoin-private-20261104.yml": "2dfd7ea5edd431a5ef726eef20ad9643cd060351",  # reviewed original source 4-game first81 touch+double QA; private-only result
     ".github/workflows/full107-first81-doubleteam-r17-private-20261104.yml": "8e238e2107cc07980475bee27148a36666cc3b20",  # reviewed R17 81-game source-native paired CPU private-only, protected public logging
     ".github/workflows/full107-first81-doubleteam-audit-private-20261104.yml": "6714684763a643d138963e670bb4f8bf6a859f99",  # reviewed SHA-pinned private-only first81 manifest/reference validation; aggregate public counters
     ".github/workflows/nba-eason-0022600153-exact-action.yml": "5451e1d4731d4d7ad40186b36c30c64e89701896",  # reviewed immutable NBA public shot metadata and public replay locator only
