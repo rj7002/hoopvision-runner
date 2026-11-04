@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/jabari-full107-3pt-trajectory-private-20261104.yml",  # vetted original SHA-tracking and scorer readback; private PNG/shot ledger only; public aggregates
     ".github/workflows/igp-r19-human-review-13-private-20261104.yml",  # private original-source R19 vs 13 prior user-reviewed action-run QA; public counts only
 
     ".github/workflows/igp-r19-disagreement-forensics-private-20261104.yml",  # source SHA-reconciled R19 vs R13 disagreement forensic, private touch evidence, aggregate public metrics only
