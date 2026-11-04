@@ -1,5 +1,5 @@
 {
-  "fetched_at_utc": "2026-11-03T18:02:09.516790+00:00",
+  "fetched_at_utc": "2026-11-04T18:13:43.567015+00:00",
   "leaders": [
     {
       "AST": 8.1,
@@ -6073,7 +6073,7 @@
       "GAMESPLAYED": 7,
       "GRAVITYSCORE": -0.7451428571,
       "JERSEYNUM": "31",
-      "LASTNAME": "Salaun",
+      "LASTNAME": "Salaün",
       "MINUTES": 14.4,
       "OFFBALLINTERIORFRAMES": 1590,
       "OFFBALLINTERIORGRAVITYSCORE": -4.953,
@@ -8981,6 +8981,6 @@
   "schema": "nba.official.gravityleaders.season.snapshot.v1",
   "season": "2026-27",
   "season_type": "Regular Season",
-  "source_sha256": "dbb52c44a91f373956a58ebdb107774115e65cf2688dbed0cfd21638150c099c",
+  "source_sha256": "67e2298a299d8846d10822e7a12c2d528ba152c1e996df33a73f6ede5d8a2dd7",
   "source_url": "https://stats.gleague.nba.com/stats/gravityleaders?LeagueID=00&Season=2026-27&SeasonType=Regular+Season"
 }
