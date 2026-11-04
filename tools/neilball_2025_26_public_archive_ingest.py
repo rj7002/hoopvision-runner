@@ -19,7 +19,7 @@ from pathlib import Path
 GAME_RE = re.compile(r"(?<![0-9])(00[0-9]{8})(?![0-9])")
 TRACKING_SUFFIX = "/tracking.jsonl.gz"
 SOURCE_URL = "https://downloads.neilball.org/NBA-2025-26-Available-Tracking.zip"
-EXPECTED_PREFIX = "00225"
+EXPECTED_PREFIX = ("00225", "00425", "00525")
 
 def sha(path: Path) -> str:
     digest = hashlib.sha256()
