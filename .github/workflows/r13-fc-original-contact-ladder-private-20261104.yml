@@ -1,4 +1,4 @@
-name: R13 original SDK asset access limited private-auth probe
+name: R13 original SDK frozen-four NBA shot touch independent validation
 on:
   push:
     branches: [main]
@@ -14,41 +14,58 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        game: ['0022600112']
+        game: ['0022600112','0022600113','0022600114','0022600115']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      R13_GAME_ID: ${{ matrix.game }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: research/r13-shot-terminal-frozen4-v1-20261104
       PRIVATE_TASK_SOURCE_SHA: 5bdb2649f480ebf671e4c1a5f1afdb1420feaf3c
+      R13_GAME_ID: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Validate public-to-private boundary
+      - name: Verify public-content boundary
         run: python3 tools/public_content_guard.py
-      - name: Run exact Git-blob pinned original SDK R13 candidate
+      - name: Recover original 13-part SDK labels and execute frozen SHA-pinned challenger privately
         shell: bash
         run: |
           set -euo pipefail
           test -n "$GH_TOKEN"
           gh auth setup-git
-          python3 - <<'PY'
-          import json, subprocess, datetime
-          for kind,path in (
-             ("R13_PRIVATE_RATE","rate_limit"),
-             ("R13_PRIVATE_RELEASE","repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-0022600112")):
-              p=subprocess.run(["gh","api",path],capture_output=True,text=True)
-              if p.returncode:
-                  err=p.stderr.lower()
-                  cls="RATE_LIMIT" if "rate limit" in err else "403" if "403" in err else "404" if "404" in err else "OTHER"
-                  print(kind+"_ERROR_CLASS="+cls)
-                  continue
-              data=json.loads(p.stdout)
-              if kind=="R13_PRIVATE_RATE":
-                  c=data["resources"]["core"]
-                  print("R13_PRIVATE_REMAINING="+str(c["remaining"]))
-                  print("R13_PRIVATE_RESET_UTC="+datetime.datetime.fromtimestamp(c["reset"],datetime.timezone.utc).isoformat())
-              else:
-                  assets=[a for a in data.get("assets",[]) if a.get("name","").startswith("sdk-part-") and a.get("name","").endswith(".tar.gz")]
-                  print("R13_PRIVATE_ORIGINAL_RELEASE_13PARTS="+str(len(assets)))
-                  print("R13_PRIVATE_ORIGINAL_PARTS_SHA256="+str(sum(str(a.get("digest","")).startswith("sha256:") for a in assets)))
+          root="$RUNNER_TEMP/r13-independent-original"
+          git clone -q --filter=blob:none --depth=1 --no-checkout -b "$PRIVATE_BRANCH" "https://github.com/$PRIVATE_REPO.git" "$root"
+          script_path="gamepulse/fusion/analysis/r13_shot_terminal_frozen4_replay_v1.py"
+          expected_blob="6cf1918d2fa800fae4a07d1a700e78343ffa1ae1"
+          test "$(git -C "$root" rev-parse "HEAD:$script_path")" = "$expected_blob"
+          work="$RUNNER_TEMP/r13-frozen-$R13_GAME_ID"
+          mkdir -p "$work"
+          git -C "$root" show "HEAD:$script_path" > "$work/replay.py"
+          cd "$work"
+          python3 -m py_compile ./replay.py
+          if python3 ./replay.py > run.stdout 2> run.stderr; then
+            echo "R13_INDEPENDENT_FROZEN_NATIVE_REPLAY_COMPLETE game=$R13_GAME_ID"
+          else
+            python3 - <<'PY'
+          import base64,json,os,subprocess,time
+          repo=os.environ["PRIVATE_REPO"];branch=os.environ["PRIVATE_BRANCH"]
+          gid=os.environ["R13_GAME_ID"]
+          path="gamepulse/fusion/qa/r13_shot_terminal_frozen4_20261104/private_failure_"+gid+".json"
+          payload={"game_id":gid,"source_pin":os.environ["PRIVATE_TASK_SOURCE_SHA"],
+              "stderr_tail":open("run.stderr").read()[-15000:],
+              "stdout_tail":open("run.stdout").read()[-3500:],
+              "private_source_not_exported":True}
+          body={"branch":branch,"message":"qa(private): frozen original SDK runner diagnostics [skip ci]",
+                "content":base64.b64encode((json.dumps(payload,sort_keys=True,indent=2)+"\\n").encode()).decode()}
+          endpoint=f"repos/{repo}/contents/{path}"
+          for i in range(10):
+              get=subprocess.run(["gh","api",endpoint+"?ref="+branch],capture_output=True,text=True)
+              if get.returncode==0:body["sha"]=json.loads(get.stdout)["sha"]
+              out=subprocess.run(["gh","api","-X","PUT",endpoint,"--input","-"],
+                    input=json.dumps(body),capture_output=True,text=True)
+              if out.returncode==0:break
+              time.sleep(1+i)
+          print("R13_FROZEN_SOURCE_REPLAY_FAILED_PRIVATE_DIAGNOSTIC game="+gid)
           PY
+            exit 1
+          fi
