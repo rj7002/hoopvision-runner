@@ -31,8 +31,18 @@ jobs:
             /gamepulse/fusion/analysis/igp_full107_player_z_airtime_calibration_pilot_20261105.py \
             /gamepulse/fusion/analysis/igp_full107_player_z_airtime_9game_shadow_v2_20261105.py \
             /gamepulse/fusion/analysis/igp_full107_player_z_9game_reconcile_v4_20261105.py \
+            /gamepulse/fusion/analysis/igp_full107_airtime_ground_contact_eval_v1_20261105.py \
+            /gamepulse/fusion/analysis/test_igp_full107_airtime_ground_contact_eval_v1_20261105.py \
             /gamepulse/fusion/qa/analysis/full107_player_z_9game_shadow_v2_20261105.json \
             /gamepulse/fusion/qa/analysis/full107_player_z_sampling_alignment_v3_20261105.json
+      - name: Independent foot-contact evaluator source-free regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private/gamepulse/fusion/analysis"
+          python3 -B -m py_compile igp_full107_airtime_ground_contact_eval_v1_20261105.py
+          python3 -B -m unittest -v test_igp_full107_airtime_ground_contact_eval_v1_20261105.py
+          echo AIRTIME_INDEPENDENT_EVALUATOR_SYNTHETIC_TESTS_ONLY
       - name: Exact nine-game event conservation and hangTime crosscheck
         shell: bash
         run: |
