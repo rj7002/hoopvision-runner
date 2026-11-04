@@ -18,7 +18,7 @@ jobs:
         include:
           - {gid: '0022600021', sha: '5a8f5332a96b9b748539cf863aefb2dd03ff9abf'}
           - {gid: '0022600091', sha: 'a8d07901d90bae453f020ed5d5bb09431ce306f7'}
-          - {gid: '0022600125', sha: 'd930b26551c140499cb4723c23dc5071d99d61'}
+          - {gid: '0022600125', sha: 'd930b26551c140499cb4723c23dc5071d99d0d61'}
           - {gid: '0022600138', sha: '4510ed020705a4bf9d425faf02d78b29a52354a8'}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
