@@ -648,6 +648,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
+    ".github/workflows/gamepulse-full107-pnr-v3-late26-original-ten-20261104.yml": "0a9b9347af8ea91addded03c237a7bcd0cb38ba8",  # independently SHA-locked 26-game Full107 official-ten source-only private comparison
     ".github/workflows/gamepulse-full107-pnr-v3-lineup-pilot-20261104.yml": "fd10ed8524a78771782717450af8aca14ff31e4b",  # reviewed: exactly four Full107 SHA-native PBP official-ten shadow, source details private only
     ".github/workflows/gamepulse-full107-pnr-v2-private-20261104.yml": "d75d3bd6e75bf437c43cd7c23cdad1cab9825de1",  # reviewed pinned Full107 V2 exact native SHA, private-only events and original-source QA
     ".github/workflows/gamepulse-full107-pnr-private-20261104.yml": "b9d2d0a38d28f037f64d12d8155397d879e662a3",  # reviewed pinned Full107 private-only screen detector; no licensed XYZ or per-event outputs public
