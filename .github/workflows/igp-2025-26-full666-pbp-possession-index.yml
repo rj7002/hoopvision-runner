@@ -1,0 +1,290 @@
+# Source-only Full107 historical 2025-26 666-game PBP/possession native index.
+# All original XYZ remain private in immutable SHA-verified original archives.
+# Logical possession intervals are PBP event candidates, NOT physical custody.
+name: IGP 2025-26 Full666 PBP logical-possession and native index
+'on':
+  push:
+    branches: [main]
+    paths: [.github/workflows/igp-2025-26-full666-pbp-possession-index.yml]
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-2025-26-full666-pbp-native-possession
+  cancel-in-progress: false
+env:
+  GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+  SOURCE_RELEASE: igp-public-gamepulse-2025-26-20261105
+  FULL107_RELEASE: igp-2025-26-full107-native-20261105
+  OUTPUT_RELEASE: igp-2025-26-full666-pbp-possession-20261106
+  PRIVATE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+jobs:
+  pilot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 155
+    env:
+      SHARD: '001'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Original-source privacy guard and exact private PBP engine and native test suite
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          test "$(git -C "$RUNNER_TEMP/private" hash-object gamepulse/fusion/igp_2025_26_full666_pbp_possession_index_v1.py)" = 35006d286ceaf1ae163d72da926a0b0ec8d15425
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH="$PWD:$PWD/gamepulse/fusion"
+          python3 -m py_compile gamepulse/fusion/igp_2025_26_full666_pbp_possession_index_v1.py
+          python3 -m unittest -v gamepulse.fusion.tests.test_igp_2025_26_full666_pbp_possession_index_v1
+          echo HISTORICAL_FULL666_PBP_UNIT_TESTS_PASS
+      - name: Private release create, immutable original shard and existing Full107 overlay
+        run: |
+          set -euo pipefail
+          if ! gh release view "$OUTPUT_RELEASE" --repo timeedmonds-maker/104 >/dev/null 2>&1; then
+            gh release create "$OUTPUT_RELEASE" --repo timeedmonds-maker/104 \
+              --target "$PRIVATE_BRANCH" --draft \
+              --title 'Historical 2025-26 Full666 source PBP -> native time/actor/ball -> logical possession indexes' \
+              --notes 'Original NBA 5Hz archival source + existing exact Full107 overlay. SHA-verified private SQLite. All original XYZ remain immutable and unreplicated. PBP candidate logical chains not officially validated possessions; zero physical custody certification and source provisional roster.'
+          fi
+          mkdir -p "$RUNNER_TEMP/source" "$RUNNER_TEMP/full107" "$RUNNER_TEMP/idx"
+          retry() {
+            local label="$1";shift;local attempt=0 reset now delay
+            until "$@"; do
+              attempt=$((attempt+1))
+              test "$attempt" -lt 26 || { echo "PBP_666_PRIVATE_SOURCE_UNAVAILABLE $label";return 45; }
+              now=$(date +%s)
+              reset=$(gh api rate_limit --jq '.resources.core.reset' 2>/dev/null || :)
+              if [[ "$reset" =~ ^[0-9]+$ ]] && test "$reset" -gt "$now";then
+                delay=$((reset-now+20));test "$delay" -le 600 || delay=600
+              else
+                delay=$((attempt*55));test "$delay" -le 380 || delay=380
+              fi
+              echo "PBP_FULL666_READ_RETRY label=$label attempt=$attempt sleep=$delay"
+              sleep "$delay"
+            done
+          }
+          retry source gh release download "$SOURCE_RELEASE" --repo timeedmonds-maker/104 \
+            --pattern nba-2025-26-source-index.json --pattern "nba-2025-26-shard-$SHARD.zip" \
+            --dir "$RUNNER_TEMP/source" --clobber
+          retry full107 gh release download "$FULL107_RELEASE" --repo timeedmonds-maker/104 \
+            --pattern "full107-native-nba-2025-26-shard-$SHARD-qa.json" \
+            --pattern "full107-native-nba-2025-26-shard-$SHARD.jsonl.gz" \
+            --dir "$RUNNER_TEMP/full107" --clobber
+      - name: Run 50-game pilot and verify original source every timestamp and Full107 overlay
+        run: |
+          set -euo pipefail
+          export PYTHONPATH="$RUNNER_TEMP/private/gamepulse/fusion"
+          python3 "$RUNNER_TEMP/private/gamepulse/fusion/igp_2025_26_full666_pbp_possession_index_v1.py" \
+            --index "$RUNNER_TEMP/source/nba-2025-26-source-index.json" \
+            --shard "$RUNNER_TEMP/source/nba-2025-26-shard-$SHARD.zip" \
+            --overlay "$RUNNER_TEMP/full107/full107-native-nba-2025-26-shard-$SHARD.jsonl.gz" \
+            --qa "$RUNNER_TEMP/full107/full107-native-nba-2025-26-shard-$SHARD-qa.json" \
+            --out "$RUNNER_TEMP/idx"
+          python3 - <<'PY'
+          import gzip,json,os,pathlib
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'idx'
+          source=next(root.glob('*.sqlite')); zipped=source.with_suffix(source.suffix+'.gz')
+          with source.open('rb') as f,zipped.open('wb') as dst:
+            with gzip.GzipFile(filename='',mode='wb',fileobj=dst,mtime=0,compresslevel=6) as out:
+              for block in iter(lambda:f.read(1048576),b''):out.write(block)
+          print('HISTORICAL_FULL666_PBP_PILOT_PRIVATE_SQLITE_GZIP',zipped.stat().st_size)
+          source.unlink()
+          PY
+      - name: Upload pilot game+PBP+candidate possession indexes only to private 104
+        run: |
+          set -euo pipefail
+          ok=0
+          for n in $(seq 1 24);do
+            if gh release upload "$OUTPUT_RELEASE" "$RUNNER_TEMP/idx/"* --repo timeedmonds-maker/104 --clobber;then
+              ok=1;break
+            fi
+            echo "FULL666_PBP_PRIVATE_UPLOAD_RETRY shard=$SHARD attempt=$n"
+            sleep 180
+          done
+          test "$ok" -eq 1
+          echo HISTORICAL_FULL666_PBP_PILOT_SOURCE_INDEX_PRIVATE_ACCEPTED
+  remainder:
+    needs: pilot
+    runs-on: ubuntu-24.04
+    timeout-minutes: 170
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        shard: ['002','003','004','005','006','007','008','009','010','011','012','013','014','015']
+    env:
+      SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify full666 original-source policy and clone pinned private engine
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
+            gamepulse/fusion/igp_2025_26_full666_pbp_possession_index_v1.py \
+            gamepulse/fusion/igp_full107_native_historical_2025_26_v1.py \
+            gamepulse/fusion/igp_native_scene_model_v2.py \
+            gamepulse/fusion/igp_historical_defender_proxy_v1.py \
+            gamepulse/fusion/igp_tracking_model_a_holdout_2026.py \
+            gamepulse/fusion/igp_tracking_model_b_holdout_2026.py \
+            gamepulse/fusion/igp_tracking_model_c0_endpoint_velocity_bridge_2026.py
+          test "$(git -C "$RUNNER_TEMP/private" hash-object gamepulse/fusion/igp_2025_26_full666_pbp_possession_index_v1.py)" = 35006d286ceaf1ae163d72da926a0b0ec8d15425
+          mkdir -p "$RUNNER_TEMP/source" "$RUNNER_TEMP/full107" "$RUNNER_TEMP/idx"
+      - name: Download original SHA-preserved archive and matched Full107 native overlay
+        run: |
+          set -euo pipefail
+          retry() {
+            local label="$1";shift;local attempt=0 reset now delay
+            until "$@"; do
+              attempt=$((attempt+1))
+              test "$attempt" -lt 27 || { echo "FULL666_PBP_PRIVATE_SOURCE_EXHAUSTED $label";return 45; }
+              now=$(date +%s)
+              reset=$(gh api rate_limit --jq '.resources.core.reset' 2>/dev/null || :)
+              if [[ "$reset" =~ ^[0-9]+$ ]] && test "$reset" -gt "$now";then
+                delay=$((reset-now+20));test "$delay" -le 600 || delay=600
+              else
+                delay=$((attempt*55));test "$delay" -le 380 || delay=380
+              fi
+              echo "FULL666_PBP_RETRY label=$label shard=$SHARD attempt=$attempt sleep=$delay"
+              sleep "$delay"
+            done
+          }
+          retry source gh release download "$SOURCE_RELEASE" --repo timeedmonds-maker/104 \
+            --pattern nba-2025-26-source-index.json --pattern "nba-2025-26-shard-$SHARD.zip" \
+            --dir "$RUNNER_TEMP/source" --clobber
+          retry full107 gh release download "$FULL107_RELEASE" --repo timeedmonds-maker/104 \
+            --pattern "full107-native-nba-2025-26-shard-$SHARD-qa.json" \
+            --pattern "full107-native-nba-2025-26-shard-$SHARD.jsonl.gz" \
+            --dir "$RUNNER_TEMP/full107" --clobber
+      - name: Create original timestamp+player+ball/PBP action/provisional logical possession private index
+        run: |
+          set -euo pipefail
+          export PYTHONPATH="$RUNNER_TEMP/private/gamepulse/fusion"
+          python3 "$RUNNER_TEMP/private/gamepulse/fusion/igp_2025_26_full666_pbp_possession_index_v1.py" \
+            --index "$RUNNER_TEMP/source/nba-2025-26-source-index.json" \
+            --shard "$RUNNER_TEMP/source/nba-2025-26-shard-$SHARD.zip" \
+            --overlay "$RUNNER_TEMP/full107/full107-native-nba-2025-26-shard-$SHARD.jsonl.gz" \
+            --qa "$RUNNER_TEMP/full107/full107-native-nba-2025-26-shard-$SHARD-qa.json" \
+            --out "$RUNNER_TEMP/idx"
+          python3 - <<'PY'
+          import gzip,os,pathlib
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'idx'
+          source=next(root.glob('*.sqlite')); zipped=source.with_suffix(source.suffix+'.gz')
+          with source.open('rb') as f,zipped.open('wb') as dst:
+            with gzip.GzipFile(filename='',mode='wb',fileobj=dst,mtime=0,compresslevel=6) as out:
+              for block in iter(lambda:f.read(1048576),b''):out.write(block)
+          print('HISTORICAL_FULL666_PBP_SOURCE_INDEX_GZIP',zipped.stat().st_size)
+          source.unlink()
+          PY
+      - name: Retain source-verified index and QA receipt only in private 104
+        run: |
+          set -euo pipefail
+          ok=0
+          for n in $(seq 1 24);do
+            if gh release upload "$OUTPUT_RELEASE" "$RUNNER_TEMP/idx/"* --repo timeedmonds-maker/104 --clobber;then
+              ok=1;break
+            fi
+            echo "FULL666_PBP_PRIVATE_UPLOAD_RETRY shard=$SHARD attempt=$n"
+            sleep 180
+          done
+          test "$ok" -eq 1
+          echo HISTORICAL_FULL666_PBP_SOURCE_INDEX_PRIVATE_OK_"$SHARD"
+  reduce:
+    needs: [pilot,remainder]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Read only 15 small SHA-verified private QA files and total all historical games
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          mkdir -p "$RUNNER_TEMP/qa"
+          ready=0
+          for n in $(seq 1 26);do
+            if gh release download "$OUTPUT_RELEASE" --repo timeedmonds-maker/104 \
+              --pattern 'historical-full666-pbp-possession-nba-2025-26-shard-*-qa.json' \
+              --dir "$RUNNER_TEMP/qa" --clobber &&
+              test "$(find "$RUNNER_TEMP/qa" -name '*-qa.json' | wc -l)" -eq 15;then ready=1;break;fi
+            echo "FULL666_PBP_FINAL_QA_RETRY attempt=$n"
+            sleep 180
+          done
+          test "$ready" -eq 1
+      - name: Reconcile all original timestamps, original direct complete, Full107 and PBP/possession source fields
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import collections,json,os,pathlib
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'qa'
+          files=sorted(root.glob('*-qa.json'))
+          assert len(files)==15
+          counts=collections.Counter();games={};shards=set();sha=None
+          for path in files:
+            q=json.loads(path.read_text())
+            assert q['schema']=='igp.historical-2025-26-full666-pbp-possession-native-index.v1'
+            assert q['physical_possessions_certified'] is False
+            assert q['official_ten_verified'] is False
+            assert q['tracking_xyz_in_db'] is False
+            assert q['source_original_unchanged'] is True
+            assert q['shard'] not in shards
+            shards.add(q['shard'])
+            if sha is None:sha=q['source_sha256']
+            assert sha==q['source_sha256']
+            assert not (set(games)&set(q['per_game']))
+            games.update(q['per_game']);counts.update(q['counts'])
+          assert len(games)==666 and len(shards)==15
+          assert counts['source_native_frames']==19440900
+          assert counts['source_direct_complete_ten_ball']==5895277
+          assert counts['native_engine_complete_ten_ball']==9392952
+          assert counts['candidate_linked_frames']<=counts['source_native_frames']
+          assert counts['pbp_nearest_within_250ms']<=counts['pbp_nearest_within_1000ms']<=counts['pbp_nearest_within_2000ms']<=counts['source_pbp_events']
+          receipt={'schema':'igp.historical-2025-26-full666-pbp-possession-index-all666.v1',
+            'status':'SOURCE_PRESERVED_PBP_AND_LOGICAL_CHAIN_PROVISIONAL_INDEX_COMPLETE',
+            'season':'2025-26','games':len(games),'shards':len(shards),'counts':dict(counts),
+            'source_archive_sha256':sha,
+            'original_source_unchanged':True,'original_xyz_copied_into_index':False,
+            'native_source_timestamps_indexed':True,
+            'source_pbp_original_archived_event_feed':True,
+            'official_NBA_PBP_independently_reconciled':False,
+            'official_ten_lineups_independently_verified':False,
+            'logical_possession_certainty':'PBP_TERMINAL_CANDIDATE_ONLY',
+            'physical_possessions_certified':False,
+            'required_next_gates':['independent official PBP action ID crosswalk',
+               'PBP event source timestamp vs native period/clock agreement',
+               'offensive rebounds and and-one terminal exceptions',
+               'physical custody/video heldout boundary validation'],
+            'per_game':{g:{'counts':v['counts'],
+                 'source_original_sha256':v['source_original_sha256']}
+               for g,v in sorted(games.items())}}
+          out=root/'historical-full666-pbp-possession-all666-qa.json'
+          out.write_text(json.dumps(receipt,sort_keys=True,indent=2)+'\n')
+          print('HISTORICAL_FULL666_PBP_LOGICAL_INDEX_COMPLETE',json.dumps({
+            'games':receipt['games'],'shards':receipt['shards'],
+            'counts':dict(counts),'physically_certified_possessions':0,
+            'official_nba_pbp_verified':False,
+            'source_grade':receipt['status']},sort_keys=True))
+          PY
+      - name: Upload final all666 QA census exclusively to private 104 and publish release
+        run: |
+          set -euo pipefail
+          ok=0
+          for n in $(seq 1 24);do
+            if gh release upload "$OUTPUT_RELEASE" \
+              "$RUNNER_TEMP/qa/historical-full666-pbp-possession-all666-qa.json" \
+              --repo timeedmonds-maker/104 --clobber;then ok=1;break;fi
+            echo "FULL666_PBP_FINAL_PRIVATE_RELEASE_RETRY attempt=$n"
+            sleep 180
+          done
+          test "$ok" -eq 1
+          gh release edit "$OUTPUT_RELEASE" --repo timeedmonds-maker/104 --draft=false
+          echo HISTORICAL_FULL666_PBP_NATIVE_LOGICAL_CHAIN_ALL666_PRIVATE_ACCEPTED
