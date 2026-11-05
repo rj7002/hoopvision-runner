@@ -1,0 +1,165 @@
+name: IGP Full107 official zone defense integration QA
+'on':
+  push:
+    branches: [research/inside-game-zone-api-discovery-20261105]
+    paths: ['.github/workflows/igp-full107-zone-materialize-20261105.yml']
+permissions: {contents: read}
+concurrency:
+  group: igp-full107-official-zone-source-sidecar-promotion
+  cancel-in-progress: false
+jobs:
+  integrate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/igp-zone-defense-official-api-ingest-20261105
+      EXPECT_SOURCE_COMMIT: a79e9078a36aaa0b04da1de93ba115a3122d489f
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Checkout private Full107 official zone layers from vetted source commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 -b "$BRANCH" \
+             https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          git fetch -q --depth=1 origin "$EXPECT_SOURCE_COMMIT"
+          test "$(git rev-parse HEAD)" = "$EXPECT_SOURCE_COMMIT"
+          echo VERIFIED_PRIVATE_FULL107_ZONE_INPUT_COMMIT
+      - name: Run strict source and query unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -m unittest discover -s gamepulse/fusion/tests \
+            -p 'test_nba_zone_defense_official_ingest_v1.py' -v
+          python3 -m unittest discover -s gamepulse/fusion/tests \
+            -p 'test_igp_full107_zone_team_v1.py' -v
+      - name: Materialise exact source-backed zone layer and validate Full107 release
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          FULL107=gamepulse/fusion/qa/igp_fullx/FULL107_20261031_source_graded.json
+          ORIGINAL_FULL107_SHA="$(sha256sum "$FULL107" | cut -d' ' -f1)"
+          echo "FULL107_BASE_SHA=$ORIGINAL_FULL107_SHA" >> "$GITHUB_ENV"
+          ROOT=gamepulse/fusion/qa/nba_zone_official_20261105
+          OUT=gamepulse/fusion/materialized/igp_full107_official_zone_v1
+          QA=gamepulse/fusion/qa/igp_full107_official_zone_v1
+          mkdir -p "$OUT" "$QA"
+          python3 gamepulse/fusion/igp_zone_team_sidecar_v1.py \
+            --root "$ROOT" \
+            --db "$OUT/nba_official_zone_team.sqlite" \
+            --csv "$OUT/all_official_zone_teams.csv" \
+            --qa "$QA/release_receipt.json"
+          python3 - <<'PY'
+          import hashlib,json,sqlite3
+          from pathlib import Path
+          qa_file=Path('gamepulse/fusion/qa/igp_full107_official_zone_v1/release_receipt.json')
+          q=json.loads(qa_file.read_text())
+          full107=Path('gamepulse/fusion/qa/igp_fullx/FULL107_20261031_source_graded.json')
+          f=json.loads(full107.read_text())
+          assert f['cohort_name']=='FULL107' and f['indexed_nba_PBP_games']==107
+          assert q['snapshot_count']==8 and q['team_rows']==168,(q['snapshot_count'],q['team_rows'])
+          expected={'2026-27|Regular Season':30,'2025-26|Regular Season':30,
+                    '2025-26|Playoffs':16,'2025-26|PlayIn':8}
+          for group,n in expected.items():
+            for side in ('defense','offense'):
+              assert q['league_per_side'][group+'|'+side]['team_count']==n,group
+          for v in q['cross_side_reconciliation']:
+            assert v['all_equal'] and all(v['exact_offense_defense_equality'].values()),v
+          cur=q['league_per_side']['2026-27|Regular Season|defense']
+          assert cur['gp_sum']==214 and cur['gp_sum']//2==f['indexed_nba_PBP_games']
+          assert (cur['poss'],cur['zone_poss'],cur['zone_pts'])==(19849,409,341)
+          db=Path('gamepulse/fusion/materialized/igp_full107_official_zone_v1/nba_official_zone_team.sqlite')
+          with sqlite3.connect(db) as c:
+            assert c.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
+            assert c.execute('SELECT COUNT(*) FROM zone_team_stats').fetchone()[0]==168
+            assert c.execute("SELECT POSS_ZONE,POSS_ZONE_PTS FROM zone_team_stats WHERE season='2026-27' AND season_type='Regular Season' AND side='offense' AND TEAM_ABBREVIATION='HOU'").fetchone()==(20,13)
+          q['source_full107_sha256']=hashlib.sha256(full107.read_bytes()).hexdigest()
+          q['full107_game_count_unchanged']=True
+          q['full107_game_set_crosswalk']='AGGREGATE_107_ONLY_NOT_INDIVIDUAL_GAME_JOIN'
+          q['tracking_originals_changed']=False
+          q['note']='Season-team-side NBA aggregates only. No per-game/per-possession zone label is asserted.'
+          qa_file.write_text(json.dumps(q,sort_keys=True,indent=2)+'\n')
+          print('FULL107_168_OFFICIAL_NBA_ZONE_ROWS_SOURCE_SHA_VERIFIED')
+          print('FULL107_107_GAMES_MATCH_NBA_TEAM_GP_214')
+          print('FULL107_OFFENSE_DEFENSE_EXACT_CROSS_SIDE_TOTALS_MATCH')
+          PY
+          python3 gamepulse/fusion/query_igp_full107_zone_team_v1.py \
+            --kind status > "$RUNNER_TEMP/full107-zone-status.json"
+          python3 gamepulse/fusion/query_igp_full107_zone_team_v1.py \
+            --team HOU --side offense --limit 1 > "$RUNNER_TEMP/full107-zone-houston.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])
+          q=json.loads((root/'full107-zone-status.json').read_text())
+          h=json.loads((root/'full107-zone-houston.json').read_text())
+          assert q['canonical_full107_game_count']==107 and q['team_rows']==168
+          assert h['record_count']==1 and h['rows'][0]['POSS_ZONE']==20
+          assert h['rows'][0]['POSS_ZONE_PTS']==13
+          print('FULL107_PRODUCTION_ZONE_QUERY_READBACK_PASSED')
+          PY
+          test "$ORIGINAL_FULL107_SHA" = "$(sha256sum "$FULL107" | cut -d' ' -f1)"
+      - name: Register additive source layer in Full107 latest index without touching tracking
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          file=Path('gamepulse/fusion/qa/igp_fullx/LATEST.json')
+          f=json.loads(file.read_text())
+          assert f['cohort_name']=='FULL107' and f['indexed_nba_PBP_games']==107
+          q=json.loads(Path('gamepulse/fusion/qa/igp_full107_official_zone_v1/release_receipt.json').read_text())
+          f['nba_official_zone_defense']={
+            'scope':'ADDITIVE_OFFICIAL_TEAM_SEASON_SIDE_AGGREGATE',
+            'source':'https://stats.gleague.nba.com/stats/zonedefenseteamleaders',
+            'snapshot_count':q['snapshot_count'],
+            'team_season_side_records':q['team_rows'],
+            'observed_2026_27_halfcourt_possessions':q['league_per_side']['2026-27|Regular Season|defense']['poss'],
+            'observed_2026_27_zone_possessions':q['league_per_side']['2026-27|Regular Season|defense']['zone_poss'],
+            'indexed_nba_games_at_snapshot':107,
+            'full107_exact_game_to_zone_label_join':'NOT_AVAILABLE',
+            'query':'gamepulse/fusion/query_igp_full107_zone_team_v1.py',
+            'sqlite':'gamepulse/fusion/materialized/igp_full107_official_zone_v1/nba_official_zone_team.sqlite',
+            'release_receipt':'gamepulse/fusion/qa/igp_full107_official_zone_v1/release_receipt.json',
+            'accepted':'SOURCE_GRADED_TEAM_AGGREGATES_ONLY',
+            'original_xyz_pbp_sha_sources_unmodified':True
+          }
+          file.write_text(json.dumps(f,sort_keys=True,indent=2)+'\n')
+          print('FULL107_OFFICIAL_ZONE_LAYER_REGISTERED')
+          PY
+      - name: Commit promoted source-graded sidecar on private research branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          orig=gamepulse/fusion/qa/igp_fullx/FULL107_20261031_source_graded.json
+          test "$FULL107_BASE_SHA" = "$(sha256sum "$orig" | cut -d' ' -f1)"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f \
+            gamepulse/fusion/qa/igp_fullx/LATEST.json \
+            gamepulse/fusion/qa/igp_full107_official_zone_v1/release_receipt.json \
+            gamepulse/fusion/materialized/igp_full107_official_zone_v1/nba_official_zone_team.sqlite \
+            gamepulse/fusion/materialized/igp_full107_official_zone_v1/all_official_zone_teams.csv
+          git diff --cached --check >/dev/null || { echo PRIVATE_SOURCE_GRADE_PROMOTION_WHITESPACE_FAILED; exit 13; }
+          git diff --cached --name-only | grep -q LATEST.json
+          git commit -qm 'data(igp): merge official NBA zone team season aggregates into FULL107 source index'
+          for attempt in 1 2 3 4 5; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo FULL107_ZONE_SOURCEGRADE_LAYER_PRIVATE_BRANCH_COMMITTED
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 17
