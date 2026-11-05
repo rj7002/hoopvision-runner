@@ -1,0 +1,90 @@
+# Source-graded player and ball 10Hz shadow candidate, never a production or physical promotion.
+name: IGP Full121 new29 source-graded 10Hz model shadow validation
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full121-new29-source-graded-10hz-shadow-20261106.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full121-new29-10hz-shadow-20261106
+  cancel-in-progress: false
+jobs:
+  source-masked-shadow:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Guard source and retrieve original licensed NBA tracking privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile \
+            gamepulse/fusion/igp_full121_new29_native_shadow_10hz_v1.py \
+            gamepulse/fusion/igp_full121_new29_shadow_10hz_qa_20261106.py
+          python3 gamepulse/fusion/igp_full121_new29_shadow_10hz_qa_20261106.py \
+            --root . --max-games 3 > "$RUNNER_TEMP/private-pilot.log" 2>&1 || {
+              echo FULL121_NEW29_10HZ_SHADOW_PILOT_FAILED
+              tail -c 350 "$RUNNER_TEMP/private-pilot.log" | sed -E 's/[^A-Za-z_0-9:.]/_/g'
+              exit 63
+            }
+          echo FULL121_NEW29_10HZ_SHADOW_3GAME_PILOT_PASS
+      - name: Execute bounded strict official-clock original 29-game source-sha QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          if ! python3 gamepulse/fusion/igp_full121_new29_shadow_10hz_qa_20261106.py \
+            --root . --max-games 29 > "$RUNNER_TEMP/private-all29.log" 2>&1; then
+            echo FULL121_NEW29_10HZ_SHADOW_FULL_QA_FAILED
+            tail -c 350 "$RUNNER_TEMP/private-all29.log" | sed -E 's/[^A-Za-z_0-9:.]/_/g'
+            exit 64
+          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          data=json.loads(Path("gamepulse/fusion/qa/igp_progress_20261030/igp_full121_new29_source_graded_shadow_20261106.json").read_bytes())
+          assert data["evaluated_games"]==29 and data["target_games"]==29
+          assert data["no_original_sdk_coordinates_mutated"] is True
+          assert data["full121_production_tracking_default_approved"] is False
+          assert data["full92_production_tracking_default_retained"] is True
+          assert data["independent_video_position_certified"] is False
+          print("FULL121_NEW29_10HZ_SOURCE_SHA_SHADOW_QA",
+            "games",data["evaluated_games"],
+            "source_sample_failure_count",len(data["failed_games"]),
+            "production_default_promoted",False)
+          PY
+      - name: Commit QA privately and preserve Full92 source-grade default
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          dest=gamepulse/fusion/qa/igp_progress_20261030/igp_full121_new29_source_graded_shadow_20261106.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$dest"
+          git diff --cached --check
+          if git diff --cached --quiet; then echo FULL121_NEW29_SHADOW_ALREADY_SAVED; exit 0; fi
+          git commit -q -m "qa(igp): source-locked Full121 new29 guarded 10Hz shadow, no premature model default"
+          for i in $(seq 1 15); do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo FULL121_NEW29_10HZ_SHADOW_QA_PRIVATE_COMMITTED
+              exit 0
+            fi
+            sleep "$((2*i))"
+          done
+          exit 78
