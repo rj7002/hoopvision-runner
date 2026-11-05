@@ -78,7 +78,7 @@ jobs:
           # source-masked diagnostics. Pool only additive counts, never
           # average per-segment p95 values as if they were raw error samples.
           p0=Counter();p0_segment_p95=[];p0_games_with_matches=0
-          scene_zero_games=0;zero_scene_cases=[]
+          scene_zero_games=0;zero_scene_cases=[];game_coverage=[]
           for f in files:
             suffix=f.name.removeprefix('full107-native-').removesuffix('-qa.json')
             srcname=suffix+'.zip'
@@ -105,6 +105,13 @@ jobs:
               assert gameqa['counts']['source_native_frames']==source_record['tracking']['rows'],('ROW_DRIFT',gid)
               assert gameqa['native_source_denominator']==source_record['tracking']['rows']
               shard_count.update(gameqa['counts'])
+              gc=gameqa['counts']; denominator=gc['source_native_frames']
+              numerator=gc.get('native_engine_complete_ten_ball',0)
+              original=gc.get('source_direct_complete_ten_ball',0)
+              assert denominator>0 and 0<=original<=numerator<=denominator,('INVALID_PER_GAME_COVERAGE',gid)
+              game_coverage.append({'game_id':gid,'complete':numerator,
+                'original_complete':original,'reconstructed_complete':numerator-original,
+                'source_native_frames':denominator,'coverage':numerator/denominator})
               h=gameqa.get('masked_player_xy') or {}
               for key in ('attempts','matched','over_2ft'):
                 p0[key]+=int(h.get(key,0))
@@ -130,6 +137,30 @@ jobs:
           assert totals['source_native_frames']==19440900,('NATIVE_FRAME_DRIFT',totals['source_native_frames'])
           assert totals['source_direct_complete_ten_ball']+totals['native_engine_completed_incomplete_source_frames']==totals['native_engine_complete_ten_ball'],'SOURCE_MODEL_COMPLETE_COUNT_DRIFT'
           assert totals['native_engine_complete_ten_ball']<=totals['source_native_frames']
+          assert len(game_coverage)==666
+          game_coverage.sort(key=lambda r:(-r['coverage'],r['game_id']))
+          bins=collections.Counter()
+          for record in game_coverage:
+            lower=min(90,int(record['coverage']*10)*10)
+            bins[f"{lower:02d}-{lower+10:03d}"]+=1
+          def eligible(fraction_ppm):
+            return [r for r in game_coverage
+                    if r['complete']*1000000 >= fraction_ppm*r['source_native_frames']]
+          # 88%, frozen 2026-27 88.3273%, 90%, 95%. All native,
+          # not a historically validated clock-running-only selector.
+          threshold_games={
+            '88_0000_pct_all_native':eligible(880000),
+            '88_3273_pct_all_native':eligible(883273),
+            '90_0000_pct_all_native':eligible(900000),
+            '95_0000_pct_all_native':eligible(950000)}
+          threshold_summary={name:{
+            'count':len(rows),
+            'games':[{'game_id':r['game_id'],'coverage_pct':round(r['coverage']*100,4),
+                       'complete':r['complete'],'source_native_frames':r['source_native_frames']}
+                     for r in rows]}
+            for name,rows in threshold_games.items()}
+          print('FULL107_HISTORICAL_PER_GAME_COVERAGE_THRESHOLDS',json.dumps(threshold_summary,sort_keys=True))
+          print('FULL107_HISTORICAL_PER_GAME_COVERAGE_DECILES',json.dumps(dict(sorted(bins.items())),sort_keys=True))
           p0_summary={
             'grade':'P0_WITHHELD_ORIGINAL_SOURCE_TIMESTAMP_PROXY_ONLY',
             'physical_accuracy_certified':False,
@@ -163,7 +194,11 @@ jobs:
             'original_full107_run':41986224953,
             'source_masked_player_xy_existing_diagnostics':p0_summary,
             'games_with_zero_structurally_complete_native_scenes':scene_zero_games,
-            'zero_scene_case_diagnostic_population':sorted(zero_scene_cases,key=lambda r:r['game_id'])
+            'zero_scene_case_diagnostic_population':sorted(zero_scene_cases,key=lambda r:r['game_id']),
+            'all_native_per_game_thresholds':threshold_summary,
+            'all_native_per_game_deciles':dict(sorted(bins.items())),
+            'all_native_game_coverages':game_coverage,
+            'threshold_denominator_note':'SOURCE_NATIVE_FRAMES_EACH_GAME_NOT_VERIFIED_LIVE_ONLY'
           }
           out=root/'qa/full107-native-2025-26-all666-qa.json'
           out.write_text(json.dumps(receipt,sort_keys=True,indent=2)+'\n')
