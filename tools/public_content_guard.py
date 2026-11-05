@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-nov04-full121-source-first-intake-20261105.yml",  # reviewed Nov04 official NBA 14-game source-first private SHA intake; aggregate public QA only
     ".github/workflows/igp-2025-26-zero-scene-0650-forensic.yml",  # source-only 0650 gap/roster/ball provenance forensic, aggregate public logs, private QA
     ".github/workflows/igp-2025-26-cross-season-acceptance.yml",  # source-only private QA receipt audit; no player XYZ or per-shot rows publicly logged
     "tools/igp_2025_26_cross_season_acceptance.py",  # deterministic private-receipt comparisons only; aggregate-only public status
