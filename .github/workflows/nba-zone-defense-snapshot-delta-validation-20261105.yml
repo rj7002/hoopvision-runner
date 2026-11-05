@@ -1,0 +1,45 @@
+name: NBA zone team season-snapshot delta research validation
+'on':
+  push:
+    branches: [research/inside-game-zone-api-discovery-20261105]
+    paths: ['.github/workflows/nba-zone-defense-snapshot-delta-validation-20261105.yml']
+permissions: {contents: read}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      SHA: 08195ae6facf8c17c9284693dec2cc36a1446f17
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Clone pinned private source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 -b research/igp-zone-defense-official-api-ingest-20261105 \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$SHA"
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$SHA"
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$SHA"
+      - name: Run negative controls and source-real unmodified snapshot pair
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_zone_team_snapshot_delta_v1.py' -v
+          python3 - <<'PY'
+          from pathlib import Path
+          from gamepulse.fusion.igp_zone_team_snapshot_delta_v1 import diff_four_sources
+          root=Path("gamepulse/fusion/qa/nba_zone_official_20261105/2026-27/Regular-Season")
+          defense=next((root/"defense").glob("*.json"))
+          offense=next((root/"offense").glob("*.json"))
+          bdef=defense.read_bytes(); boff=offense.read_bytes()
+          d=diff_four_sources(bdef,boff,bdef,boff)
+          assert d["league_offense_defense_delta"]=={"POSS":0,"POSS_ZONE":0,"POSS_ZONE_PTS":0}
+          assert all(not v for v in d["single_GP_interval_candidates"].values())
+          print("ZONE_SAME_SNAPSHOT_NEGATIVE_CONTROL_PASSED, 0 invented game zone labels")
+          PY
