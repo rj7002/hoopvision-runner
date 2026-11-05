@@ -1,5 +1,5 @@
 # Source-only private Full107 native scene/XYZ processing, all outputs in private 104.
-# Revision: source-masked and explicit-zero per-game Full107 native QA retained; source immutable.
+# Revision: cross-season graded policy; sha-verified six-attempt archive reads, all original source immutable.
 name: IGP FULL107-native 2025-26 666-game historical reconstruction
 'on':
   push:
@@ -58,9 +58,42 @@ jobs:
               --notes 'Uses the actual Full107-era igp_native_scene_model_v2 on historical source with exact source lineups provisionally graded, not Full88/Full92 default. SHA-pinned original 2025-26 tracking archive unchanged. Original observed XYZ separately retained; reconstruction research pending independent source and shot-level holdouts.'
           fi
           mkdir -p "$RUNNER_TEMP/source" "$RUNNER_TEMP/derived"
-          gh release download igp-public-gamepulse-2025-26-20261105 \
-            --repo timeedmonds-maker/104 --pattern nba-2025-26-source-index.json \
-            --pattern nba-2025-26-shard-001.zip --dir "$RUNNER_TEMP/source"
+          # Preserve original source. Published release ID is stable even when tag lookup
+          # intermittently returns "release not found" on the GitHub-hosted matrix.
+          # Never log the private asset contents or raw player coordinates.
+          required_index="nba-2025-26-source-index.json"
+          required_zip="nba-2025-26-shard-001.zip"
+          for attempt in 1 2 3 4 5 6; do
+            if gh release download igp-public-gamepulse-2025-26-20261105 \
+              --repo timeedmonds-maker/104 --clobber \
+              --pattern "$required_index" --pattern "$required_zip" \
+              --dir "$RUNNER_TEMP/source" && \
+              test -s "$RUNNER_TEMP/source/$required_index" && \
+              test -s "$RUNNER_TEMP/source/$required_zip"; then
+              echo "HISTORICAL_ARCHIVE_RELEASE_DOWNLOAD_OK shard=001 attempt=$attempt"
+              break
+            fi
+            echo "HISTORICAL_ARCHIVE_RELEASE_RETRY shard=001 attempt=$attempt"
+            if [ "$attempt" -eq 6 ]; then
+              # Diagnose by immutable numeric release ID, which avoids tag lookup.
+              gh api repos/timeedmonds-maker/104/releases/434552440 \
+                --jq '{id,tag_name,draft,asset_count:(.assets|length)}' || true
+              echo "HISTORICAL_SOURCE_ARCHIVE_UNAVAILABLE shard=001" >&2
+              exit 1
+            fi
+            sleep $((attempt * 4))
+          done
+          python3 - "$RUNNER_TEMP/source/$required_index" "$RUNNER_TEMP/source/$required_zip" <<'PY'
+          import hashlib,json,pathlib,sys
+          idx=json.loads(pathlib.Path(sys.argv[1]).read_text())
+          path=pathlib.Path(sys.argv[2])
+          expected=next(x['sha256'] for x in idx['shards'] if x['name']==path.name)
+          digest=hashlib.sha256()
+          with path.open('rb') as fh:
+              for block in iter(lambda:fh.read(1048576),b''): digest.update(block)
+          assert digest.hexdigest()==expected,'IMMUTABLE_HISTORICAL_SHARD_SHA_DRIFT'
+          print('HISTORICAL_SOURCE_SHARD_SHA_ACCEPTED',path.name)
+          PY
       - name: Run Full107 native scene engine against first historical shard, preserve original XYZ
         shell: bash
         run: |
@@ -79,7 +112,7 @@ jobs:
     timeout-minutes: 170
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: 2
       matrix:
         shard: ['002','003','004','005','006','007','008','009','010','011','012','013','014','015']
     env:
@@ -103,9 +136,42 @@ jobs:
             gamepulse/fusion/igp_tracking_model_b_holdout_2026.py \
             gamepulse/fusion/igp_tracking_model_c0_endpoint_velocity_bridge_2026.py
           mkdir -p "$RUNNER_TEMP/source" "$RUNNER_TEMP/derived"
-          gh release download igp-public-gamepulse-2025-26-20261105 \
-            --repo timeedmonds-maker/104 --pattern nba-2025-26-source-index.json \
-            --pattern "nba-2025-26-shard-$SHARD.zip" --dir "$RUNNER_TEMP/source"
+          # Preserve original source. Published release ID is stable even when tag lookup
+          # intermittently returns "release not found" on the GitHub-hosted matrix.
+          # Never log the private asset contents or raw player coordinates.
+          required_index="nba-2025-26-source-index.json"
+          required_zip="nba-2025-26-shard-$SHARD.zip"
+          for attempt in 1 2 3 4 5 6; do
+            if gh release download igp-public-gamepulse-2025-26-20261105 \
+              --repo timeedmonds-maker/104 --clobber \
+              --pattern "$required_index" --pattern "$required_zip" \
+              --dir "$RUNNER_TEMP/source" && \
+              test -s "$RUNNER_TEMP/source/$required_index" && \
+              test -s "$RUNNER_TEMP/source/$required_zip"; then
+              echo "HISTORICAL_ARCHIVE_RELEASE_DOWNLOAD_OK shard=$SHARD attempt=$attempt"
+              break
+            fi
+            echo "HISTORICAL_ARCHIVE_RELEASE_RETRY shard=$SHARD attempt=$attempt"
+            if [ "$attempt" -eq 6 ]; then
+              # Diagnose by immutable numeric release ID, which avoids tag lookup.
+              gh api repos/timeedmonds-maker/104/releases/434552440 \
+                --jq '{id,tag_name,draft,asset_count:(.assets|length)}' || true
+              echo "HISTORICAL_SOURCE_ARCHIVE_UNAVAILABLE shard=$SHARD" >&2
+              exit 1
+            fi
+            sleep $((attempt * 4))
+          done
+          python3 - "$RUNNER_TEMP/source/$required_index" "$RUNNER_TEMP/source/$required_zip" <<'PY'
+          import hashlib,json,pathlib,sys
+          idx=json.loads(pathlib.Path(sys.argv[1]).read_text())
+          path=pathlib.Path(sys.argv[2])
+          expected=next(x['sha256'] for x in idx['shards'] if x['name']==path.name)
+          digest=hashlib.sha256()
+          with path.open('rb') as fh:
+              for block in iter(lambda:fh.read(1048576),b''): digest.update(block)
+          assert digest.hexdigest()==expected,'IMMUTABLE_HISTORICAL_SHARD_SHA_DRIFT'
+          print('HISTORICAL_SOURCE_SHARD_SHA_ACCEPTED',path.name)
+          PY
       - name: Full107 native scene XYZ reconstruction and private immutable sidecar
         shell: bash
         run: |
