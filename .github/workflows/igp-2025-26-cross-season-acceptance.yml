@@ -1,3 +1,4 @@
+# v2: verify full repo public-content allowlist at latest HEAD before reading only private QA receipts.
 name: IGP 2025-26 Full107 cross-season source and derived acceptance QA
 'on':
   push:
