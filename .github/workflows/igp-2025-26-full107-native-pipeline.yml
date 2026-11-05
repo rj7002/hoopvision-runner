@@ -1,5 +1,5 @@
 # Source-only private Full107 native scene/XYZ processing, all outputs in private 104.
-# Revision: source-masked short-segment holdout result is fully keyed; no discarded frames.
+# Revision: source-masked and explicit-zero per-game Full107 native QA retained; source immutable.
 name: IGP FULL107-native 2025-26 666-game historical reconstruction
 'on':
   push:
