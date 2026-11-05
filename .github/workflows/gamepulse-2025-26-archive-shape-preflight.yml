@@ -134,3 +134,55 @@ jobs:
               },sort_keys=True))
           print("HISTORICAL_ONE_GAME_MEMBER_SHA_PASS")
           PY
+
+      - name: Diagnose actual historical clock observability without exposing source XYZ
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import collections,gzip,io,json,os,pathlib,zipfile
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'historical-index'
+          index=json.loads((root/'nba-2025-26-source-index.json').read_text())
+          shard=index['shards'][0]
+          with zipfile.ZipFile(root/shard['name']) as z:
+            games=[g for g in shard['game_ids'] if index['games'][g].get('tracking')][:3]
+            for gid in games:
+              gm=index['games'][gid]
+              def rows(suffix):
+                m=next(x for x in gm['members'] if x['path'].endswith('/'+suffix))
+                with z.open(m['path']) as f,gzip.GzipFile(fileobj=f) as inf:
+                  for l in inf:
+                    if l.strip():yield json.loads(l)
+              count=collections.Counter();phases=collections.Counter();temporal=[]
+              prev=None
+              for r in rows('tracking.jsonl.gz'):
+                count['total']+=1
+                phases[str(r.get('phase'))]+=1
+                gc=r.get('game_clock_ms');p=r.get('period');t=r.get('timestamp_ms')
+                count['game_clock_nonnull']+=int(type(gc)in (int,float))
+                count['period_nonnull']+=int(type(p)==int)
+                count['shot_clock_nonnull']+=int(type(r.get('shot_clock_ms'))in (int,float))
+                count['both_clock_period']+=int(type(gc)in (int,float) and type(p)==int)
+                if prev and type(gc)in (int,float) and type(prev[1])in (int,float) and p==prev[2] and type(t)==int:
+                  dt=t-prev[0];dc=prev[1]-gc
+                  if 0<dt<=1200:
+                    count['near_adjacent_clock_pairs']+=1
+                    if 0<dc<=dt+1000: count['near_adjacent_clock_progress']+=1
+                    if dc==0:count['near_adjacent_clock_stopped']+=1
+                    if dc<0:count['near_adjacent_clock_upward']+=1
+                prev=(t,gc,p)
+              stat=collections.Counter();times=[]
+              for r in rows('companion.jsonl.gz'):
+                if r.get('event')=='Time#show':
+                  md=r.get('metadata') or {}
+                  val=md.get('gameClockRunning')
+                  stat[f'time_running_{val}']+=1
+                  if type(r.get('timestamp'))==int:times.append(r['timestamp'])
+              print('HISTORICAL_RUNNING_CLOCK_SOURCE_DIAGNOSTIC',json.dumps({
+                 'sample_game_id':gid,'counts':dict(count),'phase_counts':dict(phases),
+                 'time_event_counts':dict(stat),
+                 'time_event_first':min(times) if times else None,
+                 'time_event_last':max(times) if times else None},sort_keys=True))
+          PY
