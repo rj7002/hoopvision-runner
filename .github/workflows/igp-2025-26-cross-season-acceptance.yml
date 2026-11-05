@@ -1,0 +1,74 @@
+name: IGP 2025-26 Full107 cross-season source and derived acceptance QA
+'on':
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/igp-2025-26-cross-season-acceptance.yml
+      - tools/igp_2025_26_cross_season_acceptance.py
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - IGP FULL107-native 2025-26 666-game historical reconstruction
+      - IGP 2025-26 historical defender XYZ full-archive private materialization
+    types: [completed]
+permissions: {contents: read}
+concurrency:
+  group: igp-historical-cross-season-acceptance-qa
+  cancel-in-progress: false
+env:
+  GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+  SOURCE_RELEASE: igp-public-gamepulse-2025-26-20261105
+  NATIVE_RELEASE: igp-2025-26-full107-native-20261105
+  XFG_RELEASE: igp-2025-26-xfg-archive-20261105
+  DEFENDER_RELEASE: igp-2025-26-defender-xyz-proxy-20261105
+  QA_RELEASE: igp-2025-26-cross-season-audit-20261105
+jobs:
+  source-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Validate source-only audit and original release identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          python3 -m py_compile tools/igp_2025_26_cross_season_acceptance.py
+          test -n "$GH_TOKEN"
+          mkdir -p "$RUNNER_TEMP/accept/source" "$RUNNER_TEMP/accept/native" "$RUNNER_TEMP/accept/xfg" "$RUNNER_TEMP/accept/defender" "$RUNNER_TEMP/accept/report"
+          gh release download "$SOURCE_RELEASE" --repo timeedmonds-maker/104 \
+            --pattern nba-2025-26-source-index.json --dir "$RUNNER_TEMP/accept/source"
+      - name: Read only private per-shard QA receipts; never fetch or publish original XYZ
+        shell: bash
+        run: |
+          set -euo pipefail
+          for spec in native:"$NATIVE_RELEASE":'full107-native-nba-2025-26-shard-*-qa.json' \
+                      xfg:"$XFG_RELEASE":'nba-xfg-nba-2025-26-shard-*-qa.json' \
+                      defender:"$DEFENDER_RELEASE":'defender-xyz-nba-2025-26-shard-*-qa.json'; do
+            layer="${spec%%:*}"
+            remaining="${spec#*:}"
+            rel="${remaining%%:*}"
+            pattern="${remaining#*:}"
+            if ! gh release download "$rel" --repo timeedmonds-maker/104 \
+                --pattern "$pattern" --dir "$RUNNER_TEMP/accept/$layer"; then
+              echo "HISTORICAL_QA_RECEIPT_UNAVAILABLE layer=$layer"
+            fi
+          done
+          python3 tools/igp_2025_26_cross_season_acceptance.py \
+            --root "$RUNNER_TEMP/accept" \
+            --output "$RUNNER_TEMP/accept/report/igp-historical-2025-26-cross-season-acceptance.json"
+      - name: Preserve audited research status privately only
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view "$QA_RELEASE" --repo timeedmonds-maker/104 >/dev/null 2>&1; then
+            gh release create "$QA_RELEASE" --repo timeedmonds-maker/104 \
+              --draft --target research/gamepulse-clock-boundary-integrity-20261025 \
+              --title "2025-26 Full107 cross-season QA receipts, not production certification" \
+              --notes "Source-private cross-season audit; no position data. Every research status explicitly blocks promotion without independent 2025-26 holdouts."
+          fi
+          gh release upload "$QA_RELEASE" \
+            "$RUNNER_TEMP/accept/report/igp-historical-2025-26-cross-season-acceptance.json" \
+            --repo timeedmonds-maker/104 --clobber
+          echo "IGP_CROSS_SEASON_SOURCE_ONLY_PRIVATE_QA_RETAINED"
