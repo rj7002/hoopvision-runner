@@ -29,9 +29,17 @@ jobs:
           gh auth setup-git
           git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" \
             https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
-          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion data/extensions/nba_blueprint_2026_27/games
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_fullx_rolling_shot_event_multiview_v2.py
+          # Reconstruct the immutable Full121 ledger against the NOW COMPLETE 14/14
+          # native source manifests. The prior frozen Full121 ledger predated 0184/0185.
+          python3 gamepulse/fusion/igp_fullx_rolling_shot_event_multiview_v2.py --root .             --clips-game-key gameId --clips-schema GAME_ID_QUERY_UNVERIFIED_EVENT_NUM_PROBED             > "$RUNNER_TEMP/full121_fga_native_refresh_private.log" 2>&1 || {
+              echo FULL121_SHA_FULLX_REFRESH_FAILED
+              tail -c 600 "$RUNNER_TEMP/full121_fga_native_refresh_private.log" | sed -E 's/[^A-Za-z_0-9:.]/_/g'
+              exit 73
+            }
           python3 -m py_compile gamepulse/fusion/igp_full121_shot_default_v1.py
           python3 -m unittest discover -q -s gamepulse/fusion/tests \
               -p 'test_igp_full121_shot_default_v1.py'
@@ -91,6 +99,21 @@ jobs:
           PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          # Commit all newly materialized SHA-pinned official FGA row partitions
+          # and pointer with the release, atomically.
+          python3 - <<'PY'
+          import json,subprocess
+          from pathlib import Path
+          base=Path("gamepulse/fusion")
+          pointer=base/"qa/igp_fullx/shot_event_multiview_fullx_v2_latest.json"
+          p=json.loads(pointer.read_bytes())
+          idx=Path(p["index_path"]); q=json.loads(idx.read_bytes())
+          gid="0022600186"; first=q["games"][gid]
+          folder=Path(first["shots_path"]).parent.parent
+          assert folder.name.startswith("FULL121_") and len(q["games"])==121
+          for target in (pointer,idx,folder):
+              subprocess.run(["git","add","-f",str(target)],check=True)
+          PY
           git add -f gamepulse/fusion/igp_default_database.py \
             gamepulse/fusion/igp_default_engine.py \
             gamepulse/fusion/qa/igp_progress_20261030/igp_full121_default_shot_release_v1.json
