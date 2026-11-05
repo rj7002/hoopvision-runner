@@ -56,4 +56,130 @@ jobs:
           out={"schema":"igp.historical-endpoint-probe.v1","utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"results":results}
           open("historical-endpoint-probe.json","w").write(json.dumps(out,indent=2)+"\n")
           PY
-# Reviewed: no historical player coordinates or raw event records enter public logs.
+
+  cross-season-sdk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: python3 tools/public_content_guard.py
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install authorised Ease Live web bridge for isolated programme-readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/probe"
+          cd "$RUNNER_TEMP/probe"
+          npm init -y >/dev/null
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --no-audit --no-fund --ignore-scripts --fetch-retries=1 --fetch-timeout=25000 \
+            @ease-live/ease-live-bridge-web@1.22.0 esbuild@0.25.12 puppeteer-core@24.43.1
+      - name: Run actual 2025-26 and 2026-27 SDK init and position-slot seek
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/probe"
+          cat > browser-entry.js <<'BROWSER'
+          import EaseLive from '@ease-live/ease-live-bridge-web';
+          let sdk;
+          window.probe={
+            init:programId=>new Promise(resolve=>{
+              let done=false;
+              const finish=x=>{if(!done){done=true;resolve(x)}};
+              try{
+                sdk=new EaseLive({accountId:'nba',programId,env:'prod',viewContainer:'#overlay',
+                  playerPlugin:b=>{b.emit('player.ready',{});return {}; }});
+                sdk.on('app.ready',()=>finish('ready'));
+                for(const e of ['app.error','view.error','easelive.error'])sdk.on(e,()=>finish(e));
+                sdk.init();
+                setTimeout(()=>finish('timeout'),16500);
+              }catch{finish('sdk_exception')}
+            }),
+            seek:ms=>{
+              if(!sdk||!Number.isSafeInteger(ms))return false;
+              sdk.emit('player.state',{state:'playing'});
+              sdk.emit('player.time',{timecode:ms});
+              return true;
+            }
+          };
+          BROWSER
+          cat > run-probe.mjs <<'NODE'
+          import {build} from 'esbuild';
+          import puppeteer from 'puppeteer-core';
+          import {createServer} from 'node:http';
+          import {readFileSync} from 'node:fs';
+          import {execFileSync} from 'node:child_process';
+          const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+          const tests=[
+            {season:'2026-27 CONTROL',id:'0022600009',fallback:'2026-10-24T01:30:00Z'},
+            {season:'2025-26',id:'0022500001',fallback:'2025-10-22T00:00:00Z'},
+            {season:'2025-26',id:'0022500002',fallback:'2025-10-22T03:00:00Z'},
+            {season:'2025-26',id:'0022500200',fallback:'2025-11-15T00:00:00Z'},
+            {season:'2024-25 CONTROL',id:'0022400001',fallback:'2024-10-23T00:00:00Z'}
+          ];
+          await build({entryPoints:['browser-entry.js'],bundle:true,platform:'browser',format:'iife',outfile:'bundle.js',logLevel:'silent'});
+          const server=createServer((req,res)=>{
+            res.setHeader('Content-Type',req.url==='/bundle.js'?'text/javascript':'text/html');
+            res.end(req.url==='/bundle.js'?readFileSync('bundle.js'): '<!doctype html><html><body><div id="overlay"></div><script src="/bundle.js"></script></body></html>');
+          });
+          await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+          const chrome=['google-chrome','google-chrome-stable','chromium'].map(n=>{try{return execFileSync('which',[n],{encoding:'utf8'}).trim()}catch{return null}}).find(Boolean);
+          if(!chrome){console.log('IGP_SDK_CONTROL_ERROR',JSON.stringify({reason:'CHROME_MISSING'}));process.exit(2)}
+          const browser=await puppeteer.launch({executablePath:chrome,headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+          async function tipoff(test){
+            try{
+              const r=await fetch('https://cdn.nba.com/static/json/liveData/boxscore/boxscore_'+test.id+'.json',{signal:AbortSignal.timeout(12000)});
+              if(r.ok){
+                const d=await r.json();
+                const t=Date.parse(d?.game?.gameTimeUTC||d?.game?.gameTime||'');
+                if(Number.isFinite(t))return {ms:t,grade:'NBA_BOXSCORE'};
+              }
+            }catch{}
+            return {ms:Date.parse(test.fallback),grade:'FALLBACK_UNVERIFIED'};
+          }
+          for(const test of tests){
+            const program='companion-'+test.id+'-positions';
+            const page=await browser.newPage();
+            const result={season:test.season,game_id:test.id,program,init:'NOT_TESTED',slot_http_statuses:[],slot_event_count:0,slot_keyframes:0,slot_frames_with_ball:0,tipoff_source:null};
+            let found=false;
+            page.on('response',async response=>{
+              try{
+                const u=new URL(response.url());
+                if(u.hostname!=='nba-cdn.cloud.easelive.tv'||!u.pathname.includes(program+'/')||!u.pathname.endsWith('/events/slot'))return;
+                result.slot_http_statuses.push(response.status());
+                if(response.status()!==200)return;
+                const body=await response.json();
+                if(!Array.isArray(body))return;
+                result.slot_event_count+=body.length;
+                for(const e of body){
+                  const frames=e?.metadata?.keyframes;
+                  if(!Array.isArray(frames))continue;
+                  result.slot_keyframes+=frames.length;
+                  result.slot_frames_with_ball+=frames.filter(f=>f?.positions?.ball).length;
+                }
+                found=true;
+              }catch{}
+            });
+            try{
+              await page.goto('http://127.0.0.1:'+server.address().port+'/',{waitUntil:'domcontentloaded',timeout:12000});
+              await page.waitForFunction(()=>typeof window.probe?.init==='function',{timeout:12000});
+              result.init=await page.evaluate(program=>window.probe.init(program),program);
+              if(result.init==='ready'){
+                const t=await tipoff(test);result.tipoff_source=t.grade;
+                for(const minutes of [60,90,130]){
+                  const ms=Math.floor((t.ms+minutes*60000)/5000)*5000;
+                  await page.evaluate(ms=>window.probe.seek(ms),ms);
+                  await sleep(1600);
+                  if(found&&result.slot_keyframes>0)break;
+                }
+              }
+            }catch(e){result.error_type=String(e?.name||'ERROR').slice(0,40)}
+            console.log('IGP_HISTORICAL_LICENSED_SDK_RESULT',JSON.stringify(result));
+            await page.close();
+          }
+          await browser.close();
+          await new Promise(resolve=>server.close(resolve));
+          NODE
+          node run-probe.mjs
