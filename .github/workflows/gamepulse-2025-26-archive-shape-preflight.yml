@@ -1,0 +1,59 @@
+name: IGP 2025-26 archived source shape preflight
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/gamepulse-2025-26-archive-shape-preflight.yml]
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-historical-source-shape-readonly
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: python3 tools/public_content_guard.py
+      - name: Read existing SHA-preserved private release index only
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          mkdir -p "$RUNNER_TEMP/historical-index"
+          gh release download igp-public-gamepulse-2025-26-20261105 \
+            --repo timeedmonds-maker/104 \
+            --pattern nba-2025-26-source-index.json \
+            --dir "$RUNNER_TEMP/historical-index"
+          python3 - <<'PY'
+          import collections,json,os,pathlib
+          p=pathlib.Path(os.environ["RUNNER_TEMP"])/"historical-index/nba-2025-26-source-index.json"
+          d=json.loads(p.read_text())
+          assert d["schema"]=="igp.public-source-historical-gamepulse-archive.v1"
+          assert d["season"]=="2025-26" and d["total_tracking_games_verified"]>=600
+          assert len(d["shards"])==15
+          kinds=collections.Counter()
+          availability=collections.Counter()
+          for game,entry in d["games"].items():
+              found=set()
+              for member in entry["members"]:
+                  path=member["path"]
+                  name=path.rsplit("/",1)[-1]
+                  kinds[name]+=1
+                  found.add(name)
+              for name in found:availability[name]+=1
+          print("HISTORICAL_SOURCE_INDEX_COUNTS",json.dumps({
+            "tracking_games":d["total_tracking_games_verified"],
+            "indexed_games":d["total_games_indexed"],
+            "native_rows":d["total_normalized_rows"],
+            "members":d["total_original_members_copied"],
+            "provider_ten_ball_rows":d["total_provider_ten_ball_rows"],
+            "member_basename_counts":dict(sorted(kinds.items())),
+            "games_by_member_basename":dict(sorted(availability.items())),
+            "collection_members":len(d["collection_members"]),
+            "shards":len(d["shards"])
+          },sort_keys=True))
+          PY
