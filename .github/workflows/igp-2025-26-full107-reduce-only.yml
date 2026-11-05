@@ -78,7 +78,7 @@ jobs:
           # source-masked diagnostics. Pool only additive counts, never
           # average per-segment p95 values as if they were raw error samples.
           p0=Counter();p0_segment_p95=[];p0_games_with_matches=0
-          scene_zero_games=0
+          scene_zero_games=0;zero_scene_cases=[]
           for f in files:
             suffix=f.name.removeprefix('full107-native-').removesuffix('-qa.json')
             srcname=suffix+'.zip'
@@ -109,7 +109,17 @@ jobs:
               for key in ('attempts','matched','over_2ft'):
                 p0[key]+=int(h.get(key,0))
               p0_games_with_matches+=int(h.get('matched',0)>0)
-              scene_zero_games+=int(gameqa['counts'].get('native_engine_complete_ten_ball',0)==0)
+              is_zero=gameqa['counts'].get('native_engine_complete_ten_ball',0)==0
+              scene_zero_games+=int(is_zero)
+              if is_zero:
+                gc=gameqa['counts']
+                zero_scene_cases.append({
+                  'game_id':gid,'original_native_frames':gc['source_native_frames'],
+                  'provisional_lineup_frames':gc.get('provisional_source_lineup_frames',0),
+                  'unknown_lineup_frames':gc.get('unusable_unknown_source_lineup_frames',0),
+                  'source_direct_complete_scenes':gc.get('source_direct_complete_ten_ball',0),
+                  'modeled_player_entries':gc.get('filled_player_positions',0),
+                  'modeled_ball_entries':gc.get('filled_ball_positions',0)})
               for segment in h.get('per_segment_sample') or []:
                 if isinstance(segment,(list,tuple)) and len(segment)==3 and segment[1] is not None and segment[2]>0:
                   p0_segment_p95.append(float(segment[1]))
@@ -152,10 +162,13 @@ jobs:
                 'official-ten lineup and shot-clock reconciliation','defender and xFG shot-source attribution'],
             'original_full107_run':41986224953,
             'source_masked_player_xy_existing_diagnostics':p0_summary,
-            'games_with_zero_structurally_complete_native_scenes':scene_zero_games
+            'games_with_zero_structurally_complete_native_scenes':scene_zero_games,
+            'zero_scene_case_diagnostic_population':sorted(zero_scene_cases,key=lambda r:r['game_id'])
           }
           out=root/'qa/full107-native-2025-26-all666-qa.json'
           out.write_text(json.dumps(receipt,sort_keys=True,indent=2)+'\n')
+          print('FULL107_HISTORICAL_ZERO_SCENE_GAME_IDS',json.dumps(
+            [r['game_id'] for r in sorted(zero_scene_cases,key=lambda r:r['game_id'])]))
           print('FULL107_NATIVE_HISTORICAL_ALL666_RESULT',json.dumps({
             'status':receipt['status'],'games':receipt['games'],'shards':receipt['shards'],
             'native_source_frames':totals['source_native_frames'],
