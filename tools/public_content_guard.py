@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full121-six-player-source-diagnosis-20261106.yml",  # private original NBA source only; public logs contain per-game gap counts and grade labels
     ".github/workflows/igp-2025-26-full666-origin-pbp-boundary-replay.yml",  # 5GB SHA-pinned publisher original full666 PBP/source-clock boundary replay, original XYZ private-only
     ".github/workflows/igp-2025-26-full666-ft-logical-terminal-regrade.yml",  # source-only correct final made FT PBP logical terminal in private QA, physical custody not certified
     ".github/workflows/igp-2025-26-full666-ft-terminal-source-probe.yml",  # source-only FT terminal evidence, no original coordinates or private event text emitted
