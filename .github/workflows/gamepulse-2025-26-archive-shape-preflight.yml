@@ -94,5 +94,21 @@ jobs:
                   elif name.endswith(".json"):
                       obj=json.loads(raw)
                       print("HISTORICAL_PUBLIC_SOURCE_STRUCTURE",name,json.dumps({"fields":{k:type(v).__name__ for k,v in obj.items()} if isinstance(obj,dict) else {"top_type":type(obj).__name__}},sort_keys=True))
+          for name in ("companion.jsonl.gz","stats.jsonl.gz","positions.jsonl.gz"):
+              member=next(m for m in d["games"][game]["members"] if m["path"].endswith("/"+name))
+              counts=collections.Counter()
+              per_event_fields={}
+              per_event_metadata={}
+              with zipfile.ZipFile(p) as z, z.open(member["path"]) as outer, gzip.GzipFile(fileobj=outer) as fp:
+                  for raw in fp:
+                      if not raw.strip():continue
+                      row=json.loads(raw)
+                      event=str(row.get("event"))
+                      counts[event]+=1
+                      if event not in per_event_fields:
+                          per_event_fields[event]=sorted(row.keys())
+                          md=row.get("metadata")
+                          per_event_metadata[event]=sorted(md.keys()) if isinstance(md,dict) else []
+              print("HISTORICAL_EVENT_CENSUS",name,json.dumps({"counts":dict(counts.most_common()),"metadata_keys":per_event_metadata},sort_keys=True))
           print("HISTORICAL_ONE_GAME_MEMBER_SHA_PASS")
           PY
