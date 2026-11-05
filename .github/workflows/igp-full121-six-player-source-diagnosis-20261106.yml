@@ -181,9 +181,14 @@ jobs:
           python3 -m py_compile gamepulse/fusion/igp_full121_native_actor_temporal_alias_audit_v1.py
           path="gamepulse/fusion/qa/igp_progress_20261030/full121_actor_temporal_alias_audit_${{ matrix.game }}_20261106.json"
           python3 gamepulse/fusion/igp_full121_native_actor_temporal_alias_audit_v1.py --root . --game-id "${{ matrix.game }}" --out "$path"
+          python3 -m py_compile gamepulse/fusion/igp_full121_temporal_actor_team_minutes_veto_v1.py
+          python3 gamepulse/fusion/igp_full121_temporal_actor_team_minutes_veto_v1.py --self-test
+          veto="gamepulse/fusion/qa/igp_progress_20261030/full121_actor_team_minutes_veto_${{ matrix.game }}_20261106.json"
+          python3 gamepulse/fusion/igp_full121_temporal_actor_team_minutes_veto_v1.py --root . --game-id "${{ matrix.game }}" --out "$veto"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f "$path"
+          git add -f "$veto"
           git diff --cached --check
           if git diff --cached --quiet; then echo FULL121_ACTOR_ALIAS_AUDIT_ALREADY_COMMITTED; exit 0; fi
           git commit -q -m "qa(igp): retain original/official actor temporal alias audit ${{ matrix.game }}"
