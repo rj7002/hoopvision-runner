@@ -1,0 +1,56 @@
+name: IGP 2025-26 historical missing PBP official NBA source recovery probe
+'on':
+  push:
+    branches: [main]
+    paths: [.github/workflows/igp-2025-26-missing10-official-pbp-source-probe.yml]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  official-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test NBA official historical PBP endpoints only for games missing archived events
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          python3 - <<'PY'
+          import collections,json,urllib.request,urllib.error,socket
+          games=('0022500644','0022500802')
+          origins={
+            'NBA_LIVEDATA_CDN':lambda g:'https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_'+g+'.json',
+            'NBA_STATS_PBP_V3':lambda g:'https://stats.nba.com/stats/playbyplayv3?GameID='+g+'&StartPeriod=0&EndPeriod=0',
+            'NBA_STATS_PBP_V2':lambda g:'https://stats.nba.com/stats/playbyplayv2?GameID='+g+'&StartPeriod=1&EndPeriod=10',
+            'NBA_HISTORICAL_MOBILE_PBP':lambda g:'https://data.nba.com/data/10s/v2015/json/mobile_teams/nba/2025/scores/pbp/'+g+'_full_pbp.json',
+          }
+          headers={'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
+            'Referer':'https://www.nba.com/','Origin':'https://www.nba.com',
+            'x-nba-stats-origin':'stats','x-nba-stats-token':'true',
+            'Accept':'application/json, text/plain, */*'}
+          for gid in games:
+            for name,path in origins.items():
+              try:
+                req=urllib.request.Request(path(gid),headers=headers)
+                with urllib.request.urlopen(req,timeout=12) as src:
+                  raw=src.read(10000000)
+                  status=src.status
+                obj=json.loads(raw)
+                game=obj.get('game') or {}
+                actions=game.get('actions') or []
+                resultsets=obj.get('resultSets') or obj.get('resultSet') or []
+                if isinstance(resultsets,dict):resultsets=[resultsets]
+                count=sum(len(s.get('rowSet') or []) for s in resultsets if isinstance(s,dict))
+                if not actions and not count:
+                  count=len(((obj.get('g') or {}).get('pd') or []))
+                print('HISTORICAL_MISSING10_OFFICIAL_PBP_AVAILABLE',json.dumps({
+                  'game_id':gid,'source':name,'http':status,'json_bytes':len(raw),
+                  'nba_game_id':game.get('gameId'),'actions':len(actions),
+                  'resultset_rows':count,'action_fields':sorted(actions[0].keys()) if actions else []},
+                  sort_keys=True),flush=True)
+              except Exception as e:
+                print('HISTORICAL_MISSING10_OFFICIAL_PBP_UNAVAILABLE',json.dumps({
+                  'game_id':gid,'source':name,'error_type':type(e).__name__,
+                  'http':getattr(e,'code',None),'description':str(e)[:75]},sort_keys=True),flush=True)
+          PY
