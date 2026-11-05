@@ -157,16 +157,35 @@ jobs:
           assert {f"sdk-part-{i:02d}.{ext}" for i in range(13) for ext in ("tar.gz","json")} <= a
           print("FULL121_AUTHENTIC_ALL_13_PAIRED_ASSETS",os.environ["GAME"])
           PY
-      - name: Original source-only full-game certification with SHA readback
+      - name: Reuse immutable original fullgame SDK certificate; finalize only if missing
         working-directory: tools/licensed_feed
         shell: bash
         run: |
           set -euo pipefail
-          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
-          npm install --ignore-scripts --no-audit --no-fund --silent
-          node season_private_release.mjs
-          gh api "repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-$GAME" --jq '.assets[].name' | grep -Fx 'sdk-COMPLETE.json'
-          echo FULL121_PRIVATE_ORIGINAL_SDK_CERTIFICATE_VERIFIED
+          if python3 - <<'PY'
+          import json,os,sys
+          from pathlib import Path
+          r=json.loads((Path(os.environ["RUNNER_TEMP"])/"release.json").read_bytes())
+          names={a["name"] for a in r["assets"]}
+          sys.exit(0 if "sdk-COMPLETE.json" in names else 1)
+          PY
+          then
+            echo FULL121_EXISTING_PRIVATE_FULLGAME_CERTIFICATE_REUSED
+          else
+            npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+            npm install --ignore-scripts --no-audit --no-fund --silent
+            node season_private_release.mjs
+          fi
+          gh release download "gamepulse-sdk-$GAME" --repo timeedmonds-maker/104 --pattern 'sdk-COMPLETE.json' --dir "$RUNNER_TEMP"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          d=json.loads((Path(os.environ["RUNNER_TEMP"])/"sdk-COMPLETE.json").read_bytes())
+          assert d["game_id"]==os.environ["GAME"],"AUTHENTIC_SDK_CERT_GAME_MISMATCH"
+          assert d["successful_windows"]==d["expected_windows"]==3720,"SDK_CERT_WINDOW_CENSUS_MISMATCH"
+          assert d["parts"]==13 and d["data_class"].startswith("observed"),"SDK_CERT_INVALID_PROVENANCE"
+          print("FULL121_PRIVATE_ORIGINAL_13PART_COMPLETE_SOURCE_CERT_VALID",d["game_id"])
+          PY
       - name: Rehydrate SHA-verified native player/ball XYZ privately and refresh source grades
         shell: bash
         run: |
