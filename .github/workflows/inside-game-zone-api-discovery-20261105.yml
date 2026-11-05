@@ -1,0 +1,86 @@
+name: NBA zone defense endpoint discovery
+'on':
+  push:
+    branches: [research/inside-game-zone-api-discovery-20261105]
+permissions:
+  contents: read
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install browser
+        run: |
+          python -m pip install -q requests beautifulsoup4 playwright
+          python -m playwright install chromium
+      - name: Inspect public NBA network, no credentials or licensed data
+        shell: bash
+        run: |
+          python - <<'PY'
+          import re,json,requests
+          from bs4 import BeautifulSoup
+          from urllib.parse import urljoin
+          from playwright.sync_api import sync_playwright
+          urls=[
+            'https://www.nba.com/inside-the-game/team/zonedefense',
+            'https://cdn-uat.nba.com/inside-the-game/team/zonedefense',
+            'https://www.nba.com/inside-the-game/player/gravity',
+            'https://www.nba.com/inside-the-game/player/leverage',
+            'https://www.nba.com/inside-the-game/player/shot-difficulty'
+          ]
+          s=requests.Session(); s.headers.update({'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36','Accept':'text/html,application/json,*/*'})
+          print('=== HTTP SOURCE ===',flush=True)
+          scripts=[]
+          for url in urls:
+            try:
+              r=s.get(url,timeout=15)
+              print('GET',r.status_code,len(r.content),r.url,'TYPE',r.headers.get('content-type'),flush=True)
+              if r.status_code!=200: print('BODY',r.text[:170],flush=True);continue
+              soup=BeautifulSoup(r.text,'html.parser')
+              script=soup.find('script',id='__NEXT_DATA__')
+              if script:
+                d=json.loads(script.string or script.get_text())
+                print('NEXT_DATA',d.get('page'),d.get('buildId'), 'props',list(d.get('props',{})),flush=True)
+                if 'zone' in str(d).lower():print('NEXT_ZONE_CONTEXT',str(d)[:400],flush=True)
+              srcs=[x.get('src') for x in soup.find_all('script',src=True)]
+              scripts.extend([urljoin(r.url,p) for p in srcs if p and any(q in p for q in ('_next','chunk'))])
+              print('SCRIPTS',len(srcs),srcs[:5],flush=True)
+            except Exception as e:print('GET_ERROR',url,str(e)[:180],flush=True)
+          for u in list(dict.fromkeys(scripts))[:30]:
+            try:
+              r=s.get(u,timeout=12)
+              matches=list(re.finditer(r'(?i)zone.?defen[sc]e|inside.the.game|api.nba.com|stats.nba.com|leaguegravity|leagueleverage',r.text))
+              for m in matches[:3]:print('JS_MATCH',u[:180],r.text[max(0,m.start()-160):m.end()+230][:410],flush=True)
+            except Exception as e:print('JS_ERROR',u[:120],str(e)[:80],flush=True)
+          print('=== PLAYWRIGHT LIVE REQUESTS ===',flush=True)
+          with sync_playwright() as p:
+            browser=p.chromium.launch(headless=True,args=['--no-sandbox'])
+            context=browser.new_context(viewport={'width':1480,'height':1000},locale='en-US')
+            for url in [urls[0],urls[2],urls[3]]:
+              page=context.new_page()
+              responses=[];failed=[]
+              page.on('response',lambda r:responses.append(r))
+              page.on('requestfailed',lambda r:failed.append((r.url,r.failure)))
+              try:
+                res=page.goto(url,wait_until='domcontentloaded',timeout=35000)
+                print('PAGE',url,'STATUS',res.status if res else None,'FINAL',page.url,'TITLE',page.title(),flush=True)
+                page.wait_for_timeout(13000)
+                print('BODY_TEXT',page.locator('body').inner_text()[:360].replace(chr(10),' | '),flush=True)
+                print('RESP_COUNT',len(responses),'FAIL_COUNT',len(failed),'FAIL_SAMPLE',failed[:3],flush=True)
+                for resp in responses:
+                  ct=resp.headers.get('content-type',''); u=resp.url
+                  if 'json' in ct or any(v in u.lower() for v in ('api/','stats/','zone','gravity','leverage','inside-the-game')):
+                    print('NETWORK',resp.status,ct[:38],u[:430],flush=True)
+                    if 'json' in ct:
+                      try:
+                        data=resp.json()
+                        print('RESPONSE',u[:150],'KEYS',list(data)[:35] if isinstance(data,dict) else 'array','SAMPLE',json.dumps(data,ensure_ascii=False)[:460],flush=True)
+                      except Exception as e:print('RESP_PARSE_ERROR',str(e)[:100],flush=True)
+              except Exception as e:print('PAGE_ERROR',url,str(e)[:300],flush=True)
+              finally:page.close()
+            browser.close()
+          PY
