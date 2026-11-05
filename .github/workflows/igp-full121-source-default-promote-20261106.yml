@@ -1,0 +1,72 @@
+# Reviewed public bridge. Private original XYZ remains in 104, never in public artifacts or logs.
+name: IGP Full121 private SHA-gated default source database promotion
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full121-source-default-promote-20261106.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full121-source-default-release-20261106
+  cancel-in-progress: false
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Enforce protected data boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Await complete native source admissions and promote atomically
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion docs/gamepulse data/extensions/nba_blueprint_2026_27/games
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full121_source_default_v1.py gamepulse/fusion/igp_full121_source_default_release_gate_20261106.py
+          for trial in $(seq 1 60); do
+            git fetch -q origin "$BRANCH"
+            git reset -q --hard "origin/$BRANCH"
+            if python3 gamepulse/fusion/igp_full121_source_default_release_gate_20261106.py --root .; then
+              echo FULL121_ALL14_SHA_SOURCE_GATE_READY
+              break
+            fi
+            test "$trial" -lt 60 || { echo FULL121_SOURCE_PROMOTION_GATE_NOT_READY; exit 71; }
+            sleep 60
+          done
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          for attempt in $(seq 1 16); do
+            git fetch -q origin "$BRANCH"
+            git reset -q --hard "origin/$BRANCH"
+            python3 gamepulse/fusion/igp_full121_source_default_release_gate_20261106.py --root . --promote
+            git add -f gamepulse/fusion/qa/igp_progress_20261030/igp_full121_default_source_release_v1.json
+            git add -f gamepulse/fusion/igp_default_engine.py
+            git add -f gamepulse/fusion/igp_default_database.py
+            git add -f gamepulse/fusion/AGENTS.md
+            git add -f docs/gamepulse/IGP_FULL121_DEFAULT_SOURCE_RELEASE_20261106.md
+            git diff --cached --check
+            if git diff --cached --quiet; then
+              echo FULL121_DEFAULT_SOURCE_ALREADY_RELEASED
+              exit 0
+            fi
+            git commit -q -m "release(igp): promote source-validated FULL121 NBA database as canonical default"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo FULL121_DEFAULT_SOURCE_DATABASE_PRIVATE_COMMITTED
+              exit 0
+            fi
+            echo FULL121_DEFAULT_SOURCE_PROMOTION_CONCURRENT_SOURCE_RECHECK "$attempt"
+            sleep "$((attempt*2))"
+          done
+          exit 72
