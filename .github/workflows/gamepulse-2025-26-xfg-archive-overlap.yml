@@ -1,4 +1,4 @@
-name: IGP 2025-26 official xFG to historical tracking census
+name: IGP 2025-26 official xFG access pilot
 on:
   push:
     branches: [main]
@@ -17,71 +17,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: Read SHA-locked existing public-source xFG and historical index
+      - name: Probe existing 2025-26 NBA official xFG source
         shell: bash
         run: |
           set -euo pipefail
           python3 tools/public_content_guard.py
-          test -n "$GH_TOKEN"
-          gh auth setup-git
-          git clone -q --depth=1 --filter=blob:none --sparse             -b analysis/2pt-xfg-over-expected-20260912             https://github.com/timeedmonds-maker/long-rebound-era.git "$RUNNER_TEMP/xfg"
-          git -C "$RUNNER_TEMP/xfg" sparse-checkout set --no-cone             /outputs/integration/nba_xfg_2025_26/nba_xfg_shots_2025_26.csv.gz             /outputs/integration/nba_xfg_2025_26/nba_xfg_qa.json
-          test "$(git -C "$RUNNER_TEMP/xfg" rev-parse HEAD)" = "a9d5d8debd028efcbc9d62e11e8153c8c7758605"
-          test "$(git -C "$RUNNER_TEMP/xfg" hash-object outputs/integration/nba_xfg_2025_26/nba_xfg_shots_2025_26.csv.gz)" = "b31a9045270971fd36567c80687031a0f9c07142"
-          mkdir -p "$RUNNER_TEMP/source-index"
-          gh release download igp-public-gamepulse-2025-26-20261105             --repo timeedmonds-maker/104 --pattern nba-2025-26-source-index.json --dir "$RUNNER_TEMP/source-index"
-          echo HISTORICAL_EXISTING_XFG_AND_TRACKING_SHA_LOCK_PASS
-      - name: Reconcile official xFG identities against 666 historical game IDs
-        shell: bash
-        run: |
-          set -euo pipefail
           python3 - <<'PY'
-          import collections,csv,gzip,hashlib,json,math,os,pathlib
-          root=pathlib.Path(os.environ["RUNNER_TEMP"])
-          p=root/"xfg/outputs/integration/nba_xfg_2025_26/nba_xfg_shots_2025_26.csv.gz"
-          q=json.loads((p.parent/"nba_xfg_qa.json").read_text())
-          d=json.loads((root/"source-index/nba-2025-26-source-index.json").read_text())
-          assert q["pbp_join"]["pbp_fga_with_public_xfg_shot_row"]==205570
-          tracking={gid for gid,g in d["games"].items() if g["tracking"]}
-          assert len(tracking)==666
-          seen=set();counts=collections.Counter();pergame=collections.Counter()
-          with gzip.open(p,"rt",newline="") as fp:
-              for row in csv.DictReader(fp):
-                  counts["all_rows"]+=1
-                  gid=row["game_id"].zfill(10)
-                  if gid not in tracking:continue
-                  counts["tracking_game_shots"]+=1
-                  key=(gid,row["event_num"],row["player_id"])
-                  assert key not in seen,"DUPLICATE_XFG_EVENT_IDENTITY"
-                  seen.add(key);pergame[gid]+=1
-                  try:
-                      value=float(row["xfg"])
-                      if math.isfinite(value) and 0<=value<=1:counts["xfg_probability"]+=1
-                  except (ValueError,TypeError):pass
-          assert counts["all_rows"]==q["xfg_public_source"]["shot_rows_listed"]
-          receipt={
-              "schema":"igp.2025-26.source-xfg-tracking-overlap.v1",
-              "xfg_git_commit":"a9d5d8debd028efcbc9d62e11e8153c8c7758605",
-              "xfg_git_blob":"b31a9045270971fd36567c80687031a0f9c07142",
-              "xfg_source_sha256":hashlib.sha256(p.read_bytes()).hexdigest(),
-              "historical_source_index_sha256":hashlib.sha256((root/"source-index/nba-2025-26-source-index.json").read_bytes()).hexdigest(),
-              "tracking_games":len(tracking),
-              "xfg_games_overlapping_tracking":len(pergame),
-              "xfg_shot_rows_overlapping_tracking":counts["tracking_game_shots"],
-              "xfg_nonnull_probabilities_overlapping_tracking":counts["xfg_probability"],
-              "xfg_shots_per_game":dict(pergame),
-              "published_xfg_not_per_defender_causal_effect":True,
-              "exact_pbp_join_not_yet_measured_for_666":True,
-          }
-          out=root/"source-index/nba-xfg-archive-overlap.json"
-          out.write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\n")
-          print("HISTORICAL_XFG_TRACKING_OVERLAP",json.dumps({k:receipt[k] for k in (
-             "tracking_games","xfg_games_overlapping_tracking","xfg_shot_rows_overlapping_tracking",
-             "xfg_nonnull_probabilities_overlapping_tracking")},sort_keys=True))
+          import json,urllib.parse,urllib.request
+          p={"GameID":"0022501206","PlayerID":"1626171"}
+          url="https://stats.gleague.nba.com/stats/shotqualityvideologs?"+urllib.parse.urlencode(p)
+          headers={"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36","Referer":"https://www.nba.com/","Origin":"https://www.nba.com","Accept":"application/json, text/plain, */*"}
+          with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=40) as f:
+              data=json.load(f)
+          assert isinstance(data,dict) and str(data.get("gameId")).zfill(10)==p["GameID"]
+          assert str(data.get("playerId"))==p["PlayerID"]
+          print("HISTORICAL_2025_26_XFG_API_PROBE",json.dumps({"game_id":p["GameID"],"shotList_rows":len(data.get("shotList") or []),"published_fga":data.get("shots"),"source_field_names":sorted(data.keys())},sort_keys=True))
           PY
-      - name: Preserve per-game overlap receipt privately
-        shell: bash
-        run: |
-          set -euo pipefail
-          gh release upload igp-2025-26-source-feature-census-20261105             "$RUNNER_TEMP/source-index/nba-xfg-archive-overlap.json"             --repo timeedmonds-maker/104 --clobber
-          echo HISTORICAL_XFG_OVERLAP_PRIVATE_RECEIPT_PRESERVED
