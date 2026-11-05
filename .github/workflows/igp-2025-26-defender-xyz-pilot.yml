@@ -103,3 +103,5 @@ jobs:
           echo IGP_HISTORICAL_DEFENDER_PROXY_PRIVATE_RELEASE_PILOT_PRESERVED
 
 # Pilot v1.0 guarded source execution
+
+# Client summary SQL validation retry v1.1
