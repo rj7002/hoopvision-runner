@@ -11,6 +11,7 @@ ALLOWED_STATIC = {
     ".github/workflows/igp-2025-26-full666-ft-logical-terminal-regrade.yml",  # source-only correct final made FT PBP logical terminal in private QA, physical custody not certified
     ".github/workflows/igp-2025-26-full666-ft-terminal-source-probe.yml",  # source-only FT terminal evidence, no original coordinates or private event text emitted
     ".github/workflows/igp-2025-26-full666-possession-boundary-audit.yml",  # private v1.0 SQLite source event, native-clock, ball-availability QA only; no physical custody promotion
+    ".github/workflows/igp-full121-nov04-shot-reacquire-and-masked-evaluation-20261106.yml",  # licensed 3-game shot SDK refresh and private source-proxy holdout; aggregate logs only, no tracking promotion
     ".github/workflows/igp-full121-source-default-promote-20261106.yml",  # SHA-gated Full121 original source acceptance in private repo; source-free public result
     ".github/workflows/igp-2025-26-missing10-official-pbp-source-probe.yml",  # original-source absent PBP games, NBA-operated official endpoints only, aggregate schema/status public
     ".github/workflows/igp-2025-26-full666-query-smoke.yml",  # read-only private SQLite index query and source-hash schema checks, no original XYZ in public logs
