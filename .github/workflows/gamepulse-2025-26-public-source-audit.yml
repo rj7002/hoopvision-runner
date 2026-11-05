@@ -1,9 +1,69 @@
-name: 2025-26 historical source audit
+name: IGP 2025-26 public source metadata census
 on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/gamepulse-2025-26-public-source-audit.yml]
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
-  inspect:
+  census:
     runs-on: ubuntu-24.04
+    timeout-minutes: 170
     steps:
-      - run: echo HISTORICAL_SOURCE_AUDIT_WORKFLOW_READY
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Validate public policy and source provenance
+        run: |
+          python3 tools/public_content_guard.py
+          python3 -m py_compile tools/neilball_2025_26_public_archive_ingest.py
+      - name: Re-read immutable public 2025-26 archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 4 --retry-delay 8 \
+            --output "$RUNNER_TEMP/original.zip" \
+            https://downloads.neilball.org/NBA-2025-26-Available-Tracking.zip
+          test "$(stat -c%s "$RUNNER_TEMP/original.zip")" -eq 5170096251
+          test "$(sha256sum "$RUNNER_TEMP/original.zip" | cut -d' ' -f1)" = '2450b2fafb66698b39a89592c6ac3767c7ba0c3e4581b1a65042041e0f7ea0b0'
+          echo ORIGINAL_SOURCE_SHA_2025_26_RECONFIRMED
+      - name: Aggregate publisher-quality coverage without private source access
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import collections,gzip,json,zipfile
+          from pathlib import Path
+          z=zipfile.ZipFile(Path(__import__('os').environ['RUNNER_TEMP'])/'original.zip')
+          games=0
+          counts=collections.Counter()
+          widths=collections.Counter()
+          fields=collections.Counter()
+          qfields=collections.Counter()
+          for name in z.namelist():
+              if not name.endswith('/tracking.jsonl.gz'):
+                  continue
+              games+=1
+              with z.open(name) as member,gzip.GzipFile(fileobj=member) as lines:
+                  for line in lines:
+                      if not line.strip():continue
+                      row=json.loads(line)
+                      n=sum(len(row.get(side) or []) for side in ('home_players','away_players'))
+                      counts['rows']+=1
+                      widths[str(min(n,20))]+=1
+                      if n==10:counts['exact10']+=1
+                      if n>=10:counts['atleast10']+=1
+                      if row.get('ball') is not None:counts['ball']+=1
+                      if n==10 and row.get('ball') is not None:counts['exact10ball']+=1
+                      q=row.get('quality')
+                      if isinstance(q,dict) and q.get('all_ten_and_ball_observed') is True:
+                          counts['publisher10ball']+=1
+                      if isinstance(q,dict) and counts['rows']<=100:qfields.update(q.keys())
+                      if counts['rows']<=100:fields.update(row.keys())
+          assert games==666 and counts['rows']==19440900
+          print('HISTORICAL_PUBLIC_AGGREGATE_PASS',games,counts['rows'])
+          for k in ('ball','exact10','atleast10','exact10ball','publisher10ball'):
+              print('HISTORICAL_COVERAGE_AGGREGATE',k,counts[k],round(counts[k]*100/counts['rows'],4))
+          print('HISTORICAL_PLAYER_COUNT_BINS',dict(sorted(widths.items(),key=lambda x:int(x[0]))))
+          print('HISTORICAL_SOURCE_SCHEMA_FIELDS',sorted(fields))
+          print('HISTORICAL_QUALITY_SCHEMA_FIELDS',sorted(qfields))
+          PY
