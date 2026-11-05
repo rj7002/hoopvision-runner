@@ -35,7 +35,7 @@ jobs:
           git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
             https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
-          test "$(git -C "$RUNNER_TEMP/private" hash-object gamepulse/fusion/igp_2025_26_full666_pbp_possession_index_v1.py)" = 35006d286ceaf1ae163d72da926a0b0ec8d15425
+          test "$(git -C "$RUNNER_TEMP/private" hash-object gamepulse/fusion/igp_2025_26_full666_pbp_possession_index_v1.py)" = 32a9ded0c4752424aeaa8cd0cf8f62e27d73478a
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH="$PWD:$PWD/gamepulse/fusion"
           python3 -m py_compile gamepulse/fusion/igp_2025_26_full666_pbp_possession_index_v1.py
@@ -137,7 +137,7 @@ jobs:
             gamepulse/fusion/igp_tracking_model_a_holdout_2026.py \
             gamepulse/fusion/igp_tracking_model_b_holdout_2026.py \
             gamepulse/fusion/igp_tracking_model_c0_endpoint_velocity_bridge_2026.py
-          test "$(git -C "$RUNNER_TEMP/private" hash-object gamepulse/fusion/igp_2025_26_full666_pbp_possession_index_v1.py)" = 35006d286ceaf1ae163d72da926a0b0ec8d15425
+          test "$(git -C "$RUNNER_TEMP/private" hash-object gamepulse/fusion/igp_2025_26_full666_pbp_possession_index_v1.py)" = 32a9ded0c4752424aeaa8cd0cf8f62e27d73478a
           mkdir -p "$RUNNER_TEMP/source" "$RUNNER_TEMP/full107" "$RUNNER_TEMP/idx"
       - name: Download original SHA-preserved archive and matched Full107 native overlay
         run: |
