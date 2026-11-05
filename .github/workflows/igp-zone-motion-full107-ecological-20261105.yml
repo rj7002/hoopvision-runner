@@ -1,0 +1,166 @@
+# Research-only five-shard FULL107 replay; source and candidate evidence private.
+name: IGP Zone Defense Full107 original-source ecological validation
+'on':
+  push:
+    branches: [research/igp-zone-motion-pilot-20261105]
+    paths: ['.github/workflows/igp-zone-motion-full107-ecological-20261105.yml',
+            'tools/public_content_guard.py']
+permissions: {contents: read}
+concurrency:
+  group: igp-zone-full107-ecological-v2
+  cancel-in-progress: false
+jobs:
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 32
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - {shard: '00_22', start: 0, end: 22}
+          - {shard: '22_44', start: 22, end: 44}
+          - {shard: '44_66', start: 44, end: 66}
+          - {shard: '66_88', start: 66, end: 88}
+          - {shard: '88_107', start: 88, end: 107}
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/igp-full107-zone-motion-v1-20261105
+      SHARD: ${{ matrix.shard }}
+      START: ${{ matrix.start }}
+      END: ${{ matrix.end }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Validate public runner guard and checkout original private SHA source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          echo IGP_ZONE_FULL107_ORIGINAL_SOURCE_PRIVATE
+      - name: Source-free geometry and tactical hard-negative tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH="$PWD:$PWD/gamepulse/fusion"
+          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_zone_motion_detector_v1.py'
+          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_zone_multi_defender_handoff_v2.py'
+      - name: Replay SHA-original Full107 NBA player and ball source against both detectors
+        shell: bash
+        timeout-minutes: 22
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH="$PWD:$PWD/gamepulse/fusion"
+          OUT="gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_${SHARD}_source_v2.json"
+          python3 gamepulse/fusion/igp_full107_zone_motion_original_pilot_v1.py \
+            --full107 --start-index "$START" --end-index "$END" --out "$OUT" \
+            > "$RUNNER_TEMP/zone_original_private_detail.log"
+          python3 - "$OUT" <<'PY'
+          import json,sys,collections
+          d=json.load(open(sys.argv[1]))
+          assert d['games_source_scored']+d['games_abstained']==len(d['games_requested'])
+          assert all('candidate_counts_v2' in v for v in d['games'].values() if not v.get('status'))
+          total=collections.Counter()
+          for g in d['games'].values():
+            total.update(g.get('candidate_counts_v2',{}))
+          print('NBA_ZONE_FULL107_SOURCE_SHARD',len(d['games_requested']),
+                'GAMES_SOURCE_GRADED',d['games_source_scored'],
+                'SOURCE_ABSTAINED',d['games_abstained'],
+                'V2_CANDIDATE_COUNTS',dict(total),
+                'NO_OFFICIAL_PER_POSSESSION_LABELS')
+          PY
+      - name: Store full per-chain candidate detail exclusively in private 104
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          target="gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_${SHARD}_source_v2.json"
+          git add -f "$target"
+          git -c core.whitespace=cr-at-eol diff --cached --check >/dev/null
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -q -m "qa(igp): source-private Full107 zone temporal independent shard $SHARD"
+          for attempt in 1 2 3 4 5 6 7; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo IGP_ZONE_ORIGINAL_SHARD_PRIVATELY_STORED
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 42
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    needs: replay
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/igp-full107-zone-motion-v1-20261105
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Re-check public boundary and assemble all original private candidate shards
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: Compare V1 and V2 to all 30 official NBA team season possession ceilings
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH="$PWD:$PWD/gamepulse/fusion"
+          python3 gamepulse/fusion/igp_zone_motion_official_aggregate_qa_v2.py \
+            --shards \
+              gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_00_22_source_v2.json \
+              gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_22_44_source_v2.json \
+              gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_44_66_source_v2.json \
+              gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_66_88_source_v2.json \
+              gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_88_107_source_v2.json \
+            --output gamepulse/fusion/qa/igp_zone_motion_research_v1/full107_official_aggregate_bound_v2.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('gamepulse/fusion/qa/igp_zone_motion_research_v1/full107_official_aggregate_bound_v2.json')
+          d=json.loads(p.read_text())
+          assert d['source_games_evaluated']==107 and d['full_original_107_cohort_tested'] is True
+          assert d['precision_unknown'] is True and d['recall_unknown'] is True
+          assert d['v2_production_accepted'] is False
+          print('IGP_ZONE_RESEARCH_AGGREGATE_CONSERVATION_PASS',
+                'SOURCE_SCORED_GAMES',d['source_scorable_games'],
+                'UNADJUDICATED_CHUNKS',d['assessed_logical_chains'],
+                'V1_BOUND_VIOLATIONS',len(d['teams_violating_official_season_upper_bound_v1']),
+                'V2_BOUND_VIOLATIONS',len(d['teams_violating_official_season_upper_bound_v2']))
+          PY
+      - name: Commit NBA aggregate ecological QA privately (NOT production promotion)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git add -f gamepulse/fusion/qa/igp_zone_motion_research_v1/full107_official_aggregate_bound_v2.json
+          git -c core.whitespace=cr-at-eol diff --cached --check >/dev/null
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -q -m 'qa(igp): Full107 zone V1 vs V2 NBA team aggregate upper-bound validation research'
+          for attempt in 1 2 3 4 5 6 7; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo IGP_ZONE_FULL107_ECOLOGICAL_QA_PRIVATE_COMMITTED
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 42
