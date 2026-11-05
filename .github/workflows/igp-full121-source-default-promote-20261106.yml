@@ -321,3 +321,47 @@ jobs:
             sleep "$((n*2))"
           done
           exit 37
+
+
+  validate-full92-immutable-rollback:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Prevent original NBA coordinate leakage
+        run: python3 tools/public_content_guard.py
+      - name: Read Full92 original immutable source, SHA-revised older Blueprint and real default
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion data/extensions/nba_blueprint_2026_27/games
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full92_frozen_rollback_view_v1.py gamepulse/fusion/igp_full92_tracking_source_census_v1.py gamepulse/fusion/igp_full92_all_event_rebound_tracking_v1.py gamepulse/fusion/igp_full92_source_grade_default_v1.py gamepulse/fusion/igp_full121_10hz_optional_source_shadow_v1.py
+          python3 - <<'PY'
+          from igp_full92_frozen_rollback_view_v1 import rollback_view
+          from igp_full92_tracking_source_census_v1 import indexes
+          from igp_full92_all_event_rebound_tracking_v1 import original_release
+          from igp_full92_source_grade_default_v1 import query as old_query
+          from igp_full121_source_default_v1 import query as full121_query
+          p,index,sha,add=rollback_view('.')
+          assert p['game_count']==92 and len(index['games'])==92 and len(add['games'])==36
+          old,roll,view=indexes('.')
+          assert len(old['games'])==88 and len(roll['games'])==92 and len(view['games'])==36
+          led,ledsha,additive=original_release('.')
+          assert ledsha==sha and len(additive['games'])==36
+          for gid in ('0022600156','0022600157'):
+              out=old_query('.',game_id=gid,kind='shots',offset=0,limit=1)
+              assert out['engine_id']=='IGP_FULL92_V1_SOURCE_GRADED_NATURAL_SINGLE_20261103'
+              assert len(out['rows'])==1
+          summary=full121_query('.')
+          assert summary['indexed_games']==121 and summary['default_database']=='FULL121'
+          print("FULL92_ROLLBACK_SOURCE_SHA_AND_QUERY_VALID",len(index['games']),
+                "FULL121_SOURCE_DEFAULT_PRESERVED",summary['indexed_games'])
+          PY
