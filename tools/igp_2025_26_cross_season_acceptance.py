@@ -67,8 +67,12 @@ def inspect(root: Path) -> dict:
                     raise ValueError("SOURCE_MUTATION_ASSERTION_MISSING")
                 if q.get("model_module") != "igp_native_scene_model_v2":
                     raise ValueError("NOT_FULL107_NATIVE")
-                if q.get("source_lineup_grade") not in ("SOURCE_PROVISIONAL_NOT_INDEPENDENT_OFFICIAL_TEN",):
-                    raise ValueError("UNKNOWN_LINEUP_EVIDENCE_GRADE")
+                if q.get("qa_grade") != "HISTORICAL_NATIVE_FULL107_RESEARCH_SOURCE_PROVISIONAL":
+                    raise ValueError("UNKNOWN_NATIVE_RESEARCH_GRADE")
+                if any(item.get("source_lineup_grade") !=
+                       "SOURCE_PROVISIONAL_NOT_INDEPENDENT_OFFICIAL_TEN"
+                       for item in q.get("per_game", {}).values()):
+                    raise ValueError("UNKNOWN_PER_GAME_LINEUP_EVIDENCE_GRADE")
             gp = q.get("per_game", {})
             allowed = set(source[shard_name]["game_ids"]) & set(expected)
             if len(gp) != q.get("games") or not set(gp) <= allowed:
