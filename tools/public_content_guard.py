@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-zone-motion-original-private-pilot-20261105.yml",  # reviewed private-only source 4game temporal zone research; public status is counts only, no XYZ or per-possession labels
     ".github/workflows/gamepulse-igp-official-zone-continuous.yml",  # reviewed official 30-team public API season aggregate mirrored to private IGP only, no tracking XYZ or per-game data public
     "tools/neilball_2025_26_source_audit.py",  # public-source coverage QA; private-only results and no coordinates in public artifacts
     ".github/workflows/gamepulse-2025-26-public-source-audit.yml",  # reviewed 2025-26 public-source QA, private-only output
