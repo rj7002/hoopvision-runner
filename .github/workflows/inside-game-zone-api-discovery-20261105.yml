@@ -7,80 +7,83 @@ permissions:
 jobs:
   discover:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install browser
-        run: |
-          python -m pip install -q requests beautifulsoup4 playwright
-          python -m playwright install chromium
-      - name: Inspect public NBA network, no credentials or licensed data
+      - name: Probe discovered public resource with NBA Stats parameters
         shell: bash
         run: |
           python - <<'PY'
-          import re,json,requests
+          import requests,concurrent.futures,re,json
           from bs4 import BeautifulSoup
-          from urllib.parse import urljoin
-          from playwright.sync_api import sync_playwright
-          urls=[
-            'https://www.nba.com/inside-the-game/team/zonedefense',
-            'https://cdn-uat.nba.com/inside-the-game/team/zonedefense',
-            'https://www.nba.com/inside-the-game/player/gravity',
-            'https://www.nba.com/inside-the-game/player/leverage',
-            'https://www.nba.com/inside-the-game/player/shot-difficulty'
+          from urllib.parse import urlencode,urljoin
+          session=requests.Session()
+          session.headers.update({
+            'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+            'Referer':'https://www.nba.com/',
+            'Origin':'https://www.nba.com',
+            'Accept':'application/json, text/plain, */*',
+            'x-nba-stats-origin':'stats',
+            'x-nba-stats-token':'true',
+            'Accept-Language':'en-US,en;q=0.9'
+          })
+          base='https://stats.nba.com/stats/'
+          cases=[
+            ('zone_2627', 'zonedefenseteamleaders',{'LeagueID':'00','Season':'2026-27','SeasonType':'Regular Season'}),
+            ('zone_2526', 'zonedefenseteamleaders',{'LeagueID':'00','Season':'2025-26','SeasonType':'Regular Season'}),
+            ('zone_2425', 'zonedefenseteamleaders',{'LeagueID':'00','Season':'2024-25','SeasonType':'Regular Season'}),
+            ('zone_no_params', 'zonedefenseteamleaders',{}),
+            ('gravity_control', 'gravityleaders',{'LeagueID':'00','Season':'2026-27','SeasonType':'Regular Season'}),
           ]
-          s=requests.Session(); s.headers.update({'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36','Accept':'text/html,application/json,*/*'})
-          print('=== HTTP SOURCE ===',flush=True)
-          scripts=[]
-          for url in urls:
+          def probe(case):
+            name,endpoint,params=case
+            url=base+endpoint+('?' + urlencode(params) if params else '')
             try:
-              r=s.get(url,timeout=15)
-              print('GET',r.status_code,len(r.content),r.url,'TYPE',r.headers.get('content-type'),flush=True)
-              if r.status_code!=200: print('BODY',r.text[:170],flush=True);continue
-              soup=BeautifulSoup(r.text,'html.parser')
-              script=soup.find('script',id='__NEXT_DATA__')
-              if script:
-                d=json.loads(script.string or script.get_text())
-                print('NEXT_DATA',d.get('page'),d.get('buildId'), 'props',list(d.get('props',{})),flush=True)
-                if 'zone' in str(d).lower():print('NEXT_ZONE_CONTEXT',str(d)[:400],flush=True)
-              srcs=[x.get('src') for x in soup.find_all('script',src=True)]
-              scripts.extend([urljoin(r.url,p) for p in srcs if p and any(q in p for q in ('_next','chunk'))])
-              print('SCRIPTS',len(srcs),srcs[:5],flush=True)
-            except Exception as e:print('GET_ERROR',url,str(e)[:180],flush=True)
-          for u in list(dict.fromkeys(scripts))[:30]:
-            try:
-              r=s.get(u,timeout=12)
-              matches=list(re.finditer(r'(?i)zone.?defen[sc]e|inside.the.game|api.nba.com|stats.nba.com|leaguegravity|leagueleverage',r.text))
-              for m in matches[:3]:print('JS_MATCH',u[:180],r.text[max(0,m.start()-160):m.end()+230][:410],flush=True)
-            except Exception as e:print('JS_ERROR',u[:120],str(e)[:80],flush=True)
-          print('=== PLAYWRIGHT LIVE REQUESTS ===',flush=True)
-          with sync_playwright() as p:
-            browser=p.chromium.launch(headless=True,args=['--no-sandbox'])
-            context=browser.new_context(viewport={'width':1480,'height':1000},locale='en-US')
-            for url in [urls[0],urls[2],urls[3]]:
-              page=context.new_page()
-              responses=[];failed=[]
-              page.on('response',lambda r:responses.append(r))
-              page.on('requestfailed',lambda r:failed.append((r.url,r.failure)))
-              try:
-                res=page.goto(url,wait_until='domcontentloaded',timeout=35000)
-                print('PAGE',url,'STATUS',res.status if res else None,'FINAL',page.url,'TITLE',page.title(),flush=True)
-                page.wait_for_timeout(13000)
-                print('BODY_TEXT',page.locator('body').inner_text()[:360].replace(chr(10),' | '),flush=True)
-                print('RESP_COUNT',len(responses),'FAIL_COUNT',len(failed),'FAIL_SAMPLE',failed[:3],flush=True)
-                for resp in responses:
-                  ct=resp.headers.get('content-type',''); u=resp.url
-                  if 'json' in ct or any(v in u.lower() for v in ('api/','stats/','zone','gravity','leverage','inside-the-game')):
-                    print('NETWORK',resp.status,ct[:38],u[:430],flush=True)
-                    if 'json' in ct:
-                      try:
-                        data=resp.json()
-                        print('RESPONSE',u[:150],'KEYS',list(data)[:35] if isinstance(data,dict) else 'array','SAMPLE',json.dumps(data,ensure_ascii=False)[:460],flush=True)
-                      except Exception as e:print('RESP_PARSE_ERROR',str(e)[:100],flush=True)
-              except Exception as e:print('PAGE_ERROR',url,str(e)[:300],flush=True)
-              finally:page.close()
-            browser.close()
+              r=session.get(url,timeout=20)
+              print('STATS_PROBE',name,'STATUS',r.status_code,'FINAL',r.url,'SIZE',len(r.content),'TYPE',r.headers.get('Content-Type'),'PREVIEW',r.text[:400].replace(chr(10),' '),flush=True)
+              if r.status_code==200:
+                try:
+                  d=r.json()
+                  print('STATS_SCHEMA',name,'TOP',list(d)[:18] if isinstance(d,dict) else type(d).__name__,flush=True)
+                  def scan(o,depth=0):
+                    if depth>3:return
+                    if isinstance(o,dict):
+                      for k,v in list(o.items())[:10]:
+                        if isinstance(v,list):
+                          print('KEYARRAY',name,k,'COUNT',len(v),'FIRST',str(v[:1])[:1300],flush=True)
+                        elif isinstance(v,dict):scan(v,depth+1)
+                  scan(d)
+                except Exception as e: print('PARSE_ERR',name,str(e)[:150],flush=True)
+            except Exception as e:print('PROBE_ERR',name,type(e).__name__,str(e)[:200],flush=True)
+          with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:list(pool.map(probe,cases))
+          print('=== NBA FIRST-PARTY CHUNK ===',flush=True)
+          chunk='https://www.nba.com/_next/static/chunks/53866-dff38f3666182039.js'
+          try:
+            r=session.get(chunk,timeout=18);print('CHUNK_GET',r.status_code,len(r.content),flush=True)
+            txt=r.text
+            for term in ('zonedefenseteamleaders','teamZoneDefense','SeasonType','Zone Defense','Zone Poss','ZONE_POSS'):
+              ms=list(re.finditer(re.escape(term),txt,re.I))
+              print('CHUNK_TERM',term,len(ms),flush=True)
+              for m in ms[:3]:
+                print('CHUNK_CONTEXT',term,txt[max(0,m.start()-950):m.end()+1200][:2200],flush=True)
+          except Exception as e:print('CHUNK_ERROR',str(e)[:200],flush=True)
+          print('=== DATA CLIENT MODULE ===',flush=True)
+          try:
+            html=session.get('https://www.nba.com/inside-the-game/team/zonedefense',timeout=18).text
+            soup=BeautifulSoup(html,'html.parser')
+            srcs=[x.get('src') for x in soup.find_all('script',src=True)]
+            for src in srcs:
+              if src and ('_next/static/chunks/' in src):
+                u=urljoin('https://www.nba.com/',src)
+                try:
+                  body=session.get(u,timeout=10).text
+                  m=re.search(r'36843:function',body)
+                  if m:
+                    print('MODULE36843',u,'CONTEXT',body[m.start():m.start()+6000],flush=True)
+                    break
+                except Exception:pass
+          except Exception as e:print('MODULE_SCAN_ERROR',str(e)[:170],flush=True)
           PY
