@@ -13,7 +13,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-zone-defense-official-api-ingest-20261105
-      PINNED_SHA: ce6fe4b91c11dbc73adc6fd61573ac52e16dad4a
+      PINNED_SHA: a7c04315ea2db645b7d254ed76c66156f4d17366
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -34,24 +34,24 @@ jobs:
         run: |
           cd "$RUNNER_TEMP/private"
           python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_nba_zone_defense_official_ingest_v1.py' -v
-      - name: Ingest twelve official NBA season-side surfaces
+      - name: Ingest two additional NBA postseason surfaces plus Play-In probe
         shell: bash
         timeout-minutes: 5
         run: |
           cd "$RUNNER_TEMP/private"
           set +e
           python3 gamepulse/fusion/nba_zone_defense_official_ingest_v1.py \
-            --seasons 2026-27 2025-26 2024-25 2023-24 2022-23 2021-22 \
-            --season-types 'Regular Season' \
+            --seasons 2025-26 \
+            --season-types 'Playoffs' 'PlayIn' \
             --sides defense offense --timeout 9 \
-            --out gamepulse/fusion/qa/nba_zone_official_20261105
+            --out gamepulse/fusion/qa/nba_zone_official_20261105/postseason
           result=$?
           set -e
           echo "INGEST_EXIT=$result" >> "$GITHUB_ENV"
           python3 - <<'PY'
           import json
           from pathlib import Path
-          p=Path("gamepulse/fusion/qa/nba_zone_official_20261105/ingest_status.json")
+          p=Path("gamepulse/fusion/qa/nba_zone_official_20261105/postseason/ingest_status.json")
           d=json.loads(p.read_text())
           success=sum(x['status']=='ingested' for x in d['attempts'])
           print('OFFICIAL_NBA_ZONE_CAPTURED_SNAPSHOT_COUNT',success)
@@ -63,7 +63,7 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           source_root=gamepulse/fusion/qa/nba_zone_official_20261105
-          test -f "$source_root/ingest_status.json"
+          test -f "$source_root/postseason/ingest_status.json"
           # Checkout latest research branch; all generated files remain untracked.
           git fetch -q origin "$BRANCH"
           git checkout -q -B igp-zone-evidence "origin/$BRANCH"
