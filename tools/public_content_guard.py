@@ -12,6 +12,7 @@ ALLOWED_STATIC = {
     ".github/workflows/igp-2025-26-full666-ft-terminal-source-probe.yml",  # source-only FT terminal evidence, no original coordinates or private event text emitted
     ".github/workflows/igp-2025-26-full666-possession-boundary-audit.yml",  # private v1.0 SQLite source event, native-clock, ball-availability QA only; no physical custody promotion
     ".github/workflows/igp-full121-default-shots-qa-release-20261106.yml",  # private SHA original PBP one-FGA row and no-imputation release; aggregate-only logs
+    ".github/workflows/igp-full121-fullshot-default-query-readback-20261106.yml",  # private NBA 121-game source-graded FGA query test; source-only aggregated logs
     ".github/workflows/igp-full121-companion-positions-variant-probe-20261106.yml",  # licensed alternate SDK program variant schema/counts only; no event body exported
     ".github/workflows/igp-full121-nov04-shot-reacquire-and-masked-evaluation-20261106.yml",  # licensed 3-game shot SDK refresh and private source-proxy holdout; aggregate logs only, no tracking promotion
     ".github/workflows/igp-full121-source-default-promote-20261106.yml",  # SHA-gated Full121 original source acceptance in private repo; source-free public result
