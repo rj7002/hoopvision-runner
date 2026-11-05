@@ -39,7 +39,7 @@ def digest(path: pathlib.Path) -> str:
     return h.hexdigest()
 
 
-def shooter_manifest(archive: zipfile.ZipFile, game: dict) -> tuple[dict[str, int], int, set[tuple[int, str]]]:
+def shooter_manifest(archive: zipfile.ZipFile, game: dict) -> tuple[dict[str, int], int, set[tuple[int, str]], str]:
     member = next((m for m in game["members"] if m["path"].endswith("/stats.jsonl.gz")), None)
     if member is None:
         raise ValueError("STATS_SOURCE_MISSING")
@@ -50,6 +50,7 @@ def shooter_manifest(archive: zipfile.ZipFile, game: dict) -> tuple[dict[str, in
     fga: dict[str, int] = {}
     pbp = 0
     pbp_keys: set[tuple[int, str]] = set()
+    pbp_actors: set[str] = set()
     with gzip.GzipFile(fileobj=io.BytesIO(blob)) as stream:
         for line in stream:
             if not line.strip():
@@ -63,6 +64,8 @@ def shooter_manifest(archive: zipfile.ZipFile, game: dict) -> tuple[dict[str, in
                 actor = md.get("personId")
                 if str(action or "").isdigit() and str(actor or "").isdigit():
                     pbp_keys.add((int(action), str(actor)))
+                if str(actor or "").isdigit():
+                    pbp_actors.add(str(actor))
             if not event.startswith("PlayerStats") or not event.endswith("#show"):
                 continue
             md = row.get("metadata") or {}
@@ -75,9 +78,11 @@ def shooter_manifest(archive: zipfile.ZipFile, game: dict) -> tuple[dict[str, in
                 continue
             if count > fga.get(str(pid), 0):
                 fga[str(pid)] = count
-    if not fga or not pbp:
-        raise ValueError("ARCHIVE_SHOOTER_MANIFEST_EMPTY")
-    return {p: n for p, n in fga.items() if n > 0}, pbp, pbp_keys
+    if fga:
+        return {p: n for p, n in fga.items() if n > 0}, pbp, pbp_keys, "PLAYER_STATS_FGA"
+    if pbp_actors:
+        return {p: 0 for p in sorted(pbp_actors, key=int)}, pbp, pbp_keys, "PBP_ACTORS_FALLBACK"
+    return {}, pbp, pbp_keys, "SOURCE_SHOOTER_ID_UNAVAILABLE"
 
 
 def fetch_pair(gid: str, pid: str, attempts: int = 5) -> tuple[str, str, dict | None, str | None]:
@@ -122,9 +127,10 @@ def run(index_path: pathlib.Path, shard_path: pathlib.Path, out: pathlib.Path,
     pbp_identity: dict[str, set[tuple[int, str]]] = {}
     with zipfile.ZipFile(shard_path) as archive:
         for gid in gids:
-            players, pbp, keys = shooter_manifest(archive, index["games"][gid])
+            players, pbp, keys, manifest_grade = shooter_manifest(archive, index["games"][gid])
             pergame[gid] = {"archived_pbp_events": pbp, "manifest_player_fga": players,
-                            "tracking_rows": index["games"][gid]["tracking"]["rows"]}
+                            "tracking_rows": index["games"][gid]["tracking"]["rows"],
+                            "shooter_manifest_grade": manifest_grade}
             pbp_identity[gid] = keys
     pairs = [(g, p) for g in gids for p in sorted(pergame[g]["manifest_player_fga"], key=int)]
     result: list[tuple[str, str, dict | None, str | None]] = []
@@ -134,7 +140,7 @@ def run(index_path: pathlib.Path, shard_path: pathlib.Path, out: pathlib.Path,
     shots = []
     failed = []
     counts = collections.Counter()
-    observed_keys = set()
+    observed_keys: dict[tuple[str, int, str], dict] = {}
     for gid, pid, response, error in result:
         if response is None:
             failed.append({"game_id": gid, "player_id": pid, "error_class": error})
@@ -158,8 +164,16 @@ def run(index_path: pathlib.Path, shard_path: pathlib.Path, out: pathlib.Path,
                 raise ValueError("PUBLIC_SHOT_IDENTITY_DRIFT")
             key = (gid, int(event), pid)
             if key in observed_keys:
-                raise ValueError("PUBLIC_SHOT_EVENT_DUPLICATE")
-            observed_keys.add(key)
+                if shot == observed_keys[key]:
+                    counts["identical_public_shot_key_duplicate"] += 1
+                    continue
+                counts["conflicting_public_shot_key_duplicate"] += 1
+                pergame[gid].setdefault("conflicting_public_shot_key_duplicate", 0)
+                pergame[gid]["conflicting_public_shot_key_duplicate"] += 1
+                # Retain the first source record as provisional, flag the conflict.
+                # Detailed discordance is confined to private QA in a later review.
+                continue
+            observed_keys[key] = shot
             if (int(event), pid) in pbp_identity[gid]:
                 counts["exact_archived_pbp_actor_action"] += 1
                 pergame[gid].setdefault("exact_archived_pbp_actor_action", 0)
