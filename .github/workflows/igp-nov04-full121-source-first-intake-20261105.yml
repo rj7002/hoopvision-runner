@@ -115,14 +115,12 @@ jobs:
     # Seven Nov04 games already have 13 authentic paired assets each.
     # One-at-a-time certifies original readbacks and indexes exact private XYZ.
     runs-on: ubuntu-24.04
-    timeout-minutes: 110
+    timeout-minutes: 240
     strategy:
       fail-fast: false
       max-parallel: 1
       matrix:
         include:
-          - {id: '0022600179', tipoff: '2026-11-05T01:00:00.000Z'}
-          - {id: '0022600180', tipoff: '2026-11-05T01:00:00.000Z'}
           - {id: '0022600184', tipoff: '2026-11-05T02:30:00.000Z'}
           - {id: '0022600185', tipoff: '2026-11-05T03:00:00.000Z'}
     env:
@@ -145,7 +143,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh api "repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-$GAME" > "$RUNNER_TEMP/release.json"
+          for attempt in $(seq 1 40); do
+            if gh api "repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-$GAME" > "$RUNNER_TEMP/release.json"; then break; fi
+            echo "FULL121_ORIGINAL_ASSET_METADATA_RETRY=$attempt"
+            test "$attempt" -lt 40 || exit 44
+            sleep 120
+          done
           python3 - <<'PY'
           import json,os
           from pathlib import Path
@@ -173,7 +176,12 @@ jobs:
             npm install --ignore-scripts --no-audit --no-fund --silent
             node season_private_release.mjs
           fi
-          gh release download "gamepulse-sdk-$GAME" --repo timeedmonds-maker/104 --pattern 'sdk-COMPLETE.json' --dir "$RUNNER_TEMP"
+          for attempt in $(seq 1 40); do
+            if gh release download "gamepulse-sdk-$GAME" --repo timeedmonds-maker/104 --pattern 'sdk-COMPLETE.json' --dir "$RUNNER_TEMP" --clobber; then break; fi
+            echo "FULL121_ORIGINAL_CERTIFICATE_RETRY=$attempt"
+            test "$attempt" -lt 40 || exit 45
+            sleep 120
+          done
           python3 - <<'PY'
           import json,os
           from pathlib import Path
@@ -189,9 +197,19 @@ jobs:
           set -euo pipefail
           gh auth setup-git
           mkdir -p "$RUNNER_TEMP/sdk"
-          gh release download "gamepulse-sdk-$GAME" --repo timeedmonds-maker/104 --pattern 'sdk-part-*.tar.gz' --dir "$RUNNER_TEMP/sdk"
+          for attempt in $(seq 1 40); do
+            if gh release download "gamepulse-sdk-$GAME" --repo timeedmonds-maker/104 --pattern 'sdk-part-*.tar.gz' --dir "$RUNNER_TEMP/sdk" --clobber; then break; fi
+            echo "FULL121_ORIGINAL_13_ARCHIVES_RETRY=$attempt"
+            test "$attempt" -lt 40 || exit 46
+            sleep 120
+          done
           test "$(find "$RUNNER_TEMP/sdk" -name 'sdk-part-*.tar.gz' | wc -l)" -eq 13
-          gh api "repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-$GAME" > "$RUNNER_TEMP/release.json"
+          for attempt in $(seq 1 40); do
+            if gh api "repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-$GAME" > "$RUNNER_TEMP/release.json"; then break; fi
+            echo "FULL121_ORIGINAL_ASSET_METADATA_RETRY=$attempt"
+            test "$attempt" -lt 40 || exit 44
+            sleep 120
+          done
           git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
           cd "$RUNNER_TEMP/private"
