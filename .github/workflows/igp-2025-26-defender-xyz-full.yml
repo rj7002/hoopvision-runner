@@ -1,12 +1,16 @@
 name: IGP 2025-26 historical defender XYZ full-archive private materialization
 'on':
   workflow_dispatch:
+  workflow_run:
+    workflows: ['IGP 2025-26 missing historical xFG shards source recovery']
+    types: [completed]
 permissions: {contents: read}
 concurrency:
   group: igp-historical-xyz-defender-full-archive
   cancel-in-progress: false
 jobs:
   prepare:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     env:
@@ -32,7 +36,7 @@ jobs:
       fail-fast: false
       max-parallel: 5
       matrix:
-        shard: ['001','002','003','004','005','006','007','008','009','010','011','012','013','014','015']
+        shard: ['001','011','012']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
@@ -40,7 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: Source quarantine and historical xFG readiness check
+      - name: Recover only the three historically missing xFG/XYZ shards
         id: source
         shell: bash
         run: |
@@ -62,6 +66,16 @@ jobs:
             echo "HISTORICAL_DEFENDER_SHARD_XFG_INCOMPLETE $SHARD"
             exit 0
           fi
+          python3 - <<'PY'
+          import json,os,pathlib
+          p=pathlib.Path(os.environ["RUNNER_TEMP"])/"xfg"/f"nba-xfg-nba-2025-26-shard-{os.environ['SHARD']}-qa.json"
+          d=json.loads(p.read_text())
+          if d.get("failed_player_games"):
+              raise SystemExit("HISTORICAL_XFG_FAILED_PLAYER_GAMES_NOT_ELIGIBLE_FOR_DEFENDER_PROMOTION")
+          if d.get("games",0)<=0 or d.get("counts",{}).get("public_shot_rows",0)<=0:
+              raise SystemExit("HISTORICAL_XFG_EMPTY_SHARD_NOT_ELIGIBLE")
+          print("HISTORICAL_DEFENDER_SOURCE_GRADE_XFG_PASS",os.environ["SHARD"],d["games"])
+          PY
           echo "ready=true" >> "$GITHUB_OUTPUT"
           echo "HISTORICAL_DEFENDER_SHARD_XFG_READY $SHARD"
       - name: Verify source-index and private SHA-locked algorithm
@@ -154,6 +168,8 @@ jobs:
                   missing.append(sh);continue
               a=json.loads(p.read_text());b=json.loads(x.read_text())
               if a["shot_rows_sha256"]!=b["shot_rows_sha256"] or a["source_shard_sha256"]!=b["source_shard_sha256"]:
+                  missing.append(sh);continue
+              if b.get("failed_player_games"):
                   missing.append(sh);continue
               found.append(sh)
           print("HISTORICAL_DEFENDER_FULL_REDUCE",json.dumps({"accepted_shards":len(found),"missing_or_source_mismatched":missing},sort_keys=True))
