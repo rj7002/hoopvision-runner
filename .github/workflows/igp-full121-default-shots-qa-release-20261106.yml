@@ -1,3 +1,4 @@
+# Regression: canonical Full121 query(kind=shot) is the same SHA-graded official FGA source.
 # Full121 official shot events are complete, advanced source sparse and strictly graded.
 # Private 104 only; public logs contain no licensed coordinates or biomechanics.
 name: IGP Full121 default source-graded 21331 FGA QA and release
