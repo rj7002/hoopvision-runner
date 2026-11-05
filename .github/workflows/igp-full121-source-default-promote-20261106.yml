@@ -271,3 +271,53 @@ jobs:
             sleep "$((n*2))"
           done
           exit 34
+
+
+  validate-six-player-gap-blackouts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        game: ['0022600160','0022600162','0022600175','0022600181','0022600158','0022600184']
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Enforce original NBA XYZ private source boundary
+        run: python3 tools/public_content_guard.py
+      - name: Evaluate longer-side official-player continuity and true heldout blackouts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full121_player_side_extension_masked_v1.py
+          path="gamepulse/fusion/qa/igp_progress_20261030/full121_player_side_masked_20261106_${{ matrix.game }}.json"
+          python3 gamepulse/fusion/igp_full121_player_side_extension_masked_v1.py --root . --game-id "${{ matrix.game }}" --out "$path"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$path"
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo FULL121_PLAYER_SIDE_QA_ALREADY_COMMITTED
+            exit 0
+          fi
+          git commit -q -m "qa(igp): Full121 10Hz and masked player gap pilot ${{ matrix.game }}"
+          for n in $(seq 1 16); do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo FULL121_PLAYER_SIDE_QA_PRIVATE_COMMITTED game=${{ matrix.game }}
+              exit 0
+            fi
+            sleep "$((n*2))"
+          done
+          exit 37
