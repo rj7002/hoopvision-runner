@@ -9,7 +9,7 @@ on:
 permissions: {contents: read}
 concurrency:
   group: igp-nov04-full121-official-intake-private
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   source-first-intake:
     if: github.event_name == 'workflow_dispatch'
