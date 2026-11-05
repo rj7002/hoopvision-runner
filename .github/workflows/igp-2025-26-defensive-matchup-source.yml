@@ -24,8 +24,12 @@ jobs:
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
           mkdir -p "$RUNNER_TEMP/historical"
-          gh release download igp-public-gamepulse-2025-26-20261105 --repo timeedmonds-maker/104 \
-            --pattern nba-2025-26-source-index.json --dir "$RUNNER_TEMP/historical"
+          for attempt in 1 2 3 4; do
+            if gh release download igp-public-gamepulse-2025-26-20261105 --repo timeedmonds-maker/104 \
+              --pattern nba-2025-26-source-index.json --dir "$RUNNER_TEMP/historical"; then break; fi
+            sleep "$attempt"
+          done
+          test -s "$RUNNER_TEMP/historical/nba-2025-26-source-index.json"
       - name: Recover original NBA historical shooter-defender matchup counts
         shell: bash
         run: |
