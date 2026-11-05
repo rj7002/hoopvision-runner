@@ -39,15 +39,29 @@ jobs:
           widths=collections.Counter()
           fields=collections.Counter()
           qfields=collections.Counter()
+          flags=collections.Counter()
+          reconcile=collections.Counter()
+          missing_ids=collections.Counter()
+          time_deltas=collections.Counter()
           for name in z.namelist():
               if not name.endswith('/tracking.jsonl.gz'):
                   continue
               games+=1
+              prior=None
               with z.open(name) as member,gzip.GzipFile(fileobj=member) as lines:
                   for line in lines:
                       if not line.strip():continue
                       row=json.loads(line)
                       n=sum(len(row.get(side) or []) for side in ('home_players','away_players'))
+                      t=row['timestamp_ms']
+                      if prior is not None:
+                          d=t-prior
+                          for threshold in (400,1000,2000,5000,10000,30000):
+                              if d<threshold:
+                                  time_deltas['lt'+str(threshold)]+=1
+                                  break
+                          else:time_deltas['ge30000']+=1
+                      prior=t
                       counts['rows']+=1
                       widths[str(min(n,20))]+=1
                       if n==10:counts['exact10']+=1
@@ -55,8 +69,14 @@ jobs:
                       if row.get('ball') is not None:counts['ball']+=1
                       if n==10 and row.get('ball') is not None:counts['exact10ball']+=1
                       q=row.get('quality')
-                      if isinstance(q,dict) and q.get('all_ten_and_ball_observed') is True:
-                          counts['publisher10ball']+=1
+                      provider=isinstance(q,dict) and q.get('all_ten_and_ball_observed') is True
+                      if provider:counts['publisher10ball']+=1
+                      reconcile['provider'+str(int(provider))+'_exact10ball'+str(int(n==10 and row.get('ball') is not None))]+=1
+                      if isinstance(q,dict):
+                          for field in ('lineup_known','source_interpolated','clock_interpolated'):
+                              if q.get(field) is True:flags[field]+=1
+                          missing=q.get('missing_on_court_player_ids')
+                          if isinstance(missing,(list,dict)):missing_ids[str(min(len(missing),20))]+=1
                       if isinstance(q,dict) and counts['rows']<=100:qfields.update(q.keys())
                       if counts['rows']<=100:fields.update(row.keys())
           assert games==666 and counts['rows']==19440900
@@ -66,4 +86,8 @@ jobs:
           print('HISTORICAL_PLAYER_COUNT_BINS',dict(sorted(widths.items(),key=lambda x:int(x[0]))))
           print('HISTORICAL_SOURCE_SCHEMA_FIELDS',sorted(fields))
           print('HISTORICAL_QUALITY_SCHEMA_FIELDS',sorted(qfields))
+          print('HISTORICAL_SOURCE_FLAG_COUNTS',dict(flags))
+          print('HISTORICAL_PROVIDER_VS_SUPPLIED_EXACT10BALL',dict(reconcile))
+          print('HISTORICAL_MISSING_ONCOURT_ID_COUNT_BINS',dict(missing_ids))
+          print('HISTORICAL_SOURCE_TIMESTAMP_DELTAS',dict(time_deltas))
           PY
