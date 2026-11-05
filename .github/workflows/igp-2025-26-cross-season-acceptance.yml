@@ -37,8 +37,19 @@ jobs:
           python3 -m py_compile tools/igp_2025_26_cross_season_acceptance.py
           test -n "$GH_TOKEN"
           mkdir -p "$RUNNER_TEMP/accept/source" "$RUNNER_TEMP/accept/native" "$RUNNER_TEMP/accept/xfg" "$RUNNER_TEMP/accept/defender" "$RUNNER_TEMP/accept/report"
-          gh release download "$SOURCE_RELEASE" --repo timeedmonds-maker/104 \
-            --pattern nba-2025-26-source-index.json --dir "$RUNNER_TEMP/accept/source"
+          for attempt in 1 2 3 4 5 6; do
+            if gh release download "$SOURCE_RELEASE" --repo timeedmonds-maker/104 \
+                --clobber --pattern nba-2025-26-source-index.json --dir "$RUNNER_TEMP/accept/source" && \
+                test -s "$RUNNER_TEMP/accept/source/nba-2025-26-source-index.json"; then
+              echo "HISTORICAL_ACCEPTANCE_SOURCE_INDEX_PRESENT"
+              break
+            fi
+            if [ "$attempt" -eq 6 ]; then
+              echo "HISTORICAL_ACCEPTANCE_SOURCE_INDEX_UNAVAILABLE" >&2
+              exit 1
+            fi
+            sleep $((attempt * 4))
+          done
       - name: Read only private per-shard QA receipts; never fetch or publish original XYZ
         shell: bash
         run: |
