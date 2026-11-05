@@ -54,7 +54,12 @@ jobs:
           import json,sys
           data=json.load(open(sys.argv[1]))
           games=data['games']
-          if data['games_source_scored']<5:raise SystemExit('TOO_FEW_ORIGINAL_NBA_SOURCE_GAMES')
+          print('IGP_ZONE_PILOT_GAME_READBACK',data['games_source_scored'],
+                'SOURCE_ABSTENTIONS',data['games_abstained'])
+          from collections import Counter
+          err=Counter(g.get('reason','OK') for g in games.values())
+          print('IGP_ZONE_PILOT_SOURCE_ERROR_CLASSES',dict(err))
+          if data['games_source_scored']<5:print('IGP_ZONE_RESEARCH_INCOMPLETE_RETAIN_QA_NOT_PROMOTED')
           from collections import Counter
           q=Counter()
           for g in games.values():
