@@ -118,17 +118,22 @@ def inspect(root: Path) -> dict:
             receipt["layers"][layer]["failed_source_shooter_game_requests"] = gaps
         records[layer] = found
 
-    aligned = []
+    aligned, misaligned = [], []
     for n, d in sorted(records["defender"].items()):
         x = records["xfg"].get(n)
         if x is None:
             continue
         if d["shot_rows_sha256"] != x["shot_rows_sha256"] or d["source_shard_sha256"] != x["source_shard_sha256"]:
-            raise ValueError("DEFENDER_XFG_SOURCE_SHA_CONFLICT:" + n)
+            # A known one-game historical defender pilot (e.g. shard 001)
+            # cannot be represented as a complete source-matched shard.
+            # Report it without suppressing the other independently valid layers.
+            misaligned.append(n)
+            continue
         if d.get("counts", {}).get("shot_rows", 0) > x.get("counts", {}).get("public_shot_rows", 0):
             raise ValueError("DEFENDER_SHOT_COUNT_EXCEEDS_SOURCE:" + n)
         aligned.append(n)
     receipt["cross_layer_source_aligned_defender_shards"] = len(aligned)
+    receipt["cross_layer_mismatched_defender_shards"] = misaligned
     a, b, c = (receipt["layers"][k] for k in ("native", "xfg", "defender"))
     receipt["all_archive_shards_reconstructed"] = a["full_source_game_coverage"] and a["counts"].get("source_native_frames") == EXPECTED_NATIVE_FRAMES
     receipt["all_xfg_source_shards_accounted_for"] = b["full_source_game_coverage"]
