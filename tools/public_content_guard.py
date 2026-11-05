@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-2025-26-full107-holdout-p0.yml",  # source-private multi-duration historical P0 QA, public aggregate-only logs
     ".github/workflows/igp-nov04-full121-original-sdk-missing-parts-20261105.yml",  # authenticated original missing SDK recovery and SHA-only private XYZ acceptance; no public raw rows
     ".github/workflows/igp-2025-26-full107-reduce-only.yml",  # audit 15 private historical Full107-native QA receipts and publish source-only reducer, no licensed XYZ
     ".github/workflows/igp-nov04-full121-source-first-intake-20261105.yml",  # reviewed Nov04 official NBA 14-game source-first private SHA intake; aggregate public QA only
