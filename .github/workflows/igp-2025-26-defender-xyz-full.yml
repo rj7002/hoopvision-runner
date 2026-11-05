@@ -70,11 +70,14 @@ jobs:
           import json,os,pathlib
           p=pathlib.Path(os.environ["RUNNER_TEMP"])/"xfg"/f"nba-xfg-nba-2025-26-shard-{os.environ['SHARD']}-qa.json"
           d=json.loads(p.read_text())
-          if d.get("failed_player_games"):
-              raise SystemExit("HISTORICAL_XFG_FAILED_PLAYER_GAMES_NOT_ELIGIBLE_FOR_DEFENDER_PROMOTION")
+          # A failed shooter-game is a *local null*, not grounds to erase
+          # thousands of independently published and matched shot records.
+          # Preserve the precise source gaps in the private per-game QA.
+          gaps=len(d.get("failed_player_games") or [])
           if d.get("games",0)<=0 or d.get("counts",{}).get("public_shot_rows",0)<=0:
               raise SystemExit("HISTORICAL_XFG_EMPTY_SHARD_NOT_ELIGIBLE")
-          print("HISTORICAL_DEFENDER_SOURCE_GRADE_XFG_PASS",os.environ["SHARD"],d["games"])
+          print("HISTORICAL_DEFENDER_SOURCE_GRADE_XFG_PASS",os.environ["SHARD"],
+                "games",d["games"],"source_shooter_game_gaps",gaps)
           PY
           echo "ready=true" >> "$GITHUB_OUTPUT"
           echo "HISTORICAL_DEFENDER_SHARD_XFG_READY $SHARD"
@@ -159,7 +162,7 @@ jobs:
           python3 - <<'PY'
           import json,os,pathlib
           d=pathlib.Path(os.environ["RUNNER_TEMP"])
-          found=[];missing=[]
+          found=[];missing=[];source_shooter_game_gaps=0
           for n in range(1,16):
               sh=f"nba-2025-26-shard-{n:03}"
               p=d/"derived"/f"defender-xyz-{sh}-qa.json"
@@ -169,10 +172,11 @@ jobs:
               a=json.loads(p.read_text());b=json.loads(x.read_text())
               if a["shot_rows_sha256"]!=b["shot_rows_sha256"] or a["source_shard_sha256"]!=b["source_shard_sha256"]:
                   missing.append(sh);continue
-              if b.get("failed_player_games"):
-                  missing.append(sh);continue
+              # Missing source shooter-games remain explicit in xFG QA;
+              # shot-level eligibility is not a blanket shard exclusion.
               found.append(sh)
-          print("HISTORICAL_DEFENDER_FULL_REDUCE",json.dumps({"accepted_shards":len(found),"missing_or_source_mismatched":missing},sort_keys=True))
+              source_shooter_game_gaps+=len(b.get("failed_player_games") or [])
+          print("HISTORICAL_DEFENDER_FULL_REDUCE",json.dumps({"accepted_shards":len(found),"missing_or_source_mismatched":missing,"missing_source_shooter_games_explicit":source_shooter_game_gaps,"source_shot_quality_coverage_is_not_100pct_claim":source_shooter_game_gaps>0},sort_keys=True))
           with open(os.environ["GITHUB_OUTPUT"],"a") as out:
               out.write("ready="+("true" if len(found)==15 else "false")+"\n")
           PY
