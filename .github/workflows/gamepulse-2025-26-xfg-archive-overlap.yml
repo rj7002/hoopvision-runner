@@ -44,3 +44,19 @@ jobs:
             "requests":x["player_game_requests"],
             "failed":len(x["failed_player_games"])},sort_keys=True))
           PY
+      - name: Check official 2025-26 defender matchup source fields
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,pathlib,urllib.parse,urllib.request
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"source"
+          d=json.loads((root/"nba-2025-26-source-index.json").read_text())
+          gid=next(g for g in d["shards"][0]["game_ids"] if d["games"][g]["tracking"])
+          url="https://stats.gleague.nba.com/stats/defensiveboxscore?"+urllib.parse.urlencode({"GameID":gid})
+          headers={"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36","Referer":"https://www.nba.com/","Origin":"https://www.nba.com","Accept":"application/json"}
+          with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=40) as f:data=json.load(f)
+          rows=(data.get("payload") or {}).get("defensiveBoxScore") or []
+          assert isinstance(rows,list) and len(rows)>0
+          print("HISTORICAL_DEFENDER_MATCHUP_SOURCE_PROBE",json.dumps({"rows":len(rows),"field_names":sorted(set().union(*(r.keys() for r in rows if isinstance(r,dict))))},sort_keys=True))
+          PY
