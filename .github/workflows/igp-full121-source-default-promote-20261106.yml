@@ -501,3 +501,44 @@ jobs:
             sleep "$((attempt*2))"
           done
           exit 47
+
+
+  check-full121-guarded-production-release-gate-v2:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Enforce licensed source boundary
+        run: python3 tools/public_content_guard.py
+      - name: Independently certify guarded production 10Hz source/mask/rollback release decision
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion data/extensions/nba_blueprint_2026_27/games
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full121_guarded_production_release_gate_v2.py
+          report="gamepulse/fusion/qa/igp_progress_20261030/full121_guarded_production_release_gate_v2_20261106.json"
+          python3 gamepulse/fusion/igp_full121_guarded_production_release_gate_v2.py --root . --out "$report"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$report"
+          git diff --cached --check
+          if git diff --cached --quiet; then echo FULL121_RELEASE_V2_ALREADY_COMMITTED; exit 0; fi
+          git commit -q -m 'qa(igp): guarded 29-game Full121 release decision v2'
+          for attempt in $(seq 1 16); do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo FULL121_GUARDED_PRODUCTION_RELEASE_VERDICT_V2_COMMITTED
+              exit 0
+            fi
+            sleep "$((attempt*2))"
+          done
+          exit 52
