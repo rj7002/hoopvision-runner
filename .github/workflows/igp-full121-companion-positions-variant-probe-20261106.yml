@@ -39,6 +39,13 @@ jobs:
           mkdir -p "$IGP_PRIVATE_CAPTURE_DIR"
           if ! node tools/licensed_feed/companion_original_sdk_probe.mjs > "$RUNNER_TEMP/alternate-licensed-private.log" 2>&1; then
             echo FULL121_ALTERNATE_SDK_PROBE_PROCESS_FAILED_SOURCE_UNAVAILABLE
+            python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          t=(Path(os.environ["RUNNER_TEMP"])/"alternate-licensed-private.log").read_text(errors="replace")
+          safe=sorted(set(re.findall(r'ERR_[A-Z_]+|ReferenceError|TypeError|SyntaxError|MODULE_NOT_FOUND|chromium_missing|invalid_companion_probe_scope|ENOENT|EACCES|Cannot_find_module|TimeoutError',t)))
+          print("FULL121_SDK_RUNTIME_FAILURE_CODES",safe)
+          PY
           fi
           python3 - <<'PY'
           import json,os
