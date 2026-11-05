@@ -56,3 +56,4 @@ jobs:
           out={"schema":"igp.historical-endpoint-probe.v1","utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"results":results}
           open("historical-endpoint-probe.json","w").write(json.dumps(out,indent=2)+"\n")
           PY
+# Reviewed: no historical player coordinates or raw event records enter public logs.
