@@ -1,0 +1,104 @@
+name: IGP Nov04 Full121 source-first official intake and staged QA
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/igp-nov04-full121-source-first-intake-20261105.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-nov04-full121-official-intake-private
+  cancel-in-progress: false
+jobs:
+  source-first-intake:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify public-private boundary and private authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Preserve original NBA Nov04 14 game PBP and extend one unified season index
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion data/extensions/nba_blueprint_2026_27
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_official_20_additive_20261029.py gamepulse/fusion/igp_auto_extend_unified_season_2026.py
+          python3 gamepulse/fusion/igp_official_20_additive_20261029.py --root .
+          python3 gamepulse/fusion/igp_auto_extend_unified_season_2026.py --root .
+          python3 gamepulse/fusion/igp_post56_official_logical_chain_index_v1.py --root .
+          python3 gamepulse/fusion/igp_post56_original_companion_index_v1.py --root .
+          python3 gamepulse/fusion/igp_post56_blueprint_original_index_v1.py --root .
+          python3 gamepulse/fusion/igp_post56_native_index_refresh_v1.py --root .
+          python3 gamepulse/fusion/igp_post56_allgames_official_ten_native_chain_v1.py --root .
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          p=Path("gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json")
+          idx=json.loads(p.read_bytes())
+          a=json.loads(Path(idx["post56_additive_oct28"]["index"]).read_bytes())
+          ids=[f"0022600{i:03d}" for i in range(173,187)]
+          assert len(ids)==14 and idx["official_games"]==56 and len(idx["per_game_model"])==56
+          assert idx["total_indexed_games_including_additive"]==121, "NOT_FULL121_OFFICIAL_FINAL"
+          assert len(a["games"])==65
+          for gid in ids:
+            row=a["games"][gid]
+            assert row["date_us"]=="2026-11-04",(gid,row["date_us"])
+            assert row["official_pbp_actions"]>0
+            assert row["source_capture_grades"]["official_nba_pbp_box"]=="SHA_VERIFIED"
+            assert row["source_capture_grades"]["official_logical_chains"]=="SHA_VERIFIED"
+            for path,field in zip(row["official_pbp_original_paths"],
+              ("original_nba_pbp_sha256","original_nba_boxscore_sha256","official_pbp_sha256")):
+              assert hashlib.sha256(Path(path).read_bytes()).hexdigest()==row[field],gid
+            if row.get("original_source_13_part_complete"):
+              assert row["source_capture_grades"]["original_native_xyz"]=="SHA_FULL_13PART"
+          metrics={"schema":"igp.full121.nov04.staged-source-first-qa.v1",
+            "baseline_games":107,"slate_game_ids":ids,"official_games":121,
+            "source_grade_not_equal_to_tracking_accuracy":True,
+            "official_pbp_and_logical_chain_SHA_verified":14,
+            "original_native_13part_complete":sum(bool(a["games"][g].get("original_source_13_part_complete")) for g in ids),
+            "companion_original_full":sum(a["games"][g]["source_capture_grades"].get("original_companion")=="COMPLETE_ORIGINAL_RESPONSE" for g in ids),
+            "blueprint_original_sha":sum(a["games"][g]["source_capture_grades"].get("original_nba_blueprint")=="SOURCE_SHA_ACCEPTED" for g in ids),
+            "ready_for_full_native_default":all(
+                a["games"][g]["source_capture_grades"].get(k)==v
+                for g in ids for k,v in (
+                ("original_native_xyz","SHA_FULL_13PART"),
+                ("original_companion","COMPLETE_ORIGINAL_RESPONSE"),
+                ("original_nba_blueprint","SOURCE_SHA_ACCEPTED"))),
+            "physical_possessions_certified":0}
+          out=Path("gamepulse/fusion/qa/igp_progress_20261030/igp_nov04_full121_staged_source_first_qa_v1.json")
+          out.write_text(json.dumps(metrics,sort_keys=True,indent=2)+"\n")
+          print("IGP_NOV04_FULL121_STAGED_SOURCE_FIRST_QA",json.dumps(metrics,sort_keys=True))
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/official_pbp_timing gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json
+          git add -f gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json
+          git add -f gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/official_ten_native_chains
+          git add -f gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/nba_logical_chains
+          git add -f gamepulse/fusion/qa/igp_progress_20261030/igp_autonomous_season_index_status.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261030/igp_nov04_full121_staged_source_first_qa_v1.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo IGP_NOV04_FULL121_ALREADY_INDEXED; exit 0; fi
+          git commit -q -m 'data(igp): original NBA Nov04 14-game Full121 staged source-first intake'
+          for n in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo IGP_NOV04_FULL121_OFFICIAL_SOURCE_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 27
