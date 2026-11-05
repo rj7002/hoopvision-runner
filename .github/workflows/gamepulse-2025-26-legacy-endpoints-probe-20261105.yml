@@ -1,0 +1,64 @@
+name: IGP historical 2025-26 vs current 2026-27 Game Pulse endpoint proof
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-2025-26-legacy-endpoints-probe-20261105.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  cross-season-http:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: python3 tools/public_content_guard.py
+      - name: Compare same original companion event endpoint for 2025-26 vs 2026-27 IDs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import collections,datetime,hashlib,json,time,urllib.request,urllib.error
+          games=[("2026-27 control","0022600009"),("2025-26 opening","0022500001"),("2025-26 second","0022500002"),("2025-26 mid","0022500200"),("2025-26 late","0022500500"),("2024-25 older control","0022400001")]
+          results=[]
+          base="https://nba-cdn.cloud.easelive.tv/api/v1/programs/"
+          for label,gid in games:
+              for suffix in ("","-positions"):
+                  program="companion-"+gid+suffix
+                  url=base+program+"/events"
+                  state="NOT_TESTED"; events=None; schema=None; fields={}; digest=None; error=None
+                  for attempt in range(2):
+                      try:
+                          req=urllib.request.Request(url,headers={"Accept":"application/json","User-Agent":"IntegratedPulse-Licensed-Historical-Endpoint-Probe/1.0"})
+                          with urllib.request.urlopen(req,timeout=22) as response:
+                              state="HTTP_"+str(response.status)
+                              body=response.read(20_000_001)
+                          if len(body)>20_000_000:
+                              state="HTTP_200_EXCEEDS_20MB";break
+                          digest=hashlib.sha256(body).hexdigest()
+                          obj=json.loads(body)
+                          arr=obj if isinstance(obj,list) else obj.get("events") if isinstance(obj,dict) else None
+                          schema="EVENT_ARRAY" if isinstance(arr,list) else "OTHER_JSON"
+                          if isinstance(arr,list):
+                              events=len(arr)
+                              ct=collections.Counter(str(x.get("event","")) for x in arr if isinstance(x,dict))
+                              fields={"event_types":dict(ct),"shot_detail_xfg_nonnull":sum(x.get("metadata",{}).get("expFieldGoalPct") is not None for x in arr if isinstance(x,dict) and x.get("event")=="ShotDetails#show" and isinstance(x.get("metadata"),dict))}
+                          break
+                      except urllib.error.HTTPError as e:
+                          state="HTTP_"+str(e.code)
+                          if e.code not in (429,500,502,503,504):break
+                      except Exception as e:
+                          state="NETWORK_OR_PARSE_ERROR"; error=type(e).__name__
+                      if attempt==0:time.sleep(2)
+                  entry={"season":label,"game_id":gid,"program_suffix":suffix or "events","status":state,"schema":schema,"events":events,"sha256":digest,"counts":fields,"error_type":error}
+                  results.append(entry)
+                  print("IGP_CROSS_SEASON_ENDPOINT_RESULT",json.dumps(entry,sort_keys=True))
+          out={"schema":"igp.historical-endpoint-probe.v1","utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"results":results}
+          open("historical-endpoint-probe.json","w").write(json.dumps(out,indent=2)+"\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: historical-cross-season-endpoint-metadata-only
+          path: historical-endpoint-probe.json
+          retention-days: 30
