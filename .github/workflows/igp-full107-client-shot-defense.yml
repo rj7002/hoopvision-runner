@@ -34,6 +34,8 @@ jobs:
           git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
             '/gamepulse/fusion/igp_full107_client_shot_defense_v1.py' \
             '/gamepulse/fusion/tests/test_igp_full107_client_shot_defense_v1.py' \
+            '/gamepulse/fusion/igp_full107_coach_portal_v1.py' \
+            '/gamepulse/fusion/tests/test_igp_full107_coach_portal_v1.py' \
             '/gamepulse/fusion/qa/igp_fullx/LATEST.json' \
             '/data/extensions/nba_blueprint_2026_27/games/**/shot_tracking_32_fields.csv' \
             '/gamepulse/fusion/materialized/igp_all_original_xyz/**/index.json'
@@ -49,9 +51,14 @@ jobs:
           python3 -m py_compile gamepulse/fusion/igp_full107_client_shot_defense_v1.py
           PYTHONPATH="$PWD" python3 -m unittest discover -q \
             -s gamepulse/fusion/tests -p 'test_igp_full107_client_shot_defense_v1.py'
+          PYTHONPATH="$PWD" python3 -m unittest discover -q \
+            -s gamepulse/fusion/tests -p 'test_igp_full107_coach_portal_v1.py'
+          python3 -m py_compile gamepulse/fusion/igp_full107_coach_portal_v1.py
           python3 gamepulse/fusion/igp_full107_client_shot_defense_v1.py \
             --root . \
             --out gamepulse/fusion/materialized/igp_full107_client_shot_defense_v1/full107_shots.sqlite
+          python3 gamepulse/fusion/igp_full107_coach_portal_v1.py --smoke \
+            --db gamepulse/fusion/materialized/igp_full107_client_shot_defense_v1/full107_shots.sqlite
           python3 - <<'PY'
           import json,sqlite3,pathlib
           p=pathlib.Path('gamepulse/fusion/materialized/igp_full107_client_shot_defense_v1')
