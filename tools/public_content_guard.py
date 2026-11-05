@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-2025-26-full107-clock88-readback.yml",  # read only private 666game clock QA, publish non-coordinate game IDs and coverage under source verified methods
     ".github/workflows/igp-2025-26-full107-origin-replay-88-census.yml",  # direct SHA-pinned public origin ZIP and private Full107 git engine; source-free public QA only
     ".github/workflows/igp-2025-26-full107-running-clock-88-census.yml",  # SHA-gated source clock and Full107 overlays; private per-game results, no original XYZ in public logs
     ".github/workflows/igp-2025-26-full107-holdout-p0.yml",  # source-private multi-duration historical P0 QA, public aggregate-only logs
