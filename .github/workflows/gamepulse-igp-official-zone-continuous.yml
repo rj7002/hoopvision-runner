@@ -1,5 +1,6 @@
 # Source-only official NBA Inside the Game season totals; all snapshots stay private.
 # Runs after each scheduled game-ingestion cycle with an hourly retry path.
+# Test fixtures include all required NBA zone and non-zone source fields.
 name: Integrated Pulse official Zone Defense season refresh
 'on':
   workflow_run:
