@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-2025-26-shot-tracking-crosswalk.yml",  # source-key and nearest original timestamp pointer, private output only
     "tools/igp_2025_26_public_shot_tracking_crosswalk.py",  # generic public-source event-key/UTC lookup, private-only shot rows
     ".github/workflows/igp-2025-26-defensive-matchup-source.yml",  # archived game IDs to public NBA defensive matchup source, private rows only
     ".github/workflows/igp-2025-26-xfg-repair-shards.yml",  # targeted public-source historical xFG source retries; no public source rows
