@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-zone-v3-diagnostics-20261105.yml",  # only Full107 source-graded zone aggregate diagnostic, all per-chain evidence private
     ".github/workflows/igp-zone-motion-full107-ecological-20261105.yml",  # reviewed five-way original-source private Full107 CPU zone replay; no per-chain or licensed XYZ public logs
     ".github/workflows/igp-zone-motion-original-private-pilot-20261105.yml",  # reviewed private-only source 4game temporal zone research; public status is counts only, no XYZ or per-possession labels
     ".github/workflows/gamepulse-igp-official-zone-continuous.yml",  # reviewed official 30-team public API season aggregate mirrored to private IGP only, no tracking XYZ or per-game data public
