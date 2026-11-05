@@ -1,0 +1,88 @@
+# Rate-limit-independent historical original-source Full107 running-clock census.
+# Download source bytes from the pinned original public publisher, not GitHub private Releases.
+# Original XYZ stays solely inside ephemeral runner; private QA committed via Git.
+name: IGP Full107 historic 666 original-origin running-clock 88 census
+'on':
+  push:
+    branches: [main]
+    paths: [.github/workflows/igp-2025-26-full107-origin-replay-88-census.yml]
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-2025-26-full107-source-origin-88
+  cancel-in-progress: false
+env:
+  GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+  PRIVATE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+jobs:
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Check public privacy guard, source origin and original Full107 model
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH="$PWD/gamepulse/fusion"
+          python3 -m py_compile gamepulse/fusion/igp_2025_26_running_clock_origin_replay_v1.py \
+            gamepulse/fusion/igp_2025_26_full107_running_clock_census_v1.py \
+            gamepulse/fusion/igp_full107_native_historical_2025_26_v1.py
+          test "$(git hash-object gamepulse/fusion/igp_2025_26_running_clock_origin_replay_v1.py)" = 3473e27d56e814bc5da1000ce5650d094e90fe5c
+          echo ORIGINAL_FULL107_CLOCK_ORIGIN_EXECUTION_SOURCE_PINNED
+      - name: Download publisher 2025-26 complete archive directly without GitHub Release API
+        shell: bash
+        run: |
+          set -euo pipefail
+          available=$(df -Pk "$RUNNER_TEMP" | awk 'NR==2{print $4}')
+          test "$available" -gt 7000000
+          url="https://downloads.neilball.org/NBA-2025-26-Available-Tracking.zip"
+          curl --fail --silent --show-error --location --retry 9 --retry-delay 10 \
+              --retry-all-errors --connect-timeout 30 --max-time 5100 \
+              --proto '=https' --proto-redir '=https' \
+              --output "$RUNNER_TEMP/NBA-2025-26-Available-Tracking.zip" "$url"
+          test "$(stat -c%s "$RUNNER_TEMP/NBA-2025-26-Available-Tracking.zip")" -eq 5170096251
+          echo HISTORICAL_FULL107_ORIGINAL_SOURCE_PUBLISHER_DIRECT_BYTES_VERIFIED
+      - name: Replay existing Full107 candidate in 3 local CPUs and score all original-clock eligible scenes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH="$PWD/gamepulse/fusion"
+          python3 -u gamepulse/fusion/igp_2025_26_running_clock_origin_replay_v1.py \
+            --archive "$RUNNER_TEMP/NBA-2025-26-Available-Tracking.zip" \
+            --workers 3 \
+            --out "$RUNNER_TEMP/historical-clock-full107-origin-replay-all666.json"
+          test -s "$RUNNER_TEMP/historical-clock-full107-origin-replay-all666.json"
+          echo HISTORICAL_FULL107_ORIGIN_REPLAY_666_SOURCE_TOTALS_EXACTLY_MATCHED
+      - name: Commit game-by-game clock threshold QA directly to private Git branch, no Releases API
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          dest="gamepulse/fusion/qa/historical/historical_full107_2025_26_running_clock_666_original_replayed_v1.json"
+          mkdir -p "$(dirname "$dest")"
+          cp "$RUNNER_TEMP/historical-clock-full107-origin-replay-all666.json" "$dest"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$dest"
+          git diff --cached --check
+          git commit -qm 'qa(igp): 666 historical Full107 original-clock >=88 census, independently reverified'
+          for n in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo HISTORICAL_FULL107_CLOCK_ORIGINAL_REPLAY_PRIVATE_GIT_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 42
