@@ -1,0 +1,40 @@
+name: NBA stats host alternate-hosted-runner probe
+'on':
+  push:
+    branches: [research/inside-game-zone-api-discovery-20261105]
+    paths: ['.github/workflows/nba-stats-zone-alternate-runner-probe-20261105.yml']
+permissions: {contents: read}
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Request NBA stats endpoint on alternate GitHub OS egress
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,hashlib,urllib.request,urllib.parse
+          base='https://stats.nba.com/stats/'
+          query=urllib.parse.urlencode({'LeagueID':'00','Season':'2026-27','SeasonType':'Regular Season','type':'defense'})
+          query2=urllib.parse.urlencode({'LeagueID':'00','Season':'2026-27','SeasonType':'Regular Season'})
+          urls=[base+'zonedefenseteamleaders?'+query,base+'gravityleaders?'+query2]
+          for url in urls:
+            request=urllib.request.Request(url,headers={'Accept':'application/json, text/plain, */*','Referer':'https://www.nba.com/','User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36'})
+            try:
+              with urllib.request.urlopen(request,timeout=12) as r:
+                b=r.read()
+                try:
+                  o=json.loads(b); keys=list(o)[:10] if isinstance(o,dict) else ['array']
+                  rows=len(o.get('teamZoneDefense',[])) if isinstance(o,dict) and isinstance(o.get('teamZoneDefense'),list) else None
+                except Exception:keys=['NON_JSON'];rows=None
+                print('NBA_HOST_PROBE',url.split('/')[-1].split('?')[0],'STATUS',r.status,'BYTES',len(b),'SHA256',hashlib.sha256(b).hexdigest(),'KEYS',keys,'ZONE_ROWS',rows,flush=True)
+            except Exception as e:
+              print('NBA_HOST_PROBE',url.split('/')[-1].split('?')[0],'ERROR',type(e).__name__,str(e)[:160],flush=True)
+          PY
