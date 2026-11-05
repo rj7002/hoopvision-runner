@@ -1,6 +1,6 @@
 name: IGP Zone Defense source-temporal research pilot
 # Frozen36 now directly uses SHA-pinned accepted 5x5 lineup, avoiding unverified CDN boxscore refresh.
-# Geometry v1 uses source-verified center-court XY origin; native source immutable.
+# V2 uses multi-defender handoff gates and synthetic hard negative screen tests.
 'on':
   push:
     branches: [research/igp-zone-motion-pilot-20261105]
@@ -38,6 +38,8 @@ jobs:
           export PYTHONPATH="$PWD:$PWD/gamepulse/fusion"
           python3 -m unittest discover -v -s gamepulse/fusion/tests \
             -p 'test_igp_zone_motion_detector_v1.py'
+          python3 -m unittest discover -v -s gamepulse/fusion/tests \
+            -p 'test_igp_zone_multi_defender_handoff_v2.py'
           echo IGP_ZONE_GEOMETRY_REGRESSIONS_PASS
       - name: Execute first native Full107 held-out source pilot on CPU
         shell: bash
@@ -61,13 +63,16 @@ jobs:
           print('IGP_ZONE_PILOT_SOURCE_ERROR_CLASSES',dict(err))
           if data['games_source_scored']<5:print('IGP_ZONE_RESEARCH_INCOMPLETE_RETAIN_QA_NOT_PROMOTED')
           from collections import Counter
-          q=Counter()
+          q=Counter();v2=Counter()
           for g in games.values():
             if 'candidate_counts' in g:q.update(g['candidate_counts'])
+            if 'candidate_counts_v2' in g:v2.update(g['candidate_counts_v2'])
           assert data['no_independently_video_adjudicated_labels'] is True
           print('IGP_NBA_ZONE_NATIVE_REAL_GAMES',data['games_source_scored'])
           print('IGP_NBA_ZONE_UNADJUDICATED_CANDIDATE_LOGICAL_CHAINS',sum(g.get('all_candidate_count',0) for g in games.values()))
-          print('IGP_NBA_ZONE_CONSERVATIVE_CANDIDATE_COUNTS',dict(q))
+          print('IGP_NBA_ZONE_V1_CANDIDATE_COUNTS',dict(q))
+          print('IGP_NBA_ZONE_V2_CANDIDATE_COUNTS',dict(v2))
+          assert v2 and data['games_source_scored']>=5
           print('IGP_NBA_ZONE_NO_GROUND_TRUTH_LABELS_INFERRED')
           PY
       - name: Commit complete source-graded candidate metrics only to private IGP
