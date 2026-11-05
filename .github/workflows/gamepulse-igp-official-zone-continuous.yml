@@ -1,6 +1,6 @@
 # Source-only official NBA Inside the Game season totals; all snapshots stay private.
 # Runs after each scheduled game-ingestion cycle with an hourly retry path.
-# Fixtures cover required NBA non-zone fields and even team-game parity.
+# Source fixtures cover both sides, GP parity, and canonical Full107 immutability.
 name: Integrated Pulse official Zone Defense season refresh
 'on':
   workflow_run:
