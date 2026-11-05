@@ -118,12 +118,10 @@ jobs:
     timeout-minutes: 110
     strategy:
       fail-fast: false
-      max-parallel: 1
+      max-parallel: 2
       matrix:
         include:
-          - {id: '0022600175', tipoff: '2026-11-05T00:30:00.000Z'}
           - {id: '0022600176', tipoff: '2026-11-05T00:30:00.000Z'}
-          - {id: '0022600177', tipoff: '2026-11-05T00:30:00.000Z'}
           - {id: '0022600178', tipoff: '2026-11-05T01:00:00.000Z'}
           - {id: '0022600179', tipoff: '2026-11-05T01:00:00.000Z'}
           - {id: '0022600180', tipoff: '2026-11-05T01:00:00.000Z'}
@@ -220,31 +218,44 @@ jobs:
           assert n==d["original_frame_counts"]["unique_original_native_timestamps"]
           print("FULL121_SOURCE_NATIVE_SHA_ACCEPTED",gid,n)
           PY
-          # Rebuild from preserved original companion event bodies and original official PBP.
-          # Earlier release committed their SHA pointers without the generated crosswalk files.
-          python3 gamepulse/fusion/igp_post56_original_companion_index_v1.py --root .
-          python3 gamepulse/fusion/igp_post56_native_index_refresh_v1.py --root .
-          python3 gamepulse/fusion/igp_post56_allgames_official_ten_native_chain_v1.py --root .
-          python3 gamepulse/fusion/igp_full121_native_sha_source_acceptance_20261105.py --root . --game-id "$GAME"
+          # Keep the original SHA-checked extraction across concurrent private-index updates.
+          # Never replay a stale snapshot over another game's just-accepted source.
+          native_snapshot="$RUNNER_TEMP/native-$GAME"
+          cp -a "$dest" "$native_snapshot"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f "$dest"
-          git add -u
-          git add -f gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json
-          git add -f gamepulse/fusion/evidence/companion_sdk_original_*/shotdetails_official_action_crosswalk_v1.json
-          git add -f gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/official_ten_native_chains
-          git add -f gamepulse/fusion/qa/igp_progress_20261030/igp_oct28_native_source_12_game_refresh_v1.json
-          git add -f "gamepulse/fusion/qa/igp_progress_20261030/full121_original_native_sha_admission/$GAME.json"
-          git diff --cached --check
-          if git diff --cached --quiet; then echo FULL121_VERIFIED_NATIVE_ALREADY_COMMITTED; exit 0; fi
-          git commit -q -m "data(igp): SHA-certified original Nov04 XYZ source $GAME"
-          for n in 1 2 3 4 5 6 7 8 9 10 11 12; do
+          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16; do
             git fetch -q origin "$BRANCH"
-            git rebase -q "origin/$BRANCH"
+            git reset -q --hard "origin/$BRANCH"
+            if test -f "$dest/index.json"; then
+              cmp -s "$dest/index.json" "$native_snapshot/index.json" || {
+                echo "NATIVE_SOURCE_MANIFEST_CONFLICT_REQUIRES_AUDIT"
+                exit 39
+              }
+            else
+              cp -a "$native_snapshot" "$dest"
+            fi
+            # Recompute every aggregate and per-game SHA gate against *latest*
+            # private branch, rather than git-rebasing divergent generated JSON.
+            python3 gamepulse/fusion/igp_post56_original_companion_index_v1.py --root .
+            python3 gamepulse/fusion/igp_post56_native_index_refresh_v1.py --root .
+            python3 gamepulse/fusion/igp_post56_allgames_official_ten_native_chain_v1.py --root .
+            python3 gamepulse/fusion/igp_full121_native_sha_source_acceptance_20261105.py --root . --game-id "$GAME"
+            git add -f "$dest"
+            git add -u
+            git add -f gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json
+            git add -f gamepulse/fusion/evidence/companion_sdk_original_*/shotdetails_official_action_crosswalk_v1.json
+            git add -f gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/official_ten_native_chains
+            git add -f gamepulse/fusion/qa/igp_progress_20261030/igp_oct28_native_source_12_game_refresh_v1.json
+            git add -f "gamepulse/fusion/qa/igp_progress_20261030/full121_original_native_sha_admission/$GAME.json"
+            git diff --cached --check
+            if git diff --cached --quiet; then echo FULL121_VERIFIED_NATIVE_ALREADY_COMMITTED; exit 0; fi
+            git commit -q -m "data(igp): SHA-certified original Nov04 XYZ source $GAME"
             if git push -q origin "HEAD:refs/heads/$BRANCH"; then
               echo FULL121_ORIGINAL_NATIVE_PRIVATE_COMMITTED
               exit 0
             fi
-            sleep "$n"
+            echo "FULL121_CONCURRENT_SOURCE_COMMIT_REBUILD" "$GAME" "$attempt"
+            sleep "$((attempt*2))"
           done
           exit 27
