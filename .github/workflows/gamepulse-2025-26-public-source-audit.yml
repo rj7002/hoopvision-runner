@@ -40,7 +40,7 @@ jobs:
           selected=[n for i,n in enumerate(allgames) if i%5==0]
           D=(1000,2000,5000,10000)
           stats={d:{'windows':0,'points':0,'linear':collections.Counter(),
-                    'hold':collections.Counter()} for d in D}
+                    'hold':collections.Counter(),'cubic_half':collections.Counter()} for d in D}
           actor_gaps=collections.Counter()
           shapes=collections.Counter()
           total=collections.Counter()
@@ -118,9 +118,17 @@ jobs:
                       if not (0<ts[i]-ts[i-1]<=600):continue
                       for duration in D:
                           j=bisect.bisect_left(ts,ts[i]+duration,lo=i+2)
-                          if j>=len(seq) or abs(ts[j]-ts[i]-duration)>300:continue
+                          if j+1>=len(seq) or abs(ts[j]-ts[i]-duration)>300:continue
+                          if not (0<ts[j+1]-ts[j]<=600):continue
                           if any(not 0<ts[k]-ts[k-1]<=600 for k in range(i+1,j+1)):continue
                           b=seq[j]
+                          pre=seq[i-1];after=seq[j+1]
+                          va=((a[1]-pre[1])*1000/(a[0]-pre[0]),(a[2]-pre[2])*1000/(a[0]-pre[0]))
+                          vb=((after[1]-b[1])*1000/(after[0]-b[0]),(after[2]-b[2])*1000/(after[0]-b[0]))
+                          def cap(vector,limit=25):
+                              s=math.hypot(*vector)
+                              return tuple(x*min(1,limit/max(s,1e-9)) for x in vector)
+                          va=cap(va);vb=cap(vb)
                           v=stats[duration]
                           v['windows']+=1
                           for obs in seq[i+1:j]:
@@ -129,8 +137,17 @@ jobs:
                               py=a[2]+f*(b[2]-a[2])
                               le=math.hypot(px-obs[1],py-obs[2])
                               he=math.hypot(a[1]-obs[1],a[2]-obs[2])
+                              h00=2*f**3-3*f**2+1
+                              h10=f**3-2*f**2+f
+                              h01=-2*f**3+3*f**2
+                              h11=f**3-f**2
+                              span=(b[0]-a[0])/1000
+                              cx=h00*a[1]+h10*va[0]*span*.5+h01*b[1]+h11*vb[0]*span*.5
+                              cy=h00*a[2]+h10*va[1]*span*.5+h01*b[2]+h11*vb[1]*span*.5
+                              ce=math.hypot(cx-obs[1],cy-obs[2])
                               v['linear'][min(100000,int(round(le*10)))]+=1
                               v['hold'][min(100000,int(round(he*10)))]+=1
+                              v['cubic_half'][min(100000,int(round(ce*10)))]+=1
                               v['points']+=1
           print('HISTORICAL_MASKED_SOURCE_SAMPLE_GAMES',len(selected),'of',len(allgames))
           print('HISTORICAL_MASKED_SOURCE_SAMPLE_ROWS',dict(total))
@@ -142,7 +159,9 @@ jobs:
                     'points',v['points'],'linear_p50',quantile(v['linear'],.5),
                     'linear_p95',quantile(v['linear'],.95),
                     'hold_p50',quantile(v['hold'],.5),
-                    'hold_p95',quantile(v['hold'],.95))
+                    'hold_p95',quantile(v['hold'],.95),
+                    'cubic_half_p50',quantile(v['cubic_half'],.5),
+                    'cubic_half_p95',quantile(v['cubic_half'],.95))
           assert sum(v['windows'] for v in stats.values())>0
           print('HISTORICAL_MASKED_SOURCE_BASELINE_PASS')
           PY
