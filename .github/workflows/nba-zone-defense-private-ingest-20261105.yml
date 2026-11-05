@@ -13,7 +13,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-zone-defense-official-api-ingest-20261105
-      PINNED_SHA: 02b99ae0041fd3e5d164f0689466722d0a304629
+      PINNED_SHA: 814d280b5d42e7b1cac0c616f425d4c001de054d
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -34,14 +34,14 @@ jobs:
         run: |
           cd "$RUNNER_TEMP/private"
           python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_nba_zone_defense_official_ingest_v1.py' -v
-      - name: Ingest six official NBA season-side surfaces
+      - name: Ingest twelve official NBA season-side surfaces
         shell: bash
         timeout-minutes: 5
         run: |
           cd "$RUNNER_TEMP/private"
           set +e
           python3 gamepulse/fusion/nba_zone_defense_official_ingest_v1.py \
-            --seasons 2026-27 2025-26 2024-25 \
+            --seasons 2026-27 2025-26 2024-25 2023-24 2022-23 2021-22 \
             --season-types 'Regular Season' \
             --sides defense offense --timeout 9 \
             --out gamepulse/fusion/qa/nba_zone_official_20261105
