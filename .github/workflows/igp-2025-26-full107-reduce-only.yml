@@ -1,0 +1,125 @@
+# Repair 2025-26 Full107-native final tally without rerunning 666 games.
+# Previous reducer included stale all666-qa.json in a wildcard and failed its schema check.
+name: IGP 2025-26 Full107-native 666-game QA-only reducer
+'on':
+  push:
+    branches: [main]
+    paths: [.github/workflows/igp-2025-26-full107-reduce-only.yml]
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-2025-26-full107-reduce-only
+  cancel-in-progress: false
+env:
+  GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+  SOURCE_RELEASE: igp-public-gamepulse-2025-26-20261105
+  RELEASE: igp-2025-26-full107-native-20261105
+jobs:
+  reduce:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Inspect source provenance and prepare only private QA receipts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          mkdir -p "$RUNNER_TEMP/source" "$RUNNER_TEMP/qa"
+          for attempt in 1 2 3 4 5 6; do
+            if gh release download "$SOURCE_RELEASE" --repo timeedmonds-maker/104 \
+                --pattern nba-2025-26-source-index.json --clobber --dir "$RUNNER_TEMP/source" && \
+                test -s "$RUNNER_TEMP/source/nba-2025-26-source-index.json"; then break; fi
+            test "$attempt" -ne 6 || exit 31
+            sleep $((4 * attempt))
+          done
+          gh release download "$RELEASE" --repo timeedmonds-maker/104 \
+            --pattern 'full107-native-nba-2025-26-shard-*-qa.json' --dir "$RUNNER_TEMP/qa"
+      - name: Independently reconcile source hashes, all original timestamps, and all games
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from collections import Counter
+          import hashlib,json,os,pathlib
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])
+          idx=json.loads((root/'source/nba-2025-26-source-index.json').read_text())
+          files=sorted((root/'qa').glob('full107-native-nba-2025-26-shard-*-qa.json'))
+          assert len(files)==15,('REQUIRE_ALL_15_SHARD_QA',len(files))
+          expected={gid:g for gid,g in idx['games'].items() if g.get('tracking')}
+          assert len(expected)==666,('HISTORICAL_GAME_POPULATION_DRIFT',len(expected))
+          shards={s['name']:s for s in idx['shards']}
+          assert len(shards)==15
+          totals=Counter();seen=set();seen_shards=set()
+          for f in files:
+            suffix=f.name.removeprefix('full107-native-').removesuffix('-qa.json')
+            srcname=suffix+'.zip'
+            assert srcname in shards,('UNEXPECTED_SHARD',srcname)
+            assert srcname not in seen_shards,('DUPLICATE_SHARD',srcname)
+            seen_shards.add(srcname)
+            q=json.loads(f.read_text())
+            assert q['schema']=='igp.full107-native-scene-historical-2025-26.v1'
+            assert q['model_module']=='igp_native_scene_model_v2'
+            assert q['original_source_immutable'] is True
+            assert q['source_sha256']==idx['source_zip_sha256']
+            assert q['source_shard_sha256']==shards[srcname]['sha256']
+            assert q['qa_grade']=='HISTORICAL_NATIVE_FULL107_RESEARCH_SOURCE_PROVISIONAL'
+            assert q['not_full88_or_full92_dataset_or_default'] is True
+            assert len(q['per_game'])==q['games']
+            assert set(q['per_game']) <= (set(shards[srcname]['game_ids']) & set(expected))
+            assert not seen.intersection(q['per_game']),'DUPLICATE_GAME'
+            shard_count=Counter()
+            for gid,gameqa in q['per_game'].items():
+              source_record=expected[gid]
+              member=next(m for m in source_record['members'] if m['path'].endswith('/tracking.jsonl.gz'))
+              assert gameqa['source_original_sha256']==member['sha256'],('GAME_SOURCE_HASH_DRIFT',gid)
+              assert gameqa['source_lineup_grade']=='SOURCE_PROVISIONAL_NOT_INDEPENDENT_OFFICIAL_TEN'
+              assert gameqa['counts']['source_native_frames']==source_record['tracking']['rows'],('ROW_DRIFT',gid)
+              assert gameqa['native_source_denominator']==source_record['tracking']['rows']
+              shard_count.update(gameqa['counts'])
+            assert dict(shard_count)==dict(q['counts']),('SHARD_COUNT_CONFLICT',srcname)
+            totals.update(q['counts'])
+            seen.update(q['per_game'])
+          assert seen==set(expected),('MISSING_OR_EXTRA_GAMES',len(seen),len(expected))
+          assert totals['source_native_frames']==19440900,('NATIVE_FRAME_DRIFT',totals['source_native_frames'])
+          assert totals['source_direct_complete_ten_ball']+totals['native_engine_completed_incomplete_source_frames']==totals['native_engine_complete_ten_ball'],'SOURCE_MODEL_COMPLETE_COUNT_DRIFT'
+          assert totals['native_engine_complete_ten_ball']<=totals['source_native_frames']
+          receipt={
+            'schema':'igp.historical-full107-native-666game-run-receipt.v2',
+            'status':'SOURCE_POPULATION_COMPLETE_RESEARCH_ONLY',
+            'season':'2025-26','games':len(seen),'shards':len(seen_shards),
+            'source_sha256':idx['source_zip_sha256'],'counts':dict(sorted(totals.items())),
+            'native_source_denominator':totals['source_native_frames'],
+            'full107_native_xyz_complete':totals['native_engine_complete_ten_ball'],
+            'full107_native_complete_fraction':totals['native_engine_complete_ten_ball']/totals['source_native_frames'],
+            'source_lineup_grade':'PROVISIONAL_NOT_INDEPENDENTLY_VERIFIED',
+            'original_source_unchanged':True,'production_accepted':False,
+            'physical_accuracy_certified':False,
+            'original_shard_QA_verified':True,
+            'missing_2026_27_blueprint_fields_not_inferred':True,
+            'next_validation':['Independent player XY/ball 3D source-masked holdouts',
+                'official-ten lineup and shot-clock reconciliation','defender and xFG shot-source attribution'],
+            'original_full107_run':41986224953
+          }
+          out=root/'qa/full107-native-2025-26-all666-qa.json'
+          out.write_text(json.dumps(receipt,sort_keys=True,indent=2)+'\n')
+          print('FULL107_NATIVE_HISTORICAL_ALL666_RESULT',json.dumps({
+            'status':receipt['status'],'games':receipt['games'],'shards':receipt['shards'],
+            'native_source_frames':totals['source_native_frames'],
+            'direct_ten_ball':totals['source_direct_complete_ten_ball'],
+            'modeled_additional_ten_ball':totals['native_engine_completed_incomplete_source_frames'],
+            'complete_ten_ball':totals['native_engine_complete_ten_ball'],
+            'filled_player_positions':totals['filled_player_positions'],
+            'filled_ball_positions':totals['filled_ball_positions'],
+            'coverage_fraction':receipt['full107_native_complete_fraction'],
+            'production_accepted':False},sort_keys=True))
+          PY
+      - name: Save fixed 666-game research receipt in original private derived release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload "$RELEASE" "$RUNNER_TEMP/qa/full107-native-2025-26-all666-qa.json" \
+            --repo timeedmonds-maker/104 --clobber
+          echo FULL107_HISTORICAL_REDUCER_V2_PRIVATE_COMPLETE
