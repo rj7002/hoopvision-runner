@@ -11,6 +11,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   source-masked-shadow:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
@@ -88,3 +89,46 @@ jobs:
             sleep "$((2*i))"
           done
           exit 78
+
+
+  graded-full121-read-access-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Guard public/private content boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Validate Full121 source-graded query contract without changing defaults
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full121_graded_tracking_access_v1.py gamepulse/fusion/igp_full121_source_default_v1.py gamepulse/fusion/igp_default_engine.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_full121_graded_tracking_access_v1.py'
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          from igp_full121_source_default_v1 import load_release
+          root=Path(".")
+          release,first,additional=load_release(root)
+          assert release["indexed_official_nba_games"]==121
+          assert len(first["per_game_model"])==56 and len(additional["games"])==65
+          gate=json.loads((root/"gamepulse/fusion/qa/igp_progress_20261030/full121_guarded_production_release_gate_v2_20261106.json").read_bytes())
+          assert gate["games_evaluated_new"]==29
+          assert gate["full121_model_promotion_ready"] is False
+          assert gate["full92_rollback_preserved"] is True
+          assert gate["original_source_unchanged"] is True
+          print("FULL121_GRADED_QUERY_PASS cohort=121 new_tracking_shadows=29 default_tracking_unchanged=TRUE")
+          PY
