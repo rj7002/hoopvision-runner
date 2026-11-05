@@ -31,7 +31,7 @@ jobs:
           git clone --quiet --depth=1 --filter=blob:none --sparse \
             -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
-          test "$(git -C "$RUNNER_TEMP/private" hash-object gamepulse/fusion/igp_2025_26_full666_possession_boundary_audit_v1.py)" = 62f840f2f619bc795685b87742b3342974e30dab
+          test "$(git -C "$RUNNER_TEMP/private" hash-object gamepulse/fusion/igp_2025_26_full666_possession_boundary_audit_v1.py)" = e6269e3189530dc84ef96f7959010ecced7d5b87
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH="$PWD:$PWD/gamepulse/fusion"
           python3 -m py_compile gamepulse/fusion/igp_2025_26_full666_possession_boundary_audit_v1.py
@@ -113,7 +113,7 @@ jobs:
             gamepulse/fusion/igp_tracking_model_b_holdout_2026.py \
             gamepulse/fusion/igp_tracking_model_c0_endpoint_velocity_bridge_2026.py \
             gamepulse/fusion/igp_historical_defender_proxy_v1.py
-          test "$(git -C "$RUNNER_TEMP/private" hash-object gamepulse/fusion/igp_2025_26_full666_possession_boundary_audit_v1.py)" = 62f840f2f619bc795685b87742b3342974e30dab
+          test "$(git -C "$RUNNER_TEMP/private" hash-object gamepulse/fusion/igp_2025_26_full666_possession_boundary_audit_v1.py)" = e6269e3189530dc84ef96f7959010ecced7d5b87
           mkdir -p "$RUNNER_TEMP/input" "$RUNNER_TEMP/out"
       - name: Fetch private v1.0 Full666 SQLite shard, not tracking XYZ
         run: |
