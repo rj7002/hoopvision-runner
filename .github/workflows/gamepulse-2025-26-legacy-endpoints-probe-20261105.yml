@@ -56,9 +56,3 @@ jobs:
           out={"schema":"igp.historical-endpoint-probe.v1","utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"results":results}
           open("historical-endpoint-probe.json","w").write(json.dumps(out,indent=2)+"\n")
           PY
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: historical-cross-season-endpoint-metadata-only
-          path: historical-endpoint-probe.json
-          retention-days: 30
