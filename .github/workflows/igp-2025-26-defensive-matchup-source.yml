@@ -23,6 +23,8 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
+          if gh api repos/timeedmonds-maker/104 --jq .full_name >/dev/null 2>&1; then echo HISTORICAL_PRIVATE_REPO_TOKEN_VISIBLE; else echo HISTORICAL_PRIVATE_REPO_TOKEN_DENIED; exit 39; fi
+          if gh api repos/timeedmonds-maker/104/releases/tags/igp-public-gamepulse-2025-26-20261105 --jq .id >/dev/null 2>&1; then echo HISTORICAL_PRIVATE_RELEASE_TOKEN_VISIBLE; else echo HISTORICAL_PRIVATE_RELEASE_TOKEN_DENIED; exit 40; fi
           mkdir -p "$RUNNER_TEMP/historical"
           for attempt in 1 2 3 4; do
             if gh release download igp-public-gamepulse-2025-26-20261105 --repo timeedmonds-maker/104 \
