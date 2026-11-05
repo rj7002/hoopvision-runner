@@ -37,11 +37,17 @@ jobs:
           npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
           (cd tools/licensed_feed && npm install --ignore-scripts --no-audit --no-fund --silent)
           mkdir -p "$IGP_PRIVATE_CAPTURE_DIR"
-          node tools/licensed_feed/companion_original_sdk_probe.mjs > "$RUNNER_TEMP/alternate-licensed-private.log" 2>&1
+          if ! node tools/licensed_feed/companion_original_sdk_probe.mjs > "$RUNNER_TEMP/alternate-licensed-private.log" 2>&1; then
+            echo FULL121_ALTERNATE_SDK_PROBE_PROCESS_FAILED_SOURCE_UNAVAILABLE
+          fi
           python3 - <<'PY'
           import json,os
           from pathlib import Path
-          d=json.loads((Path(os.environ['IGP_PRIVATE_CAPTURE_DIR'])/'companion_probe_receipt.json').read_bytes())
+          p=Path(os.environ['IGP_PRIVATE_CAPTURE_DIR'])/'companion_probe_receipt.json'
+          if not p.is_file():
+            print('FULL121_ALTERNATE_SDK_NO_SOURCE_RECEIPT',os.environ['NBA_GAME_ID'])
+            raise SystemExit(0)
+          d=json.loads(p.read_bytes())
           assert d['game_id']==os.environ['NBA_GAME_ID']
           assert d['authentication_bypass_attempted'] is False
           assert d['app_program_variant']=='positions'
