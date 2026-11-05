@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-2025-26-xfg-full-archive.yml",  # bounded public-source NBA xFG backfill, all output private 104
     "tools/igp_2025_26_public_xfg_backfill.py",  # bounded historical public NBA xFG source retrieval; private-only rows and QA
     ".github/workflows/gamepulse-2025-26-xfg-archive-overlap.yml",  # public-source historical xFG to tracking inventory exact-key overlap; private receipt only
     ".github/workflows/gamepulse-2025-26-full-source-feature-census.yml",  # public-source 666-game event field census; private-only detailed receipt
