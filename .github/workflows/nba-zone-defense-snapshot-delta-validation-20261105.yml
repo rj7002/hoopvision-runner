@@ -35,8 +35,8 @@ jobs:
           from pathlib import Path
           from gamepulse.fusion.igp_zone_team_snapshot_delta_v1 import diff_four_sources
           root=Path("gamepulse/fusion/qa/nba_zone_official_20261105/2026-27/Regular-Season")
-          defense=next((root/"defense").glob("*.json"))
-          offense=next((root/"offense").glob("*.json"))
+          defense=next(p for p in (root/"defense").glob("*.json") if not p.name.endswith(".manifest.json"))
+          offense=next(p for p in (root/"offense").glob("*.json") if not p.name.endswith(".manifest.json"))
           bdef=defense.read_bytes(); boff=offense.read_bytes()
           d=diff_four_sources(bdef,boff,bdef,boff)
           assert d["league_offense_defense_delta"]=={"POSS":0,"POSS_ZONE":0,"POSS_ZONE_PTS":0}
