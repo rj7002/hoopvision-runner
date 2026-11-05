@@ -1,0 +1,52 @@
+name: NBA official zone team SQLite query verification
+'on':
+  push:
+    branches: [research/inside-game-zone-api-discovery-20261105]
+    paths: ['.github/workflows/nba-zone-defense-team-query-verification-20261105.yml']
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/igp-zone-defense-official-api-ingest-20261105
+      EXPECTED_SOURCE_SHA: f86514396db3ed4f24c1c426997b17064da4643f
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Clone pinned private research query and source evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$EXPECTED_SOURCE_SHA"
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$EXPECTED_SOURCE_SHA"
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
+      - name: Run 3 strict source-free suites and live SQLite readbacks
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          for name in test_nba_zone_defense_official_ingest_v1.py test_igp_zone_team_sidecar_v1.py test_query_igp_nba_zone_team_v1.py; do
+            python3 -m unittest discover -s gamepulse/fusion/tests -p "$name" -v
+          done
+          python3 - <<'PY'
+          import json
+          from gamepulse.fusion.query_igp_nba_zone_team_v1 import query
+          cases=[("2026-27","Regular Season","defense","DAL"),
+                 ("2026-27","Regular Season","offense","HOU"),
+                 ("2025-26","Regular Season","defense","MIA"),
+                 ("2025-26","Playoffs","defense",None),
+                 ("2025-26","PlayIn","offense",None)]
+          for season,st,side,team in cases:
+            d=query(".",season=season,season_type=st,side=side,team=team)
+            o=d["league_totals"]
+            print("NBA_ZONE_QUERIED",json.dumps({"season":season,"season_type":st,"side":side,
+                  "team":team,"matched":d["returned_team_count"],
+                  "team_zone_poss":d["team_rows"][0]["POSS_ZONE"] if team else None,
+                  "league_poss":o["poss"],"league_zone":o["zone_poss"],
+                  "league_points":o["zone_pts"],"source_SHA":d["source"]["sha256"][:12]}),flush=True)
+          PY
