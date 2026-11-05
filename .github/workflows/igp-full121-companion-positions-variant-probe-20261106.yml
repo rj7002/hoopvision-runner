@@ -19,8 +19,8 @@ jobs:
           - {gid: '0022600179', tipoff: '2026-11-05T01:00:00Z'}
           - {gid: '0022600175', tipoff: '2026-11-05T00:30:00Z'}
     env:
-      NBA_GAME_ID: \${{ matrix.gid }}
-      NBA_TIPOFF_UTC: \${{ matrix.tipoff }}
+      NBA_GAME_ID: ${{ matrix.gid }}
+      NBA_TIPOFF_UTC: ${{ matrix.tipoff }}
       IGP_SDK_SOURCE_VARIANT: positions
       IGP_PRIVATE_CAPTURE_DIR: /tmp/igp-full121-source-variant-probe
       IGP_SDK_INIT_TIMEOUT_MS: '22000'
