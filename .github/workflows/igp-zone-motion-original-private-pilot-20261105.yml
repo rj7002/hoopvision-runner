@@ -1,5 +1,5 @@
 name: IGP Zone Defense source-temporal research pilot
-# Frozen36 identity registry corrected to accepted official-lineup-clock inventory.
+# Frozen36 now directly uses SHA-pinned accepted 5x5 lineup, avoiding unverified CDN boxscore refresh.
 # Geometry v1 uses source-verified center-court XY origin; native source immutable.
 'on':
   push:
