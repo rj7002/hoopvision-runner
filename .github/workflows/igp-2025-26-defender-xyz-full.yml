@@ -1,8 +1,5 @@
 name: IGP 2025-26 historical defender XYZ full-archive private materialization
 'on':
-  workflow_run:
-    workflows: ['IGP 2025-26 archived games NBA xFG source backfill']
-    types: [completed]
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
