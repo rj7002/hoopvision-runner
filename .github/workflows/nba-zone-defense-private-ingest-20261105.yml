@@ -13,7 +13,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-zone-defense-official-api-ingest-20261105
-      PINNED_SHA: 814d280b5d42e7b1cac0c616f425d4c001de054d
+      PINNED_SHA: ce6fe4b91c11dbc73adc6fd61573ac52e16dad4a
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -68,7 +68,7 @@ jobs:
           git fetch -q origin "$BRANCH"
           git checkout -q -B igp-zone-evidence "origin/$BRANCH"
           git add -f "$source_root"
-          git diff --cached --check
+          git diff --cached --check >/dev/null 2>&1 || { echo "PRIVATE_EXPORT_FORMAT_QA_FAILED"; exit 18; }
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -q -m "qa(igp): retain NBA zone team official response or exact access-status evidence"
