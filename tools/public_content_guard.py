@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-2025-26-defender-xyz-full.yml",  # full-archive private historical shot XYZ defender materialization and client summary, no public rows
     ".github/workflows/igp-2025-26-defender-xyz-pilot.yml",  # public-to-private historical NBA XYZ defender source pilot; private outputs only
     ".github/workflows/gamepulse-2025-26-legacy-endpoints-probe-20261105.yml",  # cross-season public HTTP status/schema only, no original tracking records or public artifacts
     ".github/workflows/igp-2025-26-shot-tracking-crosswalk.yml",  # source-key and nearest original timestamp pointer, private output only
