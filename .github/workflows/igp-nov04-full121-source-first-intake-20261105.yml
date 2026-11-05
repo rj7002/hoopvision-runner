@@ -57,22 +57,27 @@ jobs:
             row=a["games"][gid]
             assert row["date_us"]=="2026-11-04",(gid,row["date_us"])
             assert row["official_pbp_actions"]>0
-            assert row["source_capture_grades"]["official_nba_pbp_box"]=="SHA_VERIFIED"
-            assert row["source_capture_grades"]["official_logical_chains"]=="SHA_VERIFIED"
+            grades=row.get("source_capture_grades") or {}
             for path,field in zip(row["official_pbp_original_paths"],
               ("original_nba_pbp_sha256","original_nba_boxscore_sha256","official_pbp_sha256")):
               assert hashlib.sha256(Path(path).read_bytes()).hexdigest()==row[field],gid
+            chain=Path(row["nba_logical_chain_original_index"])
+            assert hashlib.sha256(chain.read_bytes()).hexdigest()==row["nba_logical_chain_original_index_sha256"],gid
+            assert row["nba_logical_chain_count"]>0
+            if grades:
+              assert grades["official_nba_pbp_box"]=="SHA_VERIFIED"
+              assert grades["official_logical_chains"]=="SHA_VERIFIED"
             if row.get("original_source_13_part_complete"):
-              assert row["source_capture_grades"]["original_native_xyz"]=="SHA_FULL_13PART"
+              assert grades.get("original_native_xyz")=="SHA_FULL_13PART"
           metrics={"schema":"igp.full121.nov04.staged-source-first-qa.v1",
             "baseline_games":107,"slate_game_ids":ids,"official_games":121,
             "source_grade_not_equal_to_tracking_accuracy":True,
             "official_pbp_and_logical_chain_SHA_verified":14,
             "original_native_13part_complete":sum(bool(a["games"][g].get("original_source_13_part_complete")) for g in ids),
-            "companion_original_full":sum(a["games"][g]["source_capture_grades"].get("original_companion")=="COMPLETE_ORIGINAL_RESPONSE" for g in ids),
-            "blueprint_original_sha":sum(a["games"][g]["source_capture_grades"].get("original_nba_blueprint")=="SOURCE_SHA_ACCEPTED" for g in ids),
+            "companion_original_full":sum((a["games"][g].get("source_capture_grades") or {}).get("original_companion")=="COMPLETE_ORIGINAL_RESPONSE" for g in ids),
+            "blueprint_original_sha":sum((a["games"][g].get("source_capture_grades") or {}).get("original_nba_blueprint")=="SOURCE_SHA_ACCEPTED" for g in ids),
             "ready_for_full_native_default":all(
-                a["games"][g]["source_capture_grades"].get(k)==v
+                (a["games"][g].get("source_capture_grades") or {}).get(k)==v
                 for g in ids for k,v in (
                 ("original_native_xyz","SHA_FULL_13PART"),
                 ("original_companion","COMPLETE_ORIGINAL_RESPONSE"),
