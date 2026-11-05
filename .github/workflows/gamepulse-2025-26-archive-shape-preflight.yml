@@ -57,3 +57,42 @@ jobs:
             "shards":len(d["shards"])
           },sort_keys=True))
           PY
+      - name: Validate one archive shard and inspect public-source field structure
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          shard=$(python3 - <<'PY'
+          import json,os,pathlib
+          d=json.loads((pathlib.Path(os.environ["RUNNER_TEMP"])/"historical-index/nba-2025-26-source-index.json").read_text())
+          print(d["shards"][0]["name"])
+          PY
+          )
+          gh release download igp-public-gamepulse-2025-26-20261105 \
+            --repo timeedmonds-maker/104 --pattern "$shard" --dir "$RUNNER_TEMP/historical-index"
+          python3 - <<'PY'
+          import collections,gzip,hashlib,io,json,os,pathlib,zipfile
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"historical-index"
+          d=json.loads((root/"nba-2025-26-source-index.json").read_text())
+          entry=d["shards"][0];p=root/entry["name"]
+          assert p.stat().st_size==entry["bytes"]
+          assert hashlib.sha256(p.read_bytes()).hexdigest()==entry["sha256"]
+          with zipfile.ZipFile(p) as z:
+              game=next((g for g in sorted(d["games"]) if d["games"][g]["shard"]==entry["name"] and d["games"][g]["tracking"]),None)
+              assert game
+              for member in d["games"][game]["members"]:
+                  raw=z.read(member["path"])
+                  assert hashlib.sha256(raw).hexdigest()==member["sha256"]
+                  name=member["path"].rsplit("/",1)[-1]
+                  if name.endswith(".jsonl.gz"):
+                      with gzip.GzipFile(fileobj=io.BytesIO(raw)) as fp:
+                          sample=[json.loads(next(fp)) for _ in range(1)]
+                      fields={k:type(v).__name__ for k,v in sample[0].items()}
+                      nested={k:sorted(v.keys()) for k,v in sample[0].items() if isinstance(v,dict)}
+                      print("HISTORICAL_PUBLIC_SOURCE_STRUCTURE",name, json.dumps({"fields":fields,"nested_keys":nested},sort_keys=True))
+                  elif name.endswith(".json"):
+                      obj=json.loads(raw)
+                      print("HISTORICAL_PUBLIC_SOURCE_STRUCTURE",name,json.dumps({"fields":{k:type(v).__name__ for k,v in obj.items()} if isinstance(obj,dict) else {"top_type":type(obj).__name__}},sort_keys=True))
+          print("HISTORICAL_ONE_GAME_MEMBER_SHA_PASS")
+          PY
