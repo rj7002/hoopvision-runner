@@ -1,0 +1,9 @@
+name: 2025-26 historical source audit
+on:
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo HISTORICAL_SOURCE_AUDIT_WORKFLOW_READY
