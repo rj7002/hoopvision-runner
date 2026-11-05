@@ -1,4 +1,4 @@
-name: IGP 2025-26 xFG sparse shooter manifest repair
+name: IGP 2025-26 missing historical xFG shards source recovery
 on:
   push:
     branches: [main]
@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        shard: ['001','004']
+        shard: ['001','011','012']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       SHARD: ${{ matrix.shard }}
@@ -31,9 +31,21 @@ jobs:
           python3 -m py_compile tools/igp_2025_26_public_xfg_backfill.py
           test -n "$GH_TOKEN"
           mkdir -p "$RUNNER_TEMP/source" "$RUNNER_TEMP/derived"
-          gh release download igp-public-gamepulse-2025-26-20261105 --repo timeedmonds-maker/104 \
-            --pattern nba-2025-26-source-index.json \
-            --pattern "nba-2025-26-shard-$SHARD.zip" --dir "$RUNNER_TEMP/source"
+          for attempt in 1 2 3 4 5 6; do
+            if gh release download igp-public-gamepulse-2025-26-20261105 --repo timeedmonds-maker/104 \
+              --clobber --pattern nba-2025-26-source-index.json \
+              --pattern "nba-2025-26-shard-$SHARD.zip" --dir "$RUNNER_TEMP/source" && \
+              test -s "$RUNNER_TEMP/source/nba-2025-26-source-index.json" && \
+              test -s "$RUNNER_TEMP/source/nba-2025-26-shard-$SHARD.zip"; then
+              break
+            fi
+            if [ "$attempt" -eq 6 ]; then
+              echo "HISTORICAL_XFG_ARCHIVE_DOWNLOAD_EXHAUSTED shard=$SHARD" >&2
+              gh api repos/timeedmonds-maker/104/releases/434552440 --jq '{id,tag_name,draft,asset_count:(.assets|length)}' || true
+              exit 1
+            fi
+            sleep $((attempt * 4))
+          done
           python3 tools/igp_2025_26_public_xfg_backfill.py \
             --index "$RUNNER_TEMP/source/nba-2025-26-source-index.json" \
             --shard "$RUNNER_TEMP/source/nba-2025-26-shard-$SHARD.zip" \
