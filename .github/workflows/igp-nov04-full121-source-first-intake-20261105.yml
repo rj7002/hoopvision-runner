@@ -118,12 +118,9 @@ jobs:
     timeout-minutes: 110
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 1
       matrix:
-        include:
-          - {id: '0022600176', tipoff: '2026-11-05T00:30:00.000Z'}
-          - {id: '0022600178', tipoff: '2026-11-05T01:00:00.000Z'}
-          - {id: '0022600179', tipoff: '2026-11-05T01:00:00.000Z'}
+        include:          - {id: '0022600179', tipoff: '2026-11-05T01:00:00.000Z'}
           - {id: '0022600180', tipoff: '2026-11-05T01:00:00.000Z'}
           - {id: '0022600184', tipoff: '2026-11-05T02:30:00.000Z'}
           - {id: '0022600185', tipoff: '2026-11-05T03:00:00.000Z'}
