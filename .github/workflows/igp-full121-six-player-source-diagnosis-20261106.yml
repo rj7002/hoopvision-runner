@@ -150,3 +150,50 @@ jobs:
             sleep "$((n*2))"
           done
           exit 37
+
+
+  original-actor-alias-forensics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        game: ['0022600160','0022600175']
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Ensure private original source boundary
+        run: python3 tools/public_content_guard.py
+      - name: Audit unassigned source actors and late official IDs without forced mapping
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full121_native_actor_temporal_alias_audit_v1.py
+          path="gamepulse/fusion/qa/igp_progress_20261030/full121_actor_temporal_alias_audit_${{ matrix.game }}_20261106.json"
+          python3 gamepulse/fusion/igp_full121_native_actor_temporal_alias_audit_v1.py --root . --game-id "${{ matrix.game }}" --out "$path"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$path"
+          git diff --cached --check
+          if git diff --cached --quiet; then echo FULL121_ACTOR_ALIAS_AUDIT_ALREADY_COMMITTED; exit 0; fi
+          git commit -q -m "qa(igp): retain original/official actor temporal alias audit ${{ matrix.game }}"
+          for n in $(seq 1 16); do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo FULL121_ACTOR_ALIAS_AUDIT_PRIVATE_COMMITTED game=${{ matrix.game }}
+              exit 0
+            fi
+            sleep "$((n*2))"
+          done
+          exit 37
