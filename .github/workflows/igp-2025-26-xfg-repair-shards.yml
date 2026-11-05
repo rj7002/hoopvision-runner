@@ -1,0 +1,49 @@
+name: IGP 2025-26 xFG sparse shooter manifest repair
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/igp-2025-26-xfg-repair-shards.yml]
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-2025-26-xfg-sparse-manifest-repair
+  cancel-in-progress: false
+jobs:
+  acquire:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 170
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        shard: ['001','004']
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Recover existing archived source via fallback shooter identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          python3 -m py_compile tools/igp_2025_26_public_xfg_backfill.py
+          test -n "$GH_TOKEN"
+          mkdir -p "$RUNNER_TEMP/source" "$RUNNER_TEMP/derived"
+          gh release download igp-public-gamepulse-2025-26-20261105 --repo timeedmonds-maker/104 \
+            --pattern nba-2025-26-source-index.json \
+            --pattern "nba-2025-26-shard-$SHARD.zip" --dir "$RUNNER_TEMP/source"
+          python3 tools/igp_2025_26_public_xfg_backfill.py \
+            --index "$RUNNER_TEMP/source/nba-2025-26-source-index.json" \
+            --shard "$RUNNER_TEMP/source/nba-2025-26-shard-$SHARD.zip" \
+            --out "$RUNNER_TEMP/derived" --workers 2
+          gh release upload igp-2025-26-xfg-archive-20261105 \
+            "$RUNNER_TEMP/derived/nba-xfg-nba-2025-26-shard-$SHARD.jsonl.gz" \
+            "$RUNNER_TEMP/derived/nba-xfg-nba-2025-26-shard-$SHARD-qa.json" \
+            --repo timeedmonds-maker/104 --clobber
+          python3 - <<'PY'
+          import json,os,pathlib
+          n=os.environ["SHARD"];p=pathlib.Path(os.environ["RUNNER_TEMP"])/"derived"/f"nba-xfg-nba-2025-26-shard-{n}-qa.json"
+          d=json.loads(p.read_text());print("HISTORICAL_XFG_REPAIR_PRIVATE",n,d["games"],d["counts"].get("public_shot_rows",0),len(d["failed_player_games"]))
+          PY
