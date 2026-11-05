@@ -1,0 +1,68 @@
+name: IGP Full666 2025-26 historical source FT terminal resolution pilot
+'on':
+  push:
+    branches: [main]
+    paths: [.github/workflows/igp-2025-26-full666-ft-terminal-source-probe.yml]
+  workflow_dispatch:
+permissions: {contents: read}
+env:
+  GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Read native source PBP outcome metadata without XYZ, official claims or event text
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          mkdir -p "$RUNNER_TEMP/qa"
+          for n in $(seq 1 15); do
+            if gh release download igp-2025-26-full666-pbp-possession-20261106 \
+                --repo timeedmonds-maker/104 \
+                --pattern 'historical-full666-pbp-possession-nba-2025-26-shard-001.sqlite.gz' \
+                --dir "$RUNNER_TEMP/qa" --clobber;then break;fi
+            if test "$n" -eq 15;then exit 42;fi
+            sleep 110
+          done
+          python3 - <<'PY'
+          import collections,gzip,json,os,pathlib,sqlite3
+          p=next((pathlib.Path(os.environ['RUNNER_TEMP'])/'qa').glob('*.sqlite.gz'))
+          raw=p.with_suffix('')
+          with gzip.open(p,'rb') as inp,raw.open('wb') as out:
+            for b in iter(lambda:inp.read(1048576),b''):out.write(b)
+          cx=sqlite3.connect(str(raw));cx.row_factory=sqlite3.Row
+          counts=collections.Counter();ftvalues=collections.Counter()
+          fields=collections.Counter();subtypes=collections.Counter();pts=collections.Counter()
+          for a in cx.execute('SELECT event_type,subtype,points,metadata_json FROM actions'):
+            if a['event_type'] not in ('3','freethrow','free throw'):continue
+            m=json.loads(a['metadata_json'])
+            counts['free_throw_actions']+=1
+            subtypes[a['subtype']]+=1;pts[str(a['points'])]+=1
+            fields.update(k for k,v in m.items() if v is not None)
+            for k in ('shotResult','isFieldGoal','shotType','subType','pts','possession','teamId','personId','scoreHome','scoreAway'):
+              if k in m:
+                if k in ('shotResult','shotType','subType','pts','possession'):
+                  ftvalues[(k,str(m[k])[:45])]+=1
+          final=collections.Counter()
+          for c in cx.execute("""SELECT l.game_id,l.terminal,l.last_action_id,
+              a.event_type,a.subtype,a.points,a.metadata_json
+              FROM logical_chains l LEFT JOIN actions a
+              ON a.game_id=l.game_id AND a.period=l.period
+              AND a.action_id=l.last_action_id"""):
+            if c['event_type'] not in ('3','freethrow','free throw'):continue
+            sub=c['subtype'] or ''
+            final[(c['terminal'],sub,str(c['points']))]+=1
+          print('FULL666_2025_26_FT_SOURCE_SCHEMA',json.dumps({
+             'games':50,'ft_actions':counts['free_throw_actions'],
+             'metadata_nonnull_fields':dict(fields),
+             'ft_action_pts':dict(pts),
+             'ft_subtypes':subtypes.most_common(20),
+             'ft_outcome_fields':[(k,v,n) for (k,v),n in ftvalues.most_common(35)],
+             'chains_ending_at_ft':[(k[0],k[1],k[2],n) for k,n in final.most_common(35)]},
+             sort_keys=True),flush=True)
+          cx.close()
+          PY
