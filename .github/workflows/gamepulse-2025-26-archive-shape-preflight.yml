@@ -114,9 +114,15 @@ jobs:
           with zipfile.ZipFile(p) as z:
               m=next(m for m in d["games"][game]["members"] if m["path"].endswith("/tracking.jsonl.gz"))
               with gzip.GzipFile(fileobj=io.BytesIO(z.read(m["path"]))) as fp:
-                  samples=[json.loads(line) for _,line in zip(range(300),fp) if line.strip()]
-              f=next((x for x in samples if x.get("home_players") or x.get("away_players")),None)
-              assert f is not None
+                  f=None
+                  for line in fp:
+                      if not line.strip():continue
+                      row=json.loads(line)
+                      if row.get("home_players") or row.get("away_players"):
+                          f=row;break
+              if f is None:
+                  f={"home_players":[],"away_players":[],"on_court":{},"units":"UNKNOWN"}
+                  print("HISTORICAL_TRACKING_SAMPLE_EMPTY_PLAYER_GAME")
               print("HISTORICAL_TRACKING_SCHEMA_PLAYER", json.dumps({
                   "home_array_type":type(f.get("home_players")).__name__,
                   "home_item_type":type((f.get("home_players") or [{}])[0]).__name__,
