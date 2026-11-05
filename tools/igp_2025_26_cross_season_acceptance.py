@@ -137,6 +137,7 @@ def inspect(root: Path) -> dict:
             raise ValueError("DEFENDER_SHOT_COUNT_EXCEEDS_SOURCE:" + n)
         aligned.append(n)
     receipt["cross_layer_source_aligned_defender_shards"] = len(aligned)
+    receipt["cross_layer_defender_source_ready_for_full_reduction"] = len(aligned) == 15
     receipt["cross_layer_mismatched_defender_shards"] = misaligned
     a, b, c = (receipt["layers"][k] for k in ("native", "xfg", "defender"))
     receipt["all_archive_shards_reconstructed"] = a["full_source_game_coverage"] and a["counts"].get("source_native_frames") == EXPECTED_NATIVE_FRAMES
