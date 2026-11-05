@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-2025-26-full-source-feature-census.yml",  # public-source 666-game event field census; private-only detailed receipt
     ".github/workflows/gamepulse-2025-26-archive-shape-preflight.yml",  # read-only existing private release index census; aggregate member availability only
     ".github/workflows/gamepulse-igp-official-zone-continuous.yml",  # reviewed official 30-team public API season aggregate mirrored to private IGP only, no tracking XYZ or per-game data public
     "tools/neilball_2025_26_source_audit.py",  # public-source coverage QA; private-only results and no coordinates in public artifacts
