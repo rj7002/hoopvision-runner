@@ -96,9 +96,14 @@ jobs:
           python3 -m py_compile gamepulse/fusion/igp_full121_nov04_masked_tracking_qa_20261106.py
           path="gamepulse/fusion/qa/igp_progress_20261030/full121_nov04_masked_source_proxy_20261106.json"
           python3 gamepulse/fusion/igp_full121_nov04_masked_tracking_qa_20261106.py --root . --out "$path"
+          ball_path="gamepulse/fusion/qa/igp_progress_20261030/full121_nov04_ball3d_doublemask_20261106.json"
+          python3 -m py_compile gamepulse/fusion/igp_full121_nov04_ball3d_doublemask_v1.py
+          python3 gamepulse/fusion/igp_full121_nov04_ball3d_doublemask_v1.py --root . --out "$ball_path"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f "$path"
+          git add -f "gamepulse/fusion/qa/igp_progress_20261030/full121_nov04_masked_source_proxy_v2_20261106.json"
+          git add -f "$ball_path"
           git diff --cached --check
           if git diff --cached --quiet; then
             echo FULL121_MASKED_TRACKING_QA_ALREADY_VERIFIED
@@ -118,6 +123,7 @@ jobs:
 
 
   reacquire-nov04-companion-source:
+    if: ${{ !contains(github.event.head_commit.message, 'qa(igp): run paired Full121 source-mask player ball evidence') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 65
     strategy:
