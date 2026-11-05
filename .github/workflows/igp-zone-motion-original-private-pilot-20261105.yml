@@ -1,4 +1,5 @@
 name: IGP Zone Defense source-temporal research pilot
+# Private QA now includes native axis distribution to verify physical court origin.
 'on':
   push:
     branches: [research/igp-zone-motion-pilot-20261105]
