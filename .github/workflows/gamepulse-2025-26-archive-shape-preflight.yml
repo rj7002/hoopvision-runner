@@ -110,5 +110,21 @@ jobs:
                           md=row.get("metadata")
                           per_event_metadata[event]=sorted(md.keys()) if isinstance(md,dict) else []
               print("HISTORICAL_EVENT_CENSUS",name,json.dumps({"counts":dict(counts.most_common()),"metadata_keys":per_event_metadata},sort_keys=True))
+          # No original player XYZ or individual identity values leave the private runtime.
+          with zipfile.ZipFile(p) as z:
+              m=next(m for m in d["games"][game]["members"] if m["path"].endswith("/tracking.jsonl.gz"))
+              with gzip.GzipFile(fileobj=io.BytesIO(z.read(m["path"]))) as fp:
+                  samples=[json.loads(line) for _,line in zip(range(300),fp) if line.strip()]
+              f=next((x for x in samples if x.get("home_players") or x.get("away_players")),None)
+              assert f is not None
+              print("HISTORICAL_TRACKING_SCHEMA_PLAYER", json.dumps({
+                  "home_array_type":type(f.get("home_players")).__name__,
+                  "home_item_type":type((f.get("home_players") or [{}])[0]).__name__,
+                  "home_item_keys":sorted((f.get("home_players") or [{}])[0].keys()) if isinstance((f.get("home_players") or [{}])[0],dict) else [],
+                  "away_item_keys":sorted((f.get("away_players") or [{}])[0].keys()) if isinstance((f.get("away_players") or [{}])[0],dict) else [],
+                  "ball_keys":sorted(f["ball"].keys()) if isinstance(f.get("ball"),dict) else [],
+                  "source_units":f.get("units"),
+                  "on_court_keys":sorted((f.get("on_court") or {}).keys())
+              },sort_keys=True))
           print("HISTORICAL_ONE_GAME_MEMBER_SHA_PASS")
           PY
