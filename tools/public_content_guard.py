@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-2025-26-full666-official-pbp-cdn-probe.yml",  # verify official NBA 2025-26 PBP event IDs/possession-field access; aggregate-only safe public diagnostics
     ".github/workflows/igp-2025-26-full666-pbp-possession-index.yml",  # protected 666 original PBP action/native time/actor index with provisional logical chains, no coordinates public
     ".github/workflows/igp-2025-26-full107-clock88-readback.yml",  # read only private 666game clock QA, publish non-coordinate game IDs and coverage under source verified methods
     ".github/workflows/igp-2025-26-full107-origin-replay-88-census.yml",  # direct SHA-pinned public origin ZIP and private Full107 git engine; source-free public QA only
