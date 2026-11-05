@@ -1,26 +1,28 @@
-# Executes only the private source-controlled NBA zone team collector.
-# Raw NBA aggregate data and response checksums remain in private repository.
-name: IGP Zone Defense private source-grade ingestion
+# Research-only full source-graded season refresh; no per-game zone labels.
+name: IGP Zone Defense continuous refresh research
 'on':
   push:
     branches: [research/inside-game-zone-api-discovery-20261105]
     paths: ['.github/workflows/nba-zone-defense-private-ingest-20261105.yml']
 permissions: {contents: read}
+concurrency:
+  group: igp-zone-research-refresh
+  cancel-in-progress: false
 jobs:
-  ingest:
-    runs-on: ubuntu-latest
-    timeout-minutes: 12
+  refresh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      BRANCH: research/igp-zone-defense-official-api-ingest-20261105
-      PINNED_SHA: eab65349fb633a2d809c56d248b119422d7062a8
+      BRANCH: research/igp-zone-continuous-season-refresh-20261105
+      PINNED_SHA: ed59cf4c5f061abd75bd093ba4df38414f785258
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: Checkout pinned private source
-        shell: bash
+      - name: Pin source and validate access
         run: |
           set -euo pipefail
+          python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
           gh auth setup-git
           git clone -q --filter=blob:none --depth=1 -b "$BRANCH" \
@@ -28,113 +30,55 @@ jobs:
           git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PINNED_SHA"
           git -C "$RUNNER_TEMP/private" checkout -q --detach "$PINNED_SHA"
           test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PINNED_SHA"
-          echo PRIVATE_SOURCE_PIN_VERIFIED
-      - name: Execute synthetic strict JSON QA
-        shell: bash
+          echo ZONE_REFRESH_PRIVATE_SHA_PIN_PASSED
+      - name: Run original-source source-free regression tests
         run: |
+          set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_nba_zone_defense_official_ingest_v1.py' -v
-          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_full107_zone_team_v1.py' -v
-      - name: Ingest two additional NBA postseason surfaces plus Play-In probe
-        shell: bash
-        timeout-minutes: 5
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_zone_season_refresh_v1.py'
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_full107_zone_team_v1.py'
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_nba_zone_defense_official_ingest_v1.py'
+      - name: Refresh season-to-date NBA zone source only when changed
         run: |
+          set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          set +e
-          python3 gamepulse/fusion/nba_zone_defense_official_ingest_v1.py \
-            --seasons 2025-26 \
-            --season-types 'Playoffs' 'PlayIn' \
-            --sides defense offense --timeout 9 \
-            --out gamepulse/fusion/qa/nba_zone_official_20261105/postseason
-          result=$?
-          set -e
-          echo "INGEST_EXIT=$result" >> "$GITHUB_ENV"
+          python3 gamepulse/fusion/igp_zone_season_refresh_v1.py \
+            --receipt gamepulse/fusion/qa/igp_full107_official_zone_v1/season_refresh_status.json
           python3 - <<'PY'
           import json
           from pathlib import Path
-          p=Path("gamepulse/fusion/qa/nba_zone_official_20261105/postseason/ingest_status.json")
+          p=Path('gamepulse/fusion/qa/igp_full107_official_zone_v1/season_refresh_status.json')
           d=json.loads(p.read_text())
-          success=sum(x['status']=='ingested' for x in d['attempts'])
-          print('OFFICIAL_NBA_ZONE_CAPTURED_SNAPSHOT_COUNT',success)
-          print('OFFICIAL_NBA_ZONE_ATTEMPT_COUNT',len(d['attempts']))
+          assert d['status'] in ('unchanged','refreshed')
+          assert d['official_nba_games_in_snapshot']>=107
+          assert d['physical_zone_possession_labels']=='NOT_AVAILABLE'
+          print('OFFICIAL_ZONE_REFRESH_ACCEPTED',d['status'],
+                'OFFICIAL_GAME_COUNT',d['official_nba_games_in_snapshot'],
+                'IGP_INDEXED',d['igp_indexed_games'],
+                'GRAIN',d['source_vs_igp'])
           PY
-      - name: Materialize and independently validate Full107 NBA zone tables
-        shell: bash
+      - name: Preserve accepted source snapshots and materialized SQLite privately
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          python3 gamepulse/fusion/igp_zone_team_sidecar_v1.py \
-            --root gamepulse/fusion/qa/nba_zone_official_20261105 \
-            --db gamepulse/fusion/materialized/igp_full107_official_zone_v1/nba_official_zone_team.sqlite \
-            --csv gamepulse/fusion/materialized/igp_full107_official_zone_v1/nba_official_zone_team.csv \
-            --qa gamepulse/fusion/qa/igp_full107_official_zone_v1/release_receipt.json
-          python3 - <<'PY'
-          import json,sqlite3,hashlib
-          from pathlib import Path
-          p=Path("gamepulse/fusion/qa/igp_full107_official_zone_v1/release_receipt.json")
-          q=json.loads(p.read_text())
-          cohort=json.loads(Path("gamepulse/fusion/qa/igp_fullx/LATEST.json").read_text())
-          assert cohort["cohort_name"]=="FULL107" and cohort["indexed_nba_PBP_games"]==107
-          assert q["snapshot_count"]==8 and q["team_rows"]==168
-          counts={(r["season"],r["season_type"],r["side"]):r["team_rows"] for r in q["snapshot_receipts"]}
-          expected={(s,t,side):n for s,t,n in [("2026-27","Regular Season",30),("2025-26","Regular Season",30),("2025-26","Playoffs",16),("2025-26","PlayIn",8)] for side in ["offense","defense"]}
-          assert counts==expected
-          assert len(q["cross_side_reconciliation"])==4
-          assert all(z["all_equal"] for z in q["cross_side_reconciliation"])
-          x=q["league_per_side"]["2026-27|Regular Season|defense"]
-          assert (x["poss"],x["zone_poss"],x["zone_pts"],x["gp_sum"])==(19849,409,341,214)
-          assert all(not x["warnings"] for x in q["league_per_side"].values())
-          db="gamepulse/fusion/materialized/igp_full107_official_zone_v1/nba_official_zone_team.sqlite"
-          with sqlite3.connect(db) as c:
-            assert c.execute("PRAGMA integrity_check").fetchone()[0]=="ok"
-            assert c.execute("SELECT COUNT(*) FROM zone_team_stats").fetchone()[0]==168
-            assert c.execute("SELECT COUNT(*) FROM zone_snapshot_receipts").fetchone()[0]==8
-            assert len(c.execute("PRAGMA table_info(zone_team_stats)").fetchall())>=50
-            assert c.execute("SELECT POSS_ZONE,POSS_ZONE_PTS FROM zone_team_stats WHERE season='2026-27' AND side='offense' AND TEAM_ABBREVIATION='HOU'").fetchone()==(20,13)
-          print("FULL107_ZONE_8_SNAPSHOTS_168_ROWS_107_GAMES_214_TEAM_GAMES_PASS")
-          PY
-          python3 gamepulse/fusion/query_igp_full107_zone_team_v1.py --kind status > "$RUNNER_TEMP/zone-status.json"
-          python3 gamepulse/fusion/query_igp_full107_zone_team_v1.py --team HOU --side offense --limit 1 > "$RUNNER_TEMP/zone-team.json"
-          python3 - <<'PY'
-          import json,os
-          from pathlib import Path
-          p=Path(os.environ["RUNNER_TEMP"])
-          a=json.loads((p/"zone-status.json").read_text())
-          b=json.loads((p/"zone-team.json").read_text())
-          assert (a["canonical_full107_game_count"],a["team_rows"],a["physical_possession_classification_joined"])==(107,168,False)
-          assert b["record_count"]==1 and b["rows"][0]["POSS_ZONE"]==20
-          print("FULL107_ZONE_QUERY_AND_REGISTRY_ROUTING_PASS")
-          PY
-      - name: Commit original responses and evidence privately
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/private"
-          source_root=gamepulse/fusion/qa/nba_zone_official_20261105
-          test -f "$source_root/postseason/ingest_status.json"
-          # Checkout latest research branch; all generated files remain untracked.
           git fetch -q origin "$BRANCH"
-          git checkout -q -B igp-zone-evidence "origin/$BRANCH"
-          git add -f "$source_root" gamepulse/fusion/materialized/igp_full107_official_zone_v1 gamepulse/fusion/qa/igp_full107_official_zone_v1
-          git diff --cached --check >/dev/null 2>&1 || { echo "PRIVATE_EXPORT_FORMAT_QA_FAILED"; exit 18; }
+          git checkout -q -B accepted-refreshed "origin/$BRANCH"
+          git add -f gamepulse/fusion/qa/nba_zone_official_20261105 \
+            gamepulse/fusion/qa/igp_full107_official_zone_v1 \
+            gamepulse/fusion/materialized/igp_full107_official_zone_v1 \
+            gamepulse/fusion/qa/igp_fullx/LATEST.json
+          git -c core.whitespace=cr-at-eol diff --cached --check > /dev/null
+          if git diff --cached --quiet; then echo ZONE_UNCHANGED_NO_PRIVATE_REWRITE; exit 0; fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -q -m "qa(igp): retain NBA zone team official response or exact access-status evidence"
-          for attempt in 1 2 3 4 5; do
+          git commit -q -m 'data(igp): refresh source-graded NBA zone season snapshots after finals'
+          for n in 1 2 3 4 5; do
             git fetch -q origin "$BRANCH"
             git rebase -q "origin/$BRANCH"
             if git push -q origin "HEAD:refs/heads/$BRANCH"; then
-              echo PRIVATE_ZONE_EVIDENCE_COMMITTED
+              echo NBA_ZONE_SEASON_REFRESH_PRIVATE_COMMITTED
               exit 0
             fi
-            sleep "$attempt"
+            sleep "$n"
           done
           exit 42
-      - name: Gate unverified data acquisitions
-        shell: bash
-        run: |
-          if [ "${INGEST_EXIT}" != '0' ]; then
-            echo "NO VERIFIED NBA ZONE AGGREGATE JSON INGESTED; SEE PRIVATE STATUS LEDGER"
-            exit 20
-          fi
-          echo VERIFIED_ZONE_JSON_SNAPSHOT_ACQUIRED
