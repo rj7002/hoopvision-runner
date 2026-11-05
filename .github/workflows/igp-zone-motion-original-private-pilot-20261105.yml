@@ -59,7 +59,7 @@ jobs:
             if 'candidate_counts' in g:q.update(g['candidate_counts'])
           assert data['no_independently_video_adjudicated_labels'] is True
           print('IGP_NBA_ZONE_NATIVE_REAL_GAMES',data['games_source_scored'])
-          print('IGP_NBA_ZONE_UNADJUDICATED_CANDIDATE_LOGICAL_CHAINS',data['games'])
+          print('IGP_NBA_ZONE_UNADJUDICATED_CANDIDATE_LOGICAL_CHAINS',sum(g.get('all_candidate_count',0) for g in games.values()))
           print('IGP_NBA_ZONE_CONSERVATIVE_CANDIDATE_COUNTS',dict(q))
           print('IGP_NBA_ZONE_NO_GROUND_TRUTH_LABELS_INFERRED')
           PY
