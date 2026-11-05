@@ -1,5 +1,5 @@
 # Source-first NBA player-gap diagnostics; do not export licensed XYZ.
-# Guard-reviewed exact workflow path; rerun with allowlist acceptance.
+# Guard-reviewed exact workflow path; rerun with source-metric-only immutable QA reconciliation.
 name: IGP Full121 six-game player source-gap diagnostic
 on:
   push:
