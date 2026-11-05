@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
-      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -20,6 +20,6 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
-          gh run cancel 41978606456 --repo timeedmonds-maker/hoopvision-runner || true
+          gh run cancel 41978606456 --repo timeedmonds-maker/hoopvision-runner
           gh api repos/timeedmonds-maker/hoopvision-runner/actions/runs/41978606456 --jq '{status: .status, conclusion: .conclusion, name: .name}'
           echo LEGACY_HISTORICAL_RUN_CANCELLATION_REQUESTED
