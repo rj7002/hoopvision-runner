@@ -1,0 +1,95 @@
+name: NBA Zone Defense post-season recovery and private SQLite sidecar
+'on':
+  push:
+    branches: [research/inside-game-zone-api-discovery-20261105]
+    paths: ['.github/workflows/nba-zone-defense-sidecar-recovery-20261105.yml']
+permissions: {contents: read}
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/igp-zone-defense-official-api-ingest-20261105
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Clone protected NBA source branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 -b "$BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          echo "PRIVATE_SOURCE_SHA=$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "PRIVATE_SOURCE_READ_VERIFIED"
+      - name: Run ingest and sidecar source-free regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_nba_zone_defense_official_ingest_v1.py' -v
+          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_zone_team_sidecar_v1.py' -v
+      - name: Recover missing 2025-26 NBA playoff and play-in subsets
+        shell: bash
+        timeout-minutes: 6
+        run: |
+          cd "$RUNNER_TEMP/private"
+          python3 gamepulse/fusion/nba_zone_defense_official_ingest_v1.py \
+            --seasons 2025-26 --season-types Playoffs PlayIn \
+            --sides defense offense --timeout 12 \
+            --out gamepulse/fusion/qa/nba_zone_official_20261105/postseason || :
+          echo "TARGETED_ZONE_REACQUISITION_EXECUTED"
+      - name: Build source-graded SQLite and full-field CSV from all successful NBA snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 gamepulse/fusion/igp_zone_team_sidecar_v1.py \
+            --root gamepulse/fusion/qa/nba_zone_official_20261105 \
+            --db gamepulse/fusion/materialized/igp_zone_official_20261105/nba_official_zone_team.sqlite \
+            --qa gamepulse/fusion/qa/nba_zone_official_20261105/nba_zone_sidecar_qa.json \
+            --csv gamepulse/fusion/materialized/igp_zone_official_20261105/nba_official_zone_teams_all.csv
+          python3 - <<'PY'
+          import json, sqlite3
+          from pathlib import Path
+          p=Path("gamepulse/fusion/qa/nba_zone_official_20261105/nba_zone_sidecar_qa.json")
+          qa=json.loads(p.read_text())
+          with sqlite3.connect("gamepulse/fusion/materialized/igp_zone_official_20261105/nba_official_zone_team.sqlite") as db:
+            assert db.execute("PRAGMA integrity_check").fetchone()[0]=="ok"
+            assert db.execute("SELECT COUNT(*) FROM zone_team_stats").fetchone()[0]==qa["team_rows"]
+          print("NBA_ZONE_SIDECAR_SNAPSHOTS",qa["snapshot_count"])
+          print("NBA_ZONE_SIDECAR_ROWS",qa["team_rows"])
+          print("NBA_ZONE_SIDECAR_CROSS_SIDE",json.dumps(qa["cross_side_reconciliation"],sort_keys=True))
+          PY
+      - name: Commit original received NBA payloads, SQLite and QA privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git fetch -q origin "$BRANCH"
+          git checkout -q -B zone-sidecar "origin/$BRANCH"
+          git add -f gamepulse/fusion/qa/nba_zone_official_20261105/ \
+            gamepulse/fusion/materialized/igp_zone_official_20261105/
+          git diff --cached --check >/dev/null 2>&1 || {
+            echo "PRIVATE_ZONE_DIFF_WHITESPACE_QA_FAILED"
+            exit 17
+          }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --cached --quiet; then
+            echo "PRIVATE_ZONE_SIDECAR_ALREADY_PRESENT"
+            exit 0
+          fi
+          git commit -q -m 'data(igp): preserve NBA zone JSON and materialize SHA-audited zone team sidecar'
+          for attempt in 1 2 3 4 5; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo "PRIVATE_NBA_ZONE_SIDECAR_COMMITTED"
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 42
