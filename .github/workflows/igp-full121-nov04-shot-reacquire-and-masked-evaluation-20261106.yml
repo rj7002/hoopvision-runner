@@ -22,10 +22,10 @@ jobs:
           - {gid: '0022600175', tipoff: '2026-11-05T00:30:00Z'}
           - {gid: '0022600179', tipoff: '2026-11-05T01:00:00Z'}
     env:
-      GH_TOKEN: \${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
-      NBA_GAME_ID: \${{ matrix.gid }}
-      NBA_TIPOFF_UTC: \${{ matrix.tipoff }}
+      NBA_GAME_ID: ${{ matrix.gid }}
+      NBA_TIPOFF_UTC: ${{ matrix.tipoff }}
       IGP_PRIVATE_CAPTURE_DIR: /tmp/full121-companion-reobserve
       IGP_SDK_INIT_TIMEOUT_MS: '26000'
     steps:
@@ -94,7 +94,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
-      GH_TOKEN: \${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
     steps:
       - uses: actions/checkout@v4
