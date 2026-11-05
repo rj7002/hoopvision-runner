@@ -39,7 +39,7 @@ def digest(path: pathlib.Path) -> str:
     return h.hexdigest()
 
 
-def shooter_manifest(archive: zipfile.ZipFile, game: dict) -> tuple[dict[str, int], int]:
+def shooter_manifest(archive: zipfile.ZipFile, game: dict) -> tuple[dict[str, int], int, set[tuple[int, str]]]:
     member = next((m for m in game["members"] if m["path"].endswith("/stats.jsonl.gz")), None)
     if member is None:
         raise ValueError("STATS_SOURCE_MISSING")
@@ -49,6 +49,7 @@ def shooter_manifest(archive: zipfile.ZipFile, game: dict) -> tuple[dict[str, in
         raise ValueError("STATS_MEMBER_SHA_MISMATCH")
     fga: dict[str, int] = {}
     pbp = 0
+    pbp_keys: set[tuple[int, str]] = set()
     with gzip.GzipFile(fileobj=io.BytesIO(blob)) as stream:
         for line in stream:
             if not line.strip():
@@ -57,6 +58,11 @@ def shooter_manifest(archive: zipfile.ZipFile, game: dict) -> tuple[dict[str, in
             event = str(row.get("event") or "")
             if event == "PlayByPlay#show":
                 pbp += 1
+                md = row.get("metadata") or {}
+                action = md.get("id")
+                actor = md.get("personId")
+                if str(action or "").isdigit() and str(actor or "").isdigit():
+                    pbp_keys.add((int(action), str(actor)))
             if not event.startswith("PlayerStats") or not event.endswith("#show"):
                 continue
             md = row.get("metadata") or {}
@@ -71,7 +77,7 @@ def shooter_manifest(archive: zipfile.ZipFile, game: dict) -> tuple[dict[str, in
                 fga[str(pid)] = count
     if not fga or not pbp:
         raise ValueError("ARCHIVE_SHOOTER_MANIFEST_EMPTY")
-    return {p: n for p, n in fga.items() if n > 0}, pbp
+    return {p: n for p, n in fga.items() if n > 0}, pbp, pbp_keys
 
 
 def fetch_pair(gid: str, pid: str, attempts: int = 5) -> tuple[str, str, dict | None, str | None]:
@@ -113,11 +119,13 @@ def run(index_path: pathlib.Path, shard_path: pathlib.Path, out: pathlib.Path,
     if not gids:
         raise ValueError("NO_TRACKING_GAMES_IN_SHARD")
     pergame: dict[str, dict] = {}
+    pbp_identity: dict[str, set[tuple[int, str]]] = {}
     with zipfile.ZipFile(shard_path) as archive:
         for gid in gids:
-            players, pbp = shooter_manifest(archive, index["games"][gid])
+            players, pbp, keys = shooter_manifest(archive, index["games"][gid])
             pergame[gid] = {"archived_pbp_events": pbp, "manifest_player_fga": players,
                             "tracking_rows": index["games"][gid]["tracking"]["rows"]}
+            pbp_identity[gid] = keys
     pairs = [(g, p) for g in gids for p in sorted(pergame[g]["manifest_player_fga"], key=int)]
     result: list[tuple[str, str, dict | None, str | None]] = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
@@ -152,6 +160,10 @@ def run(index_path: pathlib.Path, shard_path: pathlib.Path, out: pathlib.Path,
             if key in observed_keys:
                 raise ValueError("PUBLIC_SHOT_EVENT_DUPLICATE")
             observed_keys.add(key)
+            if (int(event), pid) in pbp_identity[gid]:
+                counts["exact_archived_pbp_actor_action"] += 1
+                pergame[gid].setdefault("exact_archived_pbp_actor_action", 0)
+                pergame[gid]["exact_archived_pbp_actor_action"] += 1
             quality = shot.get("shotQuality")
             try:
                 q = float(quality)
@@ -195,5 +207,6 @@ if __name__ == "__main__":
     print("IGP_HISTORICAL_XFG_SOURCE_SHARD", json.dumps({"games": qa["games"],
           "requests": qa["player_game_requests"], "successful": qa["counts"].get("successful_player_games", 0),
           "shot_rows": qa["counts"].get("public_shot_rows", 0),
+          "exact_archived_pbp_actor_action": qa["counts"].get("exact_archived_pbp_actor_action", 0),
           "nonnull_xfg": qa["counts"].get("nonnull_xfg", 0),
           "failures": len(qa["failed_player_games"])}, sort_keys=True))
