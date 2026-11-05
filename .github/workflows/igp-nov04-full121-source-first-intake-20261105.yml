@@ -1,3 +1,4 @@
+# Reviewed and public-guard allowlisted on 2026-11-05; private-only source output.
 name: IGP Nov04 Full121 source-first official intake and staged QA
 on:
   push:
