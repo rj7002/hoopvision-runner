@@ -1,5 +1,8 @@
 name: IGP 2025-26 historical defender XYZ full-archive private materialization
 'on':
+  push:
+    branches: [main]
+    paths: [.github/workflows/igp-2025-26-defender-xyz-full.yml]
   workflow_dispatch:
   workflow_run:
     workflows: ['IGP 2025-26 missing historical xFG shards source recovery']
