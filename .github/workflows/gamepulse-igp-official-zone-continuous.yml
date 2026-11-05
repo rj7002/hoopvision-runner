@@ -44,6 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
+          export PYTHONPATH="$PWD/gamepulse/fusion:$PWD"
           python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_zone_season_refresh_v1.py'
           python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_full107_zone_team_v1.py'
           python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_nba_zone_defense_official_ingest_v1.py'
