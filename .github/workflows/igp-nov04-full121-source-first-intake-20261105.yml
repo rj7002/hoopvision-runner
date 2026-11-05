@@ -95,6 +95,7 @@ jobs:
           git add -f gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/nba_logical_chains
           git add -f gamepulse/fusion/qa/igp_progress_20261030/igp_autonomous_season_index_status.json
           git add -f gamepulse/fusion/qa/igp_progress_20261030/igp_nov04_full121_staged_source_first_qa_v1.json
+          git add -u
           git diff --cached --check
           if git diff --cached --quiet; then echo IGP_NOV04_FULL121_ALREADY_INDEXED; exit 0; fi
           git commit -q -m 'data(igp): original NBA Nov04 14-game Full121 staged source-first intake'
