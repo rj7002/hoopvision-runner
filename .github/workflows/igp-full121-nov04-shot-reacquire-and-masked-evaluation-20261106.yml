@@ -39,6 +39,12 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
+          export NBA_GAME_ID="$(python3 -c 'import os;print(os.environ["NBA_GAME_ID"].lstrip(chr(92)))')"
+          export NBA_TIPOFF_UTC="$(python3 -c 'import os;print(os.environ["NBA_TIPOFF_UTC"].lstrip(chr(92)))')"
+          export GH_TOKEN="$(python3 -c 'import os;print(os.environ["GH_TOKEN"].lstrip(chr(92)))')"
+          test "$(printf '%s' "$NBA_GAME_ID" | wc -c)" -eq 10
+          printf 'NBA_GAME_ID=%s\nNBA_TIPOFF_UTC=%s\nGH_TOKEN=%s\n' "$NBA_GAME_ID" "$NBA_TIPOFF_UTC" "$GH_TOKEN" >> "$GITHUB_ENV"
+
           npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
           (cd tools/licensed_feed && npm install --ignore-scripts --no-audit --no-fund --silent)
           mkdir -p "$IGP_PRIVATE_CAPTURE_DIR"
@@ -105,6 +111,7 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
+          export GH_TOKEN="$(python3 -c 'import os;print(os.environ["GH_TOKEN"].lstrip(chr(92)))')"
           gh auth setup-git
           git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
