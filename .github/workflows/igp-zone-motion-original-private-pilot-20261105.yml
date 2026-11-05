@@ -40,6 +40,7 @@ jobs:
             -p 'test_igp_zone_motion_detector_v1.py'
           python3 -m unittest discover -v -s gamepulse/fusion/tests \
             -p 'test_igp_zone_multi_defender_handoff_v2.py'
+          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_zone_shot_direction_v1.py'
           echo IGP_ZONE_GEOMETRY_REGRESSIONS_PASS
       - name: Execute first native Full107 held-out source pilot on CPU
         shell: bash
@@ -48,9 +49,9 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH="$PWD:$PWD/gamepulse/fusion"
-          OUTPUT=gamepulse/fusion/qa/igp_zone_motion_research_v1/frozen10_original_source_pilot.json
+          OUTPUT=gamepulse/fusion/qa/igp_zone_motion_research_v1/shot_settled_fivegame_pilot.json
           python3 gamepulse/fusion/igp_full107_zone_motion_original_pilot_v1.py \
-            --full107 --start-index 0 --end-index 10 \
+            --shot-direction-gated --games 0022600109 0022600146 0022600124 0022600157 0022600009 \
             --out "$OUTPUT" > "$RUNNER_TEMP/zone-private-details.log"
           python3 - "$OUTPUT" <<'PY'
           import json,sys
@@ -61,7 +62,11 @@ jobs:
           from collections import Counter
           err=Counter(g.get('reason','OK') for g in games.values())
           print('IGP_ZONE_PILOT_SOURCE_ERROR_CLASSES',dict(err))
-          if data['games_source_scored']<5:print('IGP_ZONE_RESEARCH_INCOMPLETE_RETAIN_QA_NOT_PROMOTED')
+          assert data['games_source_scored']==5
+          directions=sum(g.get('shot_direction_reconciliation',{}).get('qualified_period_team_directions',0)
+                         for g in games.values())
+          print('NBA_ZONE_VERIFIED_ATTACK_BASKET_PERIOD_TEAM_DIRECTIONS',directions)
+          if directions<12:raise SystemExit('SOURCE_SHOT_BASKET_SIDE_UNDERPOWERED')
           from collections import Counter
           q=Counter();v2=Counter()
           for g in games.values():
@@ -82,7 +87,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/qa/igp_zone_motion_research_v1/frozen10_original_source_pilot.json
+          git add -f gamepulse/fusion/qa/igp_zone_motion_research_v1/shot_settled_fivegame_pilot.json
           git diff --cached --check
           git commit -q -m 'qa(igp): source-reconciled first temporal zone-v-man pilot; exploratory only'
           for n in 1 2 3 4 5; do
