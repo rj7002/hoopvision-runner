@@ -34,6 +34,10 @@ jobs:
         run: |
           set -euo pipefail
           python3 tools/public_content_guard.py
+
+          export NBA_GAME_ID="$(python3 -c 'import os;print(os.environ["NBA_GAME_ID"].lstrip(chr(92)))')"
+          export NBA_TIPOFF_UTC="$(python3 -c 'import os;print(os.environ["NBA_TIPOFF_UTC"].lstrip(chr(92)))')"
+          test "$(printf '%s' "$NBA_GAME_ID" | wc -c)" -eq 10
           npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
           (cd tools/licensed_feed && npm install --ignore-scripts --no-audit --no-fund --silent)
           mkdir -p "$IGP_PRIVATE_CAPTURE_DIR"
