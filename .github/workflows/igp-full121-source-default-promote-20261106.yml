@@ -1,4 +1,5 @@
 # Reviewed public bridge. Private original XYZ remains in 104, never in public artifacts or logs.
+# Triggered after 14/14 Nov04 original SDK SHA admissions verified in private 104 on 2026-11-06.
 name: IGP Full121 private SHA-gated default source database promotion
 on:
   push:
