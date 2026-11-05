@@ -365,3 +365,47 @@ jobs:
           print("FULL92_ROLLBACK_SOURCE_SHA_AND_QUERY_VALID",len(index['games']),
                 "FULL121_SOURCE_DEFAULT_PRESERVED",summary['indexed_games'])
           PY
+
+
+  check-full121-tracking-production-release-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Protect private original tracking and NBA event source
+        run: python3 tools/public_content_guard.py
+      - name: Run SHA-frozen Full121 independent tracking release gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion data/extensions/nba_blueprint_2026_27/games
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full121_tracking_promotion_gate_20261106.py
+          report="gamepulse/fusion/qa/igp_progress_20261030/full121_tracking_production_release_gate_v1_20261106.json"
+          python3 gamepulse/fusion/igp_full121_tracking_promotion_gate_20261106.py --root . --out "$report"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$report"
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo FULL121_TRACKING_RELEASE_GATE_QA_ALREADY_COMMITTED
+            exit 0
+          fi
+          git commit -q -m 'qa(igp): independent Full121 10Hz tracking production release gate with rollback'
+          for n in $(seq 1 16); do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo FULL121_TRACKING_RELEASE_GATE_VERDICT_PRIVATE_COMMITTED
+              exit 0
+            fi
+            sleep "$((n*2))"
+          done
+          exit 38
