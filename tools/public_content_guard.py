@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full107-client-shot-defense.yml",  # canonical Full107 private NBA Blueprint shot defense coaching product, no historical archive or raw public rows
     ".github/workflows/igp-stop-legacy-historical-job.yml",  # cancel specifically the inadvertent legacy historical job, private-only token in worker
     ".github/workflows/igp-2025-26-defender-blueprint-compare.yml",  # private exact current-year Blueprint versus original NBA XYZ held-out accuracy assessment
     ".github/workflows/igp-2025-26-reconstruction-full.yml",  # public CPU for source-preserved private 666-game historical model AB derived coordinates; public aggregate QA only
