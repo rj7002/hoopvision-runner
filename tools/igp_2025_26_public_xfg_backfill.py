@@ -148,7 +148,9 @@ def run(index_path: pathlib.Path, shard_path: pathlib.Path, out: pathlib.Path,
         entries = response["shotList"]
         reported = response.get("shots")
         if isinstance(reported, (int, float)) and reported < len(entries):
-            raise ValueError("PUBLIC_SHOTLIST_EXCEEDS_REPORTED_FGA")
+            counts["public_shotlist_exceeds_reported_fga_player_games"] += 1
+            pergame[gid].setdefault("public_shotlist_exceeds_reported_fga_player_games", 0)
+            pergame[gid]["public_shotlist_exceeds_reported_fga_player_games"] += 1
         counts["successful_player_games"] += 1
         counts["public_shot_rows"] += len(entries)
         pergame[gid].setdefault("source_player_games", 0)
