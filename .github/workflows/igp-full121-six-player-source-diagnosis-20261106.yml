@@ -132,7 +132,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
           python3 -m py_compile gamepulse/fusion/igp_full121_tracking_promotion_gate_v1.py
-          path="gamepulse/fusion/qa/igp_progress_20261030/full121_tracking_default_promotion_preflight_20261106.json"
+          path="gamepulse/fusion/qa/igp_progress_20261030/full121_tracking_default_promotion_preflight_v2_20261106.json"
           python3 gamepulse/fusion/igp_full121_tracking_promotion_gate_v1.py --root . --out "$path"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
