@@ -74,6 +74,11 @@ jobs:
           shards={s['name']:s for s in idx['shards']}
           assert len(shards)==15
           totals=Counter();seen=set();seen_shards=set()
+          # The historical engine included per-game single-native-timestamp
+          # source-masked diagnostics. Pool only additive counts, never
+          # average per-segment p95 values as if they were raw error samples.
+          p0=Counter();p0_segment_p95=[];p0_games_with_matches=0
+          scene_zero_games=0
           for f in files:
             suffix=f.name.removeprefix('full107-native-').removesuffix('-qa.json')
             srcname=suffix+'.zip'
@@ -100,6 +105,14 @@ jobs:
               assert gameqa['counts']['source_native_frames']==source_record['tracking']['rows'],('ROW_DRIFT',gid)
               assert gameqa['native_source_denominator']==source_record['tracking']['rows']
               shard_count.update(gameqa['counts'])
+              h=gameqa.get('masked_player_xy') or {}
+              for key in ('attempts','matched','over_2ft'):
+                p0[key]+=int(h.get(key,0))
+              p0_games_with_matches+=int(h.get('matched',0)>0)
+              scene_zero_games+=int(gameqa['counts'].get('native_engine_complete_ten_ball',0)==0)
+              for segment in h.get('per_segment_sample') or []:
+                if isinstance(segment,(list,tuple)) and len(segment)==3 and segment[1] is not None and segment[2]>0:
+                  p0_segment_p95.append(float(segment[1]))
             assert dict(shard_count)==dict(q['counts']),('SHARD_COUNT_CONFLICT',srcname)
             totals.update(q['counts'])
             seen.update(q['per_game'])
@@ -107,6 +120,21 @@ jobs:
           assert totals['source_native_frames']==19440900,('NATIVE_FRAME_DRIFT',totals['source_native_frames'])
           assert totals['source_direct_complete_ten_ball']+totals['native_engine_completed_incomplete_source_frames']==totals['native_engine_complete_ten_ball'],'SOURCE_MODEL_COMPLETE_COUNT_DRIFT'
           assert totals['native_engine_complete_ten_ball']<=totals['source_native_frames']
+          p0_summary={
+            'grade':'P0_WITHHELD_ORIGINAL_SOURCE_TIMESTAMP_PROXY_ONLY',
+            'physical_accuracy_certified':False,
+            'not_game_disjoint_not_interval_blackout_validated':True,
+            'upstream_original_interpolation_strata_unresolved':True,
+            'attempted_single_timestamp_player_probes':p0['attempts'],
+            'matched_player_probes':p0['matched'],
+            'abstained_player_probes':p0['attempts']-p0['matched'],
+            'matched_fraction_of_attempts':p0['matched']/p0['attempts'] if p0['attempts'] else None,
+            'matched_over_2ft':p0['over_2ft'],
+            'matched_over_2ft_fraction':p0['over_2ft']/p0['matched'] if p0['matched'] else None,
+            'games_with_at_least_one_matched_probe':p0_games_with_matches,
+            'segments_with_nonempty_error':len(p0_segment_p95),
+            'max_of_segment_p95_xy_ft_not_pooled_p95':max(p0_segment_p95) if p0_segment_p95 else None}
+          assert 0<=p0['over_2ft']<=p0['matched']<=p0['attempts']
           receipt={
             'schema':'igp.historical-full107-native-666game-run-receipt.v2',
             'status':'SOURCE_POPULATION_COMPLETE_RESEARCH_ONLY',
@@ -122,7 +150,9 @@ jobs:
             'missing_2026_27_blueprint_fields_not_inferred':True,
             'next_validation':['Independent player XY/ball 3D source-masked holdouts',
                 'official-ten lineup and shot-clock reconciliation','defender and xFG shot-source attribution'],
-            'original_full107_run':41986224953
+            'original_full107_run':41986224953,
+            'source_masked_player_xy_existing_diagnostics':p0_summary,
+            'games_with_zero_structurally_complete_native_scenes':scene_zero_games
           }
           out=root/'qa/full107-native-2025-26-all666-qa.json'
           out.write_text(json.dumps(receipt,sort_keys=True,indent=2)+'\n')
@@ -135,7 +165,9 @@ jobs:
             'filled_player_positions':totals['filled_player_positions'],
             'filled_ball_positions':totals['filled_ball_positions'],
             'coverage_fraction':receipt['full107_native_complete_fraction'],
-            'production_accepted':False},sort_keys=True))
+            'production_accepted':False,
+            'existing_source_masked_p0':p0_summary,
+            'zero_complete_source_games':scene_zero_games},sort_keys=True))
           PY
       - name: Save fixed 666-game research receipt in original private derived release
         shell: bash
