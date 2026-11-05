@@ -1,0 +1,55 @@
+# Public original SDK probe. The original event bodies never leave ephemeral runner.
+name: IGP Full121 alternate licensed companion SDK program period recovery probe
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full121-companion-positions-variant-probe-20261106.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  probe-alternate-program:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - {gid: '0022600186', tipoff: '2026-11-05T03:30:00Z'}
+          - {gid: '0022600179', tipoff: '2026-11-05T01:00:00Z'}
+          - {gid: '0022600175', tipoff: '2026-11-05T00:30:00Z'}
+    env:
+      NBA_GAME_ID: \${{ matrix.gid }}
+      NBA_TIPOFF_UTC: \${{ matrix.tipoff }}
+      IGP_SDK_SOURCE_VARIANT: positions
+      IGP_PRIVATE_CAPTURE_DIR: /tmp/igp-full121-source-variant-probe
+      IGP_SDK_INIT_TIMEOUT_MS: '22000'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Read genuine alternate authorized SDK program without private token or URL replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          (cd tools/licensed_feed && npm install --ignore-scripts --no-audit --no-fund --silent)
+          mkdir -p "$IGP_PRIVATE_CAPTURE_DIR"
+          node tools/licensed_feed/companion_original_sdk_probe.mjs > "$RUNNER_TEMP/alternate-licensed-private.log" 2>&1
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          d=json.loads((Path(os.environ['IGP_PRIVATE_CAPTURE_DIR'])/'companion_probe_receipt.json').read_bytes())
+          assert d['game_id']==os.environ['NBA_GAME_ID']
+          assert d['authentication_bypass_attempted'] is False
+          assert d['app_program_variant']=='positions'
+          print('FULL121_ALTERNATE_AUTHORIZED_SDK_PROGRAM_AGGREGATES',json.dumps({
+            'game_id':d['game_id'],'status':d['status'],
+            'full_events_response_200':d['observed_200_event_responses'],
+            'original_events':d.get('original_body_event_count',0),
+            'original_shot_details':d.get('original_body_shot_details_count',0),
+            'first_party_http':d.get('first_party_program_http_status_counts',{}),
+          },sort_keys=True))
+          PY
