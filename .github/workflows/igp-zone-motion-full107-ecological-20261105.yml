@@ -1,4 +1,4 @@
-# Research-only five-shard FULL107 replay; source and candidate evidence private.
+# Research-only five-shard FULL107 replay V3; prior V1/V2 receipts preserved.
 name: IGP Zone Defense Full107 original-source ecological validation
 'on':
   push:
@@ -51,6 +51,7 @@ jobs:
           export PYTHONPATH="$PWD:$PWD/gamepulse/fusion"
           python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_zone_motion_detector_v1.py'
           python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_zone_multi_defender_handoff_v2.py'
+          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_zone_responsibility_v3.py'
       - name: Replay SHA-original Full107 NBA player and ball source against both detectors
         shell: bash
         timeout-minutes: 22
@@ -58,7 +59,7 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH="$PWD:$PWD/gamepulse/fusion"
-          OUT="gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_${SHARD}_source_v2.json"
+          OUT="gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_${SHARD}_source_v3.json"
           python3 gamepulse/fusion/igp_full107_zone_motion_original_pilot_v1.py \
             --full107 --start-index "$START" --end-index "$END" --out "$OUT" \
             > "$RUNNER_TEMP/zone_original_private_detail.log"
@@ -66,14 +67,14 @@ jobs:
           import json,sys,collections
           d=json.load(open(sys.argv[1]))
           assert d['games_source_scored']+d['games_abstained']==len(d['games_requested'])
-          assert all('candidate_counts_v2' in v for v in d['games'].values() if not v.get('status'))
+          assert all('candidate_counts_v3' in v for v in d['games'].values() if not v.get('status'))
           total=collections.Counter()
           for g in d['games'].values():
-            total.update(g.get('candidate_counts_v2',{}))
+            total.update(g.get('candidate_counts_v3',{}))
           print('NBA_ZONE_FULL107_SOURCE_SHARD',len(d['games_requested']),
                 'GAMES_SOURCE_GRADED',d['games_source_scored'],
                 'SOURCE_ABSTAINED',d['games_abstained'],
-                'V2_CANDIDATE_COUNTS',dict(total),
+                'V3_CANDIDATE_COUNTS',dict(total),
                 'NO_OFFICIAL_PER_POSSESSION_LABELS')
           PY
       - name: Store full per-chain candidate detail exclusively in private 104
@@ -81,12 +82,12 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          target="gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_${SHARD}_source_v2.json"
+          target="gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_${SHARD}_source_v3.json"
           git add -f "$target"
           git -c core.whitespace=cr-at-eol diff --cached --check >/dev/null
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -q -m "qa(igp): source-private Full107 zone temporal independent shard $SHARD"
+          git commit -q -m "qa(igp): source-private Full107 zone temporal V3 independent shard $SHARD"
           for attempt in 1 2 3 4 5 6 7; do
             git fetch -q origin "$PRIVATE_BRANCH"
             git rebase -q "origin/$PRIVATE_BRANCH"
@@ -124,36 +125,38 @@ jobs:
           export PYTHONPATH="$PWD:$PWD/gamepulse/fusion"
           python3 gamepulse/fusion/igp_zone_motion_official_aggregate_qa_v2.py \
             --shards \
-              gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_00_22_source_v2.json \
-              gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_22_44_source_v2.json \
-              gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_44_66_source_v2.json \
-              gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_66_88_source_v2.json \
-              gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_88_107_source_v2.json \
-            --output gamepulse/fusion/qa/igp_zone_motion_research_v1/full107_official_aggregate_bound_v2.json
+              gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_00_22_source_v3.json \
+              gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_22_44_source_v3.json \
+              gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_44_66_source_v3.json \
+              gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_66_88_source_v3.json \
+              gamepulse/fusion/qa/igp_zone_motion_research_v1/shard_88_107_source_v3.json \
+            --output gamepulse/fusion/qa/igp_zone_motion_research_v1/full107_official_aggregate_bound_v3.json
           python3 - <<'PY'
           import json
           from pathlib import Path
-          p=Path('gamepulse/fusion/qa/igp_zone_motion_research_v1/full107_official_aggregate_bound_v2.json')
+          p=Path('gamepulse/fusion/qa/igp_zone_motion_research_v1/full107_official_aggregate_bound_v3.json')
           d=json.loads(p.read_text())
           assert d['source_games_evaluated']==107 and d['full_original_107_cohort_tested'] is True
           assert d['precision_unknown'] is True and d['recall_unknown'] is True
-          assert d['v2_production_accepted'] is False
+          assert d['v3_production_accepted'] is False
           print('IGP_ZONE_RESEARCH_AGGREGATE_CONSERVATION_PASS',
                 'SOURCE_SCORED_GAMES',d['source_scorable_games'],
                 'UNADJUDICATED_CHUNKS',d['assessed_logical_chains'],
                 'V1_BOUND_VIOLATIONS',len(d['teams_violating_official_season_upper_bound_v1']),
-                'V2_BOUND_VIOLATIONS',len(d['teams_violating_official_season_upper_bound_v2']))
+                'V2_BOUND_VIOLATIONS',len(d['teams_violating_official_season_upper_bound_v2']),
+                'V3_BOUND_VIOLATIONS',len(d['teams_violating_official_season_upper_bound_v3']),
+                'V3_TEAM_CORR',d['team_zone_per_game_correlation_vs_official']['v3'])
           PY
       - name: Commit NBA aggregate ecological QA privately (NOT production promotion)
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          git add -f gamepulse/fusion/qa/igp_zone_motion_research_v1/full107_official_aggregate_bound_v2.json
+          git add -f gamepulse/fusion/qa/igp_zone_motion_research_v1/full107_official_aggregate_bound_v3.json
           git -c core.whitespace=cr-at-eol diff --cached --check >/dev/null
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -q -m 'qa(igp): Full107 zone V1 vs V2 NBA team aggregate upper-bound validation research'
+          git commit -q -m 'qa(igp): Full107 zone V1/V2/V3 NBA team aggregate validation research'
           for attempt in 1 2 3 4 5 6 7; do
             git fetch -q origin "$PRIVATE_BRANCH"
             git rebase -q "origin/$PRIVATE_BRANCH"
