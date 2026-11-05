@@ -1,0 +1,85 @@
+name: IGP Zone Defense source-temporal research pilot
+'on':
+  push:
+    branches: [research/igp-zone-motion-pilot-20261105]
+    paths: ['.github/workflows/igp-zone-motion-original-private-pilot-20261105.yml','tools/public_content_guard.py']
+permissions: {contents: read}
+concurrency:
+  group: private-nba-zone-motion-pilot-20261105
+  cancel-in-progress: false
+jobs:
+  native-motion:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/igp-full107-zone-motion-v1-20261105
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Enforce reviewed public control surface and private checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          echo IGP_ZONE_PILOT_PRIVATE_SOURCE_CHECKOUT_OK
+      - name: Execute synthetic geometry, abstention and identity tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH="$PWD:$PWD/gamepulse/fusion"
+          python3 -m unittest discover -v -s gamepulse/fusion/tests \
+            -p 'test_igp_zone_motion_detector_v1.py'
+          echo IGP_ZONE_GEOMETRY_REGRESSIONS_PASS
+      - name: Execute first native Full107 held-out source pilot on CPU
+        shell: bash
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH="$PWD:$PWD/gamepulse/fusion"
+          OUTPUT=gamepulse/fusion/qa/igp_zone_motion_research_v1/four_game_source_pilot.json
+          python3 gamepulse/fusion/igp_full107_zone_motion_original_pilot_v1.py \
+            --games 0022600147 0022600148 0022600149 0022600150 \
+            --out "$OUTPUT" > "$RUNNER_TEMP/zone-private-details.log"
+          python3 - "$OUTPUT" <<'PY'
+          import json,sys
+          data=json.load(open(sys.argv[1]))
+          games=data['games']
+          if data['games_source_scored']<2:raise SystemExit('TOO_FEW_ORIGINAL_NBA_SOURCE_GAMES')
+          from collections import Counter
+          q=Counter()
+          for g in games.values():
+            if 'candidate_counts' in g:q.update(g['candidate_counts'])
+          assert data['no_independently_video_adjudicated_labels'] is True
+          print('IGP_NBA_ZONE_NATIVE_REAL_GAMES',data['games_source_scored'])
+          print('IGP_NBA_ZONE_UNADJUDICATED_CANDIDATE_LOGICAL_CHAINS',data['games'])
+          print('IGP_NBA_ZONE_CONSERVATIVE_CANDIDATE_COUNTS',dict(q))
+          print('IGP_NBA_ZONE_NO_GROUND_TRUTH_LABELS_INFERRED')
+          PY
+      - name: Commit complete source-graded candidate metrics only to private IGP
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_zone_motion_research_v1/four_game_source_pilot.json
+          git diff --cached --check
+          git commit -q -m 'qa(igp): source-reconciled first temporal zone-v-man pilot; exploratory only'
+          for n in 1 2 3 4 5; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo IGP_ZONE_ORIGINAL_PILOT_QA_PERSISTED_PRIVATE
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 42
