@@ -2,7 +2,7 @@ name: IGP 2025-26 archived source shape preflight
 on:
   push:
     branches: [main]
-    paths: [.github/workflows/gamepulse-2025-26-archive-shape-preflight.yml]
+    paths: [.github/workflows/gamepulse-2025-26-archive-shape-preflight.yml, tools/public_content_guard.py]
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
