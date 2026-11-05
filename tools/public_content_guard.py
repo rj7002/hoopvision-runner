@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-2025-26-defensive-matchup-source.yml",  # archived game IDs to public NBA defensive matchup source, private rows only
     ".github/workflows/igp-2025-26-xfg-repair-shards.yml",  # targeted public-source historical xFG source retries; no public source rows
     ".github/workflows/igp-2025-26-xfg-full-archive.yml",  # bounded public-source NBA xFG backfill, all output private 104
     "tools/igp_2025_26_public_xfg_backfill.py",  # bounded historical public NBA xFG source retrieval; private-only rows and QA
