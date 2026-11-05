@@ -115,3 +115,94 @@ jobs:
             sleep "$n"
           done
           exit 29
+
+
+  reacquire-nov04-companion-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    strategy:
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        include:
+          - {id: '0022600186', tipoff: '2026-11-05T03:35:45Z'}
+          - {id: '0022600175', tipoff: '2026-11-05T00:35:34Z'}
+          - {id: '0022600179', tipoff: '2026-11-05T01:05:26Z'}
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GAME: ${{ matrix.id }}
+      NBA_GAME_ID: ${{ matrix.id }}
+      NBA_TIPOFF_UTC: ${{ matrix.tipoff }}
+      IGP_PRIVATE_CAPTURE_DIR: /tmp/full121-source-reobserve
+      IGP_SDK_INIT_TIMEOUT_MS: '25000'
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Guard public/private boundary and install authenticated SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          cd tools/licensed_feed
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Reobserve SDK original events without bypass, preserve candidate SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$IGP_PRIVATE_CAPTURE_DIR"
+          for attempt in 1 2 3; do
+            if node tools/licensed_feed/companion_original_sdk_probe.mjs > "$RUNNER_TEMP/private-reobservation.log" 2>&1; then
+              status="$(python3 - <<'PY'
+          import os,json
+          from pathlib import Path
+          p=Path(os.environ["IGP_PRIVATE_CAPTURE_DIR"])/"companion_probe_receipt.json"
+          print(json.loads(p.read_bytes())["status"])
+          PY
+              )"
+              if test "$status" = FULL_EVENT_RESPONSE_OBSERVED; then
+                echo FULL121_AUTHENTIC_SDK_REOBSERVATION_CAPTURED "$GAME"
+                exit 0
+              fi
+              echo FULL121_SDK_REOBSERVATION_NOT_READY "$GAME" "$status"
+            else
+              echo FULL121_SDK_REOBSERVATION_RETRY "$GAME" "$attempt"
+            fi
+            sleep "$((attempt*5))"
+          done
+          exit 31
+      - name: Preserve immutable originals and commit exact-key companion recovery only
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full121_companion_reacquire_v1.py
+          python3 gamepulse/fusion/igp_full121_companion_reacquire_v1.py --root . --game-id "$GAME" \
+            --candidate "$IGP_PRIVATE_CAPTURE_DIR/companion_original_sdk_response.json" \
+            --receipt "$IGP_PRIVATE_CAPTURE_DIR/companion_probe_receipt.json"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "gamepulse/fusion/evidence/companion_sdk_original_$GAME/sdk_reobserved_20261106.json"
+          git add -f "gamepulse/fusion/evidence/companion_sdk_original_$GAME/sdk_supplemental_exact_20261106.json"
+          git add -f "gamepulse/fusion/qa/igp_progress_20261030/full121_companion_reacquisition_$GAME"*_20261106.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo FULL121_COMPANION_REOBSERVATION_ALREADY_COMMITTED; exit 0; fi
+          git commit -q -m "data(igp): exact-key SDK companion reobservation $GAME without original drift"
+          for retry in $(seq 1 15); do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo FULL121_COMPANION_REOBSERVED_PRIVATE_COMMITTED "$GAME"
+              exit 0
+            fi
+            sleep "$retry"
+          done
+          exit 28
