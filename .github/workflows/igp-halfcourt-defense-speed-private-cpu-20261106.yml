@@ -82,3 +82,5 @@ jobs:
             sleep "$retry"
           done
           exit 34
+
+# Reviewed private-only execution trigger after exact allowlist validation.
