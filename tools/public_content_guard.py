@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full123-r13-complete-123-source-replay-20261107.yml",  # private licensed NBA R13 123-game replay, metadata-only public logs
     ".github/workflows/igp-full123-r13-recover-two-private-20261107.yml",  # source-only original archive and SDK touch index for the two latest Full123 games
     ".github/workflows/igp-full123-r13-season-reduce-private-20261107.yml",  # source-graded 123-game population with explicit missingness, aggregate private only
     ".github/workflows/igp-full123-r13-companion-new-two-private-20261107.yml",  # first party licensed SDK companion and original NBA official PBP per game; private original only
