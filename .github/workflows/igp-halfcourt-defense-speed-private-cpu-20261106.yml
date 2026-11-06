@@ -35,14 +35,14 @@ jobs:
           git clone --quiet --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set scripts gamepulse/fusion/materialized/igp_all_original_xyz gamepulse/fusion/official_pbp_timing gamepulse/fusion/official_lineup_clock
           cd "$RUNNER_TEMP/private"
-          python3 -m py_compile scripts/igp_full121_halfcourt_defensive_speed_20261106.py
-          if ! python3 -B scripts/igp_full121_halfcourt_defensive_speed_20261106.py \
+          python3 -m py_compile scripts/igp_full121_halfcourt_defensive_speed_v2_20261106.py
+          if ! python3 -B scripts/igp_full121_halfcourt_defensive_speed_v2_20261106.py \
                  --max-games 4 --output "$RUNNER_TEMP/igp_speed_private_smoke.json" \
                  > "$RUNNER_TEMP/igp_speed_private_smoke.log" 2>&1; then
             echo 'PRIVATE_ANALYSIS_SMOKE_ERROR'
             exit 32
           fi
-          if ! python3 -B scripts/igp_full121_halfcourt_defensive_speed_20261106.py \
+          if ! python3 -B scripts/igp_full121_halfcourt_defensive_speed_v2_20261106.py \
                 --output "$RUNNER_TEMP/igp_speed_private_all.json" \
                 > "$RUNNER_TEMP/igp_speed_private_all.log" 2>&1; then
             echo 'PRIVATE_ANALYSIS_FULL_ERROR'
@@ -53,10 +53,10 @@ jobs:
           p=pathlib.Path(os.environ['RUNNER_TEMP'])
           a=json.loads((p/'igp_speed_private_smoke.json').read_text())
           b=json.loads((p/'igp_speed_private_all.json').read_text())
-          assert a['successful_games']>=3 and a['team_quarter'], 'SMOKE_NO_ELIGIBLE_SOURCE'
-          assert b['selected_games']==121 and b['successful_games']>=20, 'FULL121_SOURCE_FAILURES'
+          assert a['games_processed']>=3 and a['team_quarter'], 'SMOKE_NO_ELIGIBLE_SOURCE'
+          assert b['games_selected']==121 and b['games_processed']>=20, 'FULL121_SOURCE_FAILURES'
           assert len(set(x['team'] for x in b['team_quarter']))>=10, 'INSUFFICIENT_TEAM_COVERAGE'
-          assert all(x['defender_seconds']>0 for x in b['team_quarter']), 'INVALID_DENOMINATOR'
+          assert all(x['observed_defender_seconds']>0 for x in b['team_quarter']), 'INVALID_DENOMINATOR'
           print('PRIVATE_5V5_HALFCOURT_SOURCE_QA_VALID')
           PY
       - name: Commit aggregate quarter measurements to private repository only
@@ -64,7 +64,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          rel='results/igp_full121_halfcourt_defensive_speed_by_team_quarter_20261106.json'
+          rel='results/igp_full121_halfcourt_defensive_speed_v2_20261106.json'
           mkdir -p results
           cp "$RUNNER_TEMP/igp_speed_private_all.json" "$rel"
           git config user.name 'Integrated Pulse Private Research'
