@@ -46,3 +46,22 @@ jobs:
           print("FREEVIEW_PUBLIC_RUNNER_SERVICE_ACCOUNT_AUTHORIZED")
           print("NO_GPU_CHARGED_NO_JOB_STARTED")
           PY
+
+      - name: Check private Cloud Build trigger visibility without publishing identifiers
+        shell: bash
+        run: |
+          set -euo pipefail
+          # No private source files, refs, object names or trigger details enter logs.
+          if gcloud builds triggers list --project "$PROJECT_ID" --region "$REGION" --format=json > "$RUNNER_TEMP/gcp-private-build-triggers.json" 2> "$RUNNER_TEMP/gcp-private-trigger-error.txt"; then
+            python3 - <<'PY'
+          import json,os,pathlib
+          p=pathlib.Path(os.environ["RUNNER_TEMP"])/"gcp-private-build-triggers.json"
+          triggers=json.loads(p.read_text())
+          print("COURTCODER_GCP_CLOUDBUILD_TRIGGER_READ_PASS" if isinstance(triggers,list)
+                else "COURTCODER_GCP_CLOUDBUILD_TRIGGER_FORMAT_UNEXPECTED")
+          PY
+          else
+            echo COURTCODER_GCP_CLOUDBUILD_TRIGGER_READ_UNAVAILABLE
+            exit 9
+          fi
+          rm -f "$RUNNER_TEMP/gcp-private-build-triggers.json" "$RUNNER_TEMP/gcp-private-trigger-error.txt"
