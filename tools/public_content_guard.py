@@ -11,6 +11,7 @@ ALLOWED_STATIC = {
     ".github/workflows/igp-full123-r13-all-source-labels-private-20261107.yml",  # 123 private SDK 13-part SHA lastTouch label backfill sharded, no public source rows
     ".github/workflows/igp-full123-r13-fivegame-private-replay-20261107.yml",  # five source-pinned official NBA touch comparisons, results private only
     ".github/workflows/igp-full123-r13-first-native-replay-20261107.yml",  # private original native XYZ R13 frontcourt replay one game, per-event source private only
+    ".github/workflows/igp-full123-r13-season-shards-private-20261107.yml",  # private original NBA Full123 R13 source-grade sharded processing; public output only status counts
     ".github/workflows/igp-full123-r13-private-cpu-20261107.yml",  # source-free R13 private CPU; no NBA XYZ or event data in public logs
     ".github/workflows/courtcoder-coach-private-browser-20261106.yml",  # reviewed SHA-pinned private Coach synthetic JS/Chromium QA; no private logs/screenshots in public
     ".github/workflows/igp-halfcourt-defense-speed-private-cpu-20261106.yml",  # reviewed ephemeral private-only 5v5 defense speed; no licensed XYZ, private data, or results leave worker
