@@ -12,6 +12,8 @@ jobs:
     timeout-minutes: 12
     env:
       PROJECT_ID: ${{ secrets.HOOPVISION_GCP_PROJECT_ID }}
+      WIF_CONFIGURED: ${{ secrets.HOOPVISION_GCP_WIF_PROVIDER }}
+      WIF_SERVICE_CONFIGURED: ${{ secrets.HOOPVISION_GCP_SERVICE_ACCOUNT }}
       REGION: asia-southeast1
       JOB: hoopvision-blackwell-release-worker
     steps:
@@ -23,6 +25,16 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           echo GPU_READ_ONLY_PREFLIGHT_NO_EXECUTION
+          if [ -n "$WIF_CONFIGURED" ]; then
+            echo COURTCODER_WIF_PROVIDER_PRESENT
+          else
+            echo COURTCODER_WIF_PROVIDER_MISSING
+          fi
+          if [ -n "$WIF_SERVICE_CONFIGURED" ]; then
+            echo COURTCODER_WIF_SERVICE_ACCOUNT_PRESENT
+          else
+            echo COURTCODER_WIF_SERVICE_ACCOUNT_MISSING
+          fi
           test -n "$PROJECT_ID" || { echo GPU_WIF_PUBLIC_RUNNER_NOT_CONFIGURED; exit 4; }
       - name: Authenticate using existing HoopVision Google workload identity
         uses: google-github-actions/auth@v2
