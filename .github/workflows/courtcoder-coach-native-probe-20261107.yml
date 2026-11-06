@@ -17,7 +17,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PROBE_SHA: f32459fdb7719f81ebbbcd99e248fb37cfadb2fa
+      PROBE_SHA: 437022fdb9703db68ded35cf3944d41683aeb24e
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -86,4 +86,35 @@ jobs:
                   "contiguous_five_ball_max_ms":e.get("contiguous_five_ball_max_ms",0),
                   "contiguous_ten_ball_max_ms":e.get("contiguous_ten_ball_max_ms",0)},sort_keys=True))
           PY
+          # Native private pilot materialization: original SDK is never printed,
+          # uploaded to public artifacts or exposed in public runner content.
+          set +e
+          python3 "$RUNNER_TEMP/coach/courtcoder/coach/qa/build_private_event_pilot_v1.py" \
+            --source-root "$RUNNER_TEMP/native" \
+            --roster-file "$RUNNER_TEMP/coach/courtcoder/coach/game_player_directory_full121_v1.json" \
+            --out "$RUNNER_TEMP/coach-native-pilot" \
+            >"$RUNNER_TEMP/native-pilot-diagnostics-private.log" 2>&1
+          pilot_rc=$?
+          set -e
+          if [ "$pilot_rc" -ne 0 ]; then
+            echo COACH_NATIVE_PILOT_SOURCE_BUILD_FAIL
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json,os,pathlib
+          p=pathlib.Path(os.environ["RUNNER_TEMP"])/"coach-native-pilot"
+          cat=json.loads((p/"catalog.json").read_bytes())
+          qa=json.loads((p/"catalog.qa.json").read_bytes())
+          game=cat["games"]["0022600167"]
+          assert 1<=game["event_count"]<=100
+          assert qa["original_nba_sdk_sha_checked"] is True
+          assert qa["source_geometry_calibrated"] is False
+          assert qa["original_source_frames"]>=game["event_count"]*5
+          print("COACH_PILOT_PRIVATE_GENERATION_SAFE_COUNTS "+
+                json.dumps({"real_plays":game["event_count"],
+                            "native_frames":qa["original_source_frames"],
+                            "complete_ten_plus_ball_frames":qa["full_ten_plus_direct_ball_frames"]},
+                           sort_keys=True))
+          PY
+          echo COACH_PRIVATE_NATIVE_PILOT_BUILD_PASS
           echo COACH_PRIVATE_NATIVE_SOURCE_PROBE_PASS
