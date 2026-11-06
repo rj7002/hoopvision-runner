@@ -46,7 +46,7 @@ jobs:
             "refs/pull/$PRIVATE_PR/head"
           private_sha="$(git -C "$RUNNER_TEMP/private" rev-parse FETCH_HEAD)"
           git -C "$RUNNER_TEMP/private" sparse-checkout set \
-            tools/github_first hoopvision/core screen_tracker_nextgen config/experiments
+            tools/github_first tools/release hoopvision/core screen_tracker_nextgen config/experiments
           git -C "$RUNNER_TEMP/private" checkout -q --detach "$private_sha"
           test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$private_sha"
           cd "$RUNNER_TEMP/private"
@@ -55,7 +55,7 @@ jobs:
               echo PRIVATE_CPU_DEPENDENCY_INSTALL_FAILED; exit 21;
             }
           if PYTHONPATH=. python3 -m tools.github_first.courtcoder_private_cpu_suite \
-               --report "$RUNNER_TEMP/private-test-details.log" \
+               --report "$RUNNER_TEMP/private-test-details.log" --check-wheel-lock \
                > "$RUNNER_TEMP/private-test-status.log" \
                2> "$RUNNER_TEMP/private-error.log"; then
             cat "$RUNNER_TEMP/private-test-status.log"
