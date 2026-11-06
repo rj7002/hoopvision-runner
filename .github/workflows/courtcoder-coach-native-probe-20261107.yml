@@ -1,3 +1,4 @@
+# Reviewed original-source-only workflow: private repositories and PR receipts, aggregate-only public status.
 name: CourtCoder Coach private original NBA event diagnostics
 on:
   push:
