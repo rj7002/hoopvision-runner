@@ -84,24 +84,32 @@ jobs:
           print('PRIVATE_R13_ORIGINAL_GAME_SOURCE_CHECK_PASSED')
           PY
           fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add --sparse -f "$out/$GAME.json" 2>/dev/null || true
-          git add --sparse -f "$out/$GAME.diagnostic.json" 2>/dev/null || true
-          if git diff --cached --quiet; then
-            echo "PRIVATE_R13_PILOT_NO_RESULT_COMMITTED"
-            exit 33
-          fi
-          git diff --cached --check
-          git commit -q -m "qa(private): SHA-original Full123 R13 actual touch replay $GAME [skip ci]"
-          for attempt in $(seq 1 12); do
-            git fetch -q origin "$BRANCH"
-            git rebase -q "origin/$BRANCH"
-            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
-              echo "PRIVATE_R13_ORIGINAL_PILOT_RECEIPT_COMMITTED"
-              test "$status" -eq 0
-              exit $?
-            fi
-            sleep "$attempt"
-          done
-          exit 34
+          # Source-derived touch details are persisted only via authenticated private API.
+          # Do not rely on sparse Git index staging for newly generated hidden paths.
+          GAME="$GAME" REPO="$REPO" BRANCH="$BRANCH" EXIT_STATUS="$status" python3 - <<'PY'
+          import base64,json,os,subprocess,sys,time
+          from pathlib import Path
+          gid=os.environ['GAME'];repo=os.environ['REPO'];branch=os.environ['BRANCH']
+          passed=os.environ['EXIT_STATUS']=='0'
+          rel='gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/'+gid+(
+              '.json' if passed else '.diagnostic.json')
+          data=Path(rel).read_bytes()
+          payload={'branch':branch,
+                   'message':'qa(private): SHA-original Full123 R13 source replay '+gid+' [skip ci]',
+                   'content':base64.b64encode(data).decode()}
+          endpoint=f'repos/{repo}/contents/{rel}'
+          for attempt in range(12):
+              prior=subprocess.run(['gh','api',endpoint+'?ref='+branch],
+                   capture_output=True,text=True)
+              request=dict(payload)
+              if prior.returncode==0:
+                  request['sha']=json.loads(prior.stdout)['sha']
+              out=subprocess.run(['gh','api','-X','PUT',endpoint,'--input','-'],
+                   input=json.dumps(request),text=True,capture_output=True)
+              if out.returncode==0:
+                  print('PRIVATE_SHA_ORIGINAL_R13_RESULT_PERSISTED',gid,'pass',passed)
+                  sys.exit(0 if passed else 41)
+              time.sleep(attempt+1)
+          print('PRIVATE_R13_RESULT_PRIVATE_GITHUB_WRITE_FAILED')
+          sys.exit(42)
+          PY
