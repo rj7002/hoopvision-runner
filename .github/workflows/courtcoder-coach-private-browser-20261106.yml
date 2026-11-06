@@ -19,7 +19,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: feature/courtcoder-coach-web-20261106
-      PRIVATE_SHA: 9a20271661db56f57ba5cda199d9221f738f863f
+      PRIVATE_SHA: 7f8ec9ee000e81b8a9858bdc6dadba8bf17bb955
       PRIVATE_REPO: timeedmonds-maker/104
     steps:
       - uses: actions/checkout@v4
@@ -65,6 +65,9 @@ jobs:
               rc=$?
               echo "$title FAIL rc=$rc" >> "$summary"
               echo "$title FAIL_DIAGNOSTICS_PRIVATE_ONLY"
+              if [ "$title" = python_coach_source_free ]; then
+                sed -nE 's/^(FAIL|ERROR): (test_[A-Za-z0-9_]+).*/COACH_SOURCE_FREE_CASE_\\1 \\2/p' "$RUNNER_TEMP/coach-private-qa/$title.log" | head -12 || true
+              fi
               failed=1
             fi
           }
