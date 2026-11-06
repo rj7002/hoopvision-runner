@@ -19,7 +19,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: feature/courtcoder-coach-web-20261106
-      PRIVATE_SHA: 69f4f308882eda3dd8406b653ee5e8ffb9af1fdc
+      PRIVATE_SHA: 7518d22436e93f173f382b84a565b609bace533b
       PRIVATE_REPO: timeedmonds-maker/104
     steps:
       - uses: actions/checkout@v4
@@ -72,7 +72,7 @@ jobs:
             fi
           }
           check node_syntax bash -ceu 'node --check courtcoder/qa/coach_ui_visual_contract.test.cjs && node --check courtcoder/qa/coach_ui_browser_acceptance.cjs'
-          check node_15_contract_tests node --test courtcoder/qa/coach_ui_visual_contract.test.cjs
+          check node_18_contract_tests node --test courtcoder/qa/coach_ui_visual_contract.test.cjs
           if ! npm install --no-save --no-package-lock --ignore-scripts \
               --prefix "$RUNNER_TEMP/private" playwright-core@1.56.0 \
               > "$RUNNER_TEMP/coach-private-qa/browser-install.log" 2>&1; then
