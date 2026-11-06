@@ -17,7 +17,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PROBE_SHA: 84326d2a69efbfaa299b1235b7a78f1469876f3c
+      PROBE_SHA: f32459fdb7719f81ebbbcd99e248fb37cfadb2fa
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -64,7 +64,8 @@ jobs:
           import json,os,pathlib
           data=json.loads((pathlib.Path(os.environ["RUNNER_TEMP"])/"native-probe.json").read_text())
           fields=("native_window_frames","shot_event_candidates",
-                  "events_with_native_five_plus_ball","events_with_native_ten_plus_ball")
+                  "events_with_native_five_plus_ball","events_with_native_ten_plus_ball",
+                  "events_with_contiguous_five_ball_700ms","events_with_contiguous_ten_ball_700ms")
           print("COACH_ORIGINAL_NATIVE_SAFE_COUNTS "+json.dumps({k:data[k] for k in fields},sort_keys=True))
           # Coarsened whole-game coordinate envelopes, not an individual player
           # position or trajectory. Needed to choose the correct native unit scale.
@@ -81,6 +82,8 @@ jobs:
                   "frame_count":e.get("frame_count",0),
                   "full5_plus_ball_frames":e.get("full5_plus_ball_frames",0),
                   "full10_plus_ball_frames":e.get("full10_plus_ball_frames",0),
-                  "original_ball_frames":e.get("original_ball_frames",0)},sort_keys=True))
+                  "original_ball_frames":e.get("original_ball_frames",0),
+                  "contiguous_five_ball_max_ms":e.get("contiguous_five_ball_max_ms",0),
+                  "contiguous_ten_ball_max_ms":e.get("contiguous_ten_ball_max_ms",0)},sort_keys=True))
           PY
           echo COACH_PRIVATE_NATIVE_SOURCE_PROBE_PASS
