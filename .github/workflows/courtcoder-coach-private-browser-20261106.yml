@@ -115,7 +115,7 @@ jobs:
             check python_original_routes python3 -c "import sys;sys.path.insert(0,'courtcoder');from app import app;c=app.test_client();assert c.get('/api/health').status_code==200;assert c.get('/api/bootstrap').status_code==200;assert c.get('/').status_code==200;assert c.get('/coach/').status_code==404"
             check python_private_real_nba_pilot python3 -m unittest -v courtcoder.coach.qa.test_real_nba_pilot_release_v1
             check python_yaml_emulator_dependency python3 -m pip install --quiet PyYAML==6.0.2
-            if grep -q '^python_yaml_emulator_dependency PASS
+            check python_cloudbuild_native_publish_emulation python3 -m unittest -v courtcoder.coach.qa.test_cloudbuild_original_release_emulation
           fi
           # Persist synthetic screenshots only in an independent PRIVATE QA branch.
           # The public runner never uploads them as public GitHub Actions artifacts.
