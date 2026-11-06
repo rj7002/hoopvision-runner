@@ -1,4 +1,5 @@
 name: IGP hourly all games original XYZ and NBA possession source index
+# 2026-11-07 NZ: on-demand source-grade Full123 refresh after 0022600187/0022600188 original 13-part SDK archival.
 on:
   schedule:
     - cron: '43 * * * *'
