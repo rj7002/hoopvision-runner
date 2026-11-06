@@ -1,4 +1,4 @@
-# Reviewed original-source-only workflow: private repositories and PR receipts, aggregate-only public status.
+# Reviewed original-source-only workflow: private NBA pilot publication, aggregate-only public status. Git blob SHA uses a single NUL byte.
 name: CourtCoder Coach private original NBA event diagnostics
 on:
   push:
