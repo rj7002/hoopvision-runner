@@ -86,3 +86,5 @@ jobs:
             sleep "$attempt"
           done
           exit 39
+
+# Retry authorized 13-part source admission after verified GitHub API rate-limit recovery.
