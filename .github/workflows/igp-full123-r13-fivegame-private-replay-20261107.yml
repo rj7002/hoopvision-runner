@@ -54,8 +54,42 @@ jobs:
             '/gamepulse/fusion/official_pbp_timing/original_nba_20261029/*/boxscore.json' \
             '/gamepulse/fusion/evidence/companion_sdk_original_*/sdk_observed_original.json' \
             '/gamepulse/fusion/qa/r13_full123_original_labels_20261107/*.json.gz' \
+            '/gamepulse/fusion/qa/r13_full123_original_boxes_20261107/*' \
             '/gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/verified_5game/*'
           export PYTHONPATH="$work:$work/gamepulse/fusion:$work/gamepulse/fusion/analysis"
+          # Recover the old 0091 public first-party NBA box only if absent.
+          # The original 56-game index did not retain this particular box body.
+          if test "$GAME" = "0022600091"; then
+            python3 - <<'PY'
+          import hashlib,json,os,time,urllib.request
+          from pathlib import Path
+          gid=os.environ['GAME']
+          url=f'https://cdn.nba.com/static/json/liveData/boxscore/boxscore_{gid}.json'
+          dest=Path('gamepulse/fusion/qa/r13_full123_original_boxes_20261107')/(gid+'.json')
+          receipt=dest.with_suffix('.receipt.json')
+          if not (dest.is_file() and receipt.is_file()):
+            for attempt in range(5):
+              try:
+                req=urllib.request.Request(url,headers={'Accept':'application/json','User-Agent':'Mozilla/5.0 (compatible; IGP SHA source validation)','Referer':'https://www.nba.com/'})
+                with urllib.request.urlopen(req,timeout=30) as stream:
+                  raw=stream.read(3_000_001)
+                if not 200<len(raw)<=3_000_000:raise ValueError('BOX_BODY_LENGTH')
+                box=json.loads(raw)
+                if str(box['game']['gameId'])!=gid:raise ValueError('BOX_GAME_ID')
+                if not(box['game']['homeTeam']['players'] and box['game']['awayTeam']['players']):raise ValueError('BOX_EMPTY_ROSTER')
+                dest.parent.mkdir(parents=True,exist_ok=True)
+                dest.write_bytes(raw)
+                receipt.write_text(json.dumps({'game_id':gid,'nba_source_url':url,
+                    'original_nba_box_sha256':hashlib.sha256(raw).hexdigest(),
+                    'source_original_modified':False,'source':'NBA_OFFICIAL_CDN'},
+                    sort_keys=True,indent=2)+'\n')
+                break
+              except Exception:
+                if attempt==4:raise
+                time.sleep(1+attempt)
+          print('PRIVATE_OFFICIAL_NBA_BOX_SOURCE_VERIFIED')
+          PY
+          fi
           result="gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/$GAME.json"
           mkdir -p "$(dirname "$result")"
           set +e
@@ -96,6 +130,9 @@ jobs:
           git config user.name 'R13 private NBA source replay'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add --sparse -f "$result"
+          if test "$GAME" = "0022600091"; then
+            git add --sparse -f "gamepulse/fusion/qa/r13_full123_original_boxes_20261107/$GAME.json" "gamepulse/fusion/qa/r13_full123_original_boxes_20261107/$GAME.receipt.json"
+          fi
           git diff --cached --check
           git commit -qm "data(private): Full123 original R13 touch episodes $GAME [skip ci]"
           for attempt in $(seq 1 14); do
