@@ -1,5 +1,5 @@
 # SHA-original Full123 R13 pilot; private source-data and event outputs never enter public runner artifacts/logs.
-name: Full123 R13 first original-native frontcourt touch replay
+name: Full123 R13 validated Houston original-native replay extension
 on:
   push:
     branches: [feature/igp-full123-r13-public-cpu-20261107]
@@ -14,11 +14,16 @@ jobs:
   paired-original-r13:
     runs-on: ubuntu-24.04
     timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        game: ['0022600125','0022600138','0022600153']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       REPO: timeedmonds-maker/104
       BRANCH: feature/igp-full123-r13-touch-integration-20261107
-      GAME: '0022600021'
+      GAME: ${{ matrix.game }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,16 +44,16 @@ jobs:
           git sparse-checkout set --no-cone \
             '/gamepulse/fusion/*.py' \
             '/gamepulse/fusion/analysis/igp_r13_touch_stats_v2.py' \
-            '/gamepulse/fusion/qa/r13_full123_original_labels_20261107/0022600021.json.gz' \
+            '/gamepulse/fusion/qa/r13_full123_original_labels_20261107/$GAME.json.gz' \
             '/gamepulse/fusion/qa/igp_progress_20261030/igp_full121_default_source_release_v1.json' \
             '/gamepulse/fusion/qa/igp_progress_20261030/full121_original_native_sha_admission/*.json' \
             '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json' \
             '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json' \
             '/gamepulse/fusion/materialized/igp_all_original_xyz/*/index.json' \
-            '/gamepulse/fusion/materialized/igp_all_original_xyz/0022600021/**' \
-            '/gamepulse/fusion/official_pbp_timing/games/0022600021.json' \
-            '/gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600021/boxscore.json' \
-            '/gamepulse/fusion/evidence/companion_sdk_original_0022600021/sdk_observed_original.json'
+            '/gamepulse/fusion/materialized/igp_all_original_xyz/$GAME/**' \
+            '/gamepulse/fusion/official_pbp_timing/games/$GAME.json' \
+            '/gamepulse/fusion/official_pbp_timing/original_nba_20261029/$GAME/boxscore.json' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_$GAME/sdk_observed_original.json'
           export PYTHONPATH="$work:$work/gamepulse/fusion:$work/gamepulse/fusion/analysis"
           out="gamepulse/fusion/qa/r13_full123_touch_overlay_20261107"
           mkdir -p "$out"
