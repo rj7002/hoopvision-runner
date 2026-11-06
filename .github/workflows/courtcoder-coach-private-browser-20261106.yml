@@ -19,7 +19,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: feature/courtcoder-coach-web-20261106
-      PRIVATE_SHA: 0b092ea25d0d9418ab4bcd192803ae0fdf952746
+      PRIVATE_SHA: 489087bf8325691d7fa8b3df4273bd26c964ea2e
       PRIVATE_REPO: timeedmonds-maker/104
     steps:
       - uses: actions/checkout@v4
