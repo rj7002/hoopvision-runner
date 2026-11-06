@@ -1,0 +1,162 @@
+# Public CPU only; private NBA SDK, original XYZ, touch events and results remain in private 104.
+name: Full123 R13 complete private NBA-source touch replay
+on:
+  push:
+    branches: [feature/igp-full123-r13-public-cpu-20261107]
+    paths: ['.github/workflows/igp-full123-r13-complete-123-source-replay-20261107.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: full123-r13-123-private-replay-20261107
+  cancel-in-progress: false
+jobs:
+  private-source-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      REPO: timeedmonds-maker/104
+      BRANCH: feature/igp-full123-r13-touch-integration-20261107
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce public GitHub data isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Run exact R13 accounting and Full123 source-free regressions privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/r13-test-private"
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" "https://github.com/$REPO.git" "$work"
+          cd "$work"
+          git sparse-checkout set --no-cone \
+            '/gamepulse/fusion/*.py' \
+            '/gamepulse/fusion/analysis/*.py' \
+            '/gamepulse/fusion/tests/test_igp_full123_r13_touch_overlay_v1.py'
+          export PYTHONPATH="$work"
+          python3 -m py_compile \
+            gamepulse/fusion/igp_full123_r13_touch_overlay_v1.py \
+            gamepulse/fusion/analysis/igp_full123_r13_batch_sourcefirst_v1.py \
+            gamepulse/fusion/analysis/igp_full123_r13_private_persist_v1.py
+          python3 -m unittest -v \
+            gamepulse.fusion.analysis.test_igp_r13_touch_stats_v2 \
+            gamepulse.fusion.analysis.test_igp_full123_r13_touch_overlay_v1 \
+            gamepulse.fusion.tests.test_igp_full123_r13_touch_overlay_v1
+          echo FULL123_R13_PUBLIC_CPU_PRIVATE_SOURCE_FREE_TESTS_PASSED
+  replay:
+    needs: private-source-regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      REPO: timeedmonds-maker/104
+      BRANCH: feature/igp-full123-r13-touch-integration-20261107
+      SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Authenticate and enforce public metadata-only logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Clone the private original-source view for exactly this five-or-six-game shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/r13-private"
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" "https://github.com/$REPO.git" "$work"
+          cd "$work"
+          git sparse-checkout set --no-cone \
+            '/gamepulse/fusion/*.py' \
+            '/gamepulse/fusion/analysis/*.py' \
+            '/gamepulse/fusion/qa/igp_progress_20261030/igp_full121_default_source_release_v1.json' \
+            '/gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/verified_5game/*.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json' \
+            '/gamepulse/fusion/qa/igp_progress_20261107/full123_post121_source_acceptance.json'
+          export PYTHONPATH="$work"
+          python3 - <<'PY' > "$RUNNER_TEMP/r13-source-patterns"
+          import os
+          from pathlib import Path
+          from gamepulse.fusion import igp_full123_r13_touch_overlay_v1 as p
+          ids=p.original_cohort('.')
+          assert len(ids)==123 and len(set(ids))==123
+          for i,gid in enumerate(ids):
+              if i%24!=int(os.environ['SHARD']):
+                  continue
+              for item in (
+                  f'/gamepulse/fusion/materialized/igp_all_original_xyz/{gid}/**',
+                  f'/gamepulse/fusion/materialized/igp_all_original_xyz_0131_eight_part/{gid}/**',
+                  f'/gamepulse/fusion/qa/r13_full123_original_labels_20261107/{gid}.*',
+                  f'/gamepulse/fusion/qa/r13_full123_original_boxes_20261107/{gid}.*',
+                  f'/gamepulse/fusion/official_pbp_timing/games/{gid}.json',
+                  f'/gamepulse/fusion/official_pbp_timing/original_nba_*/{gid}/boxscore.json',
+                  f'/gamepulse/fusion/evidence/companion_sdk_original_{gid}/sdk_observed_original.json',
+              ):
+                  print(item)
+              if gid not in p.EXTRA:
+                  _,_,add=p.source_catalog('.')
+                  row=add['games'].get(gid)
+                  if row:
+                      for k in ('original_xyz_manifest','official_pbp_path'):
+                          if row.get(k):print('/'+str(row[k]).lstrip('/'))
+                      for path in row.get('official_pbp_original_paths',[]):
+                          print('/'+str(path).lstrip('/'))
+          PY
+          mapfile -t patterns < "$RUNNER_TEMP/r13-source-patterns"
+          git sparse-checkout add "${patterns[@]}"
+          echo FULL123_R13_PRIVATE_ORIGINAL_SOURCE_SHARD_READY "$SHARD"
+      - name: Process R13 for every assigned game and persist source-graded receipts privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/r13-private"
+          cd "$work"
+          export PYTHONPATH="$work"
+          python3 gamepulse/fusion/analysis/igp_full123_r13_private_persist_v1.py \
+            --root . --shard "$SHARD" --shards 24
+          echo FULL123_R13_PRIVATE_SHARD_COMPLETE "$SHARD"
+  assemble:
+    needs: [private-source-regression, replay]
+    if: always() && needs.private-source-regression.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      REPO: timeedmonds-maker/104
+      BRANCH: feature/igp-full123-r13-touch-integration-20261107
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use private season assembler, never public R13 source artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          work="$RUNNER_TEMP/r13-private-season"
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" "https://github.com/$REPO.git" "$work"
+          cd "$work"
+          git sparse-checkout set --no-cone \
+            '/gamepulse/fusion/*.py' \
+            '/gamepulse/fusion/analysis/*.py' \
+            '/gamepulse/fusion/qa/igp_progress_20261030/igp_full121_default_source_release_v1.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json' \
+            '/gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/002260*.json' \
+            '/gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/shards/*.json'
+          export PYTHONPATH="$work"
+          python3 gamepulse/fusion/analysis/igp_full123_r13_private_reduce_v1.py --root .
+          echo FULL123_R13_PRIVATE_SEASON_REDUCER_EXECUTED
