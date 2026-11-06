@@ -216,4 +216,5 @@ jobs:
             '/gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/shards/*.json'
           export PYTHONPATH="$work"
           python3 gamepulse/fusion/analysis/igp_full123_r13_private_reduce_v1.py --root .
-          echo FULL123_R13_PRIVATE_SEASON_REDUCER_EXECUTED
+          python3 gamepulse/fusion/analysis/igp_full123_r13_houston_nine_game_screenshot_qa_20261107.py
+          echo FULL123_R13_PRIVATE_SEASON_AND_HOUSTON9_BENCHMARK_EXECUTED
