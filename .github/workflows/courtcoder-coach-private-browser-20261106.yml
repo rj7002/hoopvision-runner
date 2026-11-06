@@ -66,7 +66,10 @@ jobs:
               echo "$title FAIL rc=$rc" >> "$summary"
               echo "$title FAIL_DIAGNOSTICS_PRIVATE_ONLY"
               if [ "$title" = node_21_contract_tests ]; then
-                awk '/^not ok [0-9]+/ {print "COACH_NODE_TEST_FAILURE " $2}' "$RUNNER_TEMP/coach-private-qa/$title.log" | head -25 || true
+                awk '/^not ok [0-9]+ - / {sub(/^not ok [0-9]+ - /,""); gsub(/[^A-Za-z0-9 _-]/,""); print "COACH_NODE_TEST_FAILURE " substr($0,1,105)}' "$RUNNER_TEMP/coach-private-qa/$title.log" | head -25 || true
+              fi
+              if [ "$title" = chromium_real_browser ]; then
+                sed -nE 's/.*AssertionError \[ERR_ASSERTION\]: (.{1,110}).*/COACH_BROWSER_ASSERTION \1/p' "$RUNNER_TEMP/coach-private-qa/$title.log" | head -3 || true
               fi
               if [ "$title" = python_coach_source_free ]; then
                 awk '/^(FAIL|ERROR): test_/ {print "COACH_SOURCE_FREE_CASE_" $2}' "$RUNNER_TEMP/coach-private-qa/$title.log" | head -12 || true
