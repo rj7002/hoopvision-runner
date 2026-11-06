@@ -1,5 +1,6 @@
 # Public CPU only; private NBA SDK, original XYZ, touch events and results remain in private 104.
 # Reviewed source-only metadata boundary; guard allowlist verified on same branch.
+# Final source admission replay: 0187/0188 official original accepted; full13 0130/0131 sidecars persisted; five prior R13 label pins rechecked.
 # Rerun: legacy 0091/0125 SHA witness and official-PBP missing-clock repair, 0130/0131 13part additive.
 name: Full123 R13 complete private NBA-source touch replay
 on:
