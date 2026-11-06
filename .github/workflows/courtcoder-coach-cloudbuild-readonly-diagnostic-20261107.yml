@@ -15,23 +15,44 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     env:
-      PROJECT_ID: project-d88c48c6-7f48-4c33-928
-      WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-104
-      CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
       - name: Enforce public repository confidentiality
         run: python3 tools/public_content_guard.py
+      - name: Resolve existing private WIF settings without public source disclosure
+        id: private_wif
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,json,os,pathlib,re,subprocess
+          raw=subprocess.run(
+             ["gh","api","repos/timeedmonds-maker/104/contents/.github/workflows/hoopvision-dev-control-plane.yml?ref=hoopvision-production"],
+             capture_output=True,text=True,check=True)
+          d=json.loads(raw.stdout)
+          private=base64.b64decode(d["content"]).decode()
+          fields={}
+          for key in ("PROJECT_ID","WIF_PROVIDER","CONTROL_SA"):
+              m=re.search(r"(?m)^  "+key+r": ([^\n]+)$",private)
+              if not m:raise SystemExit("PRIVATE_WIF_CONFIG_MISSING")
+              fields[key]=m.group(1)
+          with open(os.environ["GITHUB_OUTPUT"],"a") as out:
+              for k,v in fields.items():out.write(k.lower()+"="+v+"\n")
+          print("COACH_EXISTING_WIF_CONFIG_READ_FROM_PRIVATE_104")
+          PY
       - name: Attempt read-only existing WIF authentication
         id: google_auth
         uses: google-github-actions/auth@v2
         continue-on-error: true
         with:
-          workload_identity_provider: ${{ env.WIF_PROVIDER }}
-          service_account: ${{ env.CONTROL_SA }}
+          workload_identity_provider: ${{ steps.private_wif.outputs.wif_provider }}
+          service_account: ${{ steps.private_wif.outputs.control_sa }}
       - name: Query ONLY aggregate Cloud Build step statuses and build error classes
+        env:
+          PROJECT_ID: ${{ steps.private_wif.outputs.project_id }}
         if: steps.google_auth.outcome == 'success'
         shell: bash
         run: |
@@ -41,7 +62,7 @@ jobs:
           import google.auth
           from googleapiclient.discovery import build
           from googleapiclient.errors import HttpError
-          project="project-d88c48c6-7f48-4c33-928"
+          project=os.environ["PROJECT_ID"]
           client=build("cloudbuild","v1",cache_discovery=False)
           try:
               result=client.projects().locations().builds().list(
