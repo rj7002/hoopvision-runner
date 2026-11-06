@@ -68,6 +68,18 @@ jobs:
             exit 23
           fi
           echo R13_10HZ_DRIBBLE_SOURCE_FREE_REGRESSIONS_PASSED
+      - name: Validate live clock and same SDK token 10Hz dribble v2
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m unittest discover -s gamepulse/fusion/analysis \
+                    -p test_igp_r13_ballxyz_10hz_dribble_shadow_v2.py -v \
+                    > "$RUNNER_TEMP/r13-10hz-v2-tests.log" 2>&1; then
+            echo R13_10HZ_SOURCE_CLOCK_TOKEN_TESTS_FAILED
+            exit 25
+          fi
+          echo R13_10HZ_SOURCE_CLOCK_TOKEN_TESTS_PASSED
       - name: Sparse materialize nine original NBA SDK games in private
         shell: bash
         run: |
@@ -149,6 +161,20 @@ jobs:
           fi
           echo R13_10HZ_NINE_GAME_MODEL_COMPLETED_AND_RESULTS_PRIVATE
           echo R13_ORIGINAL_TOUCH_LEDGER_AND_SDK_SHA_SOURCE_UNCHANGED
+
+      - name: Compare stricter live-clock same-token 10Hz dribble v2 against nine-game NBA source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m gamepulse.fusion.analysis.igp_r13_ballxyz_10hz_dribble_shadow_v2 \
+                  --root . --private-persist \
+                  > "$RUNNER_TEMP/r13-10hz-v2-model.log" 2>&1; then
+            echo R13_10HZ_V2_PRIVATE_SHA_SOURCE_REPLAY_FAILED
+            exit 26
+          fi
+          echo R13_10HZ_V2_9_GAMES_COMPLETED_PRIVATE_REPORT
+          echo R13_10HZ_V1_AND_FROZEN_R13_PRESERVED
 
 # Reviewed confidentiality allowlist activation 2026-11-07; private output only.
 
