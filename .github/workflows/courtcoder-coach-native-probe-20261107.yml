@@ -17,7 +17,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PROBE_SHA: 69a09f4999195db75ad506390b04f74cfbd3f146
+      PROBE_SHA: ddc666b954fcf1bcf19c8eb6475d97be244262aa
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -98,6 +98,7 @@ jobs:
           set -e
           if [ "$pilot_rc" -ne 0 ]; then
             echo COACH_NATIVE_PILOT_SOURCE_BUILD_FAIL
+            grep -Eo "(ValueError|KeyError|TypeError): [A-Z][A-Z0-9_]+" "$RUNNER_TEMP/native-pilot-diagnostics-private.log" | tail -1 || true
             exit 1
           fi
           python3 - <<'PY'
