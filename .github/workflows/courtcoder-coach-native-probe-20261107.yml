@@ -66,6 +66,15 @@ jobs:
           fields=("native_window_frames","shot_event_candidates",
                   "events_with_native_five_plus_ball","events_with_native_ten_plus_ball")
           print("COACH_ORIGINAL_NATIVE_SAFE_COUNTS "+json.dumps({k:data[k] for k in fields},sort_keys=True))
+          # Coarsened whole-game coordinate envelopes, not an individual player
+          # position or trajectory. Needed to choose the correct native unit scale.
+          import math
+          ext={}
+          for k in ("native_player_x","native_player_y","native_ball_x","native_ball_y"):
+              d=data.get(k) or {}
+              ext[k]={z:(round(d[z]/5)*5 if isinstance(d.get(z),(float,int)) else None)
+                      for z in ("min","p10","median","p90","max")}
+          print("COACH_NATIVE_SOURCE_COARSE_AXIS_ENVELOPES "+json.dumps(ext,sort_keys=True))
           for field in ("sample_event_313","sample_event_7"):
               e=data.get(field) or {}
               print("COACH_EVENT_SAFE_COVERAGE "+json.dumps({"which":field,
