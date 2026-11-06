@@ -1,4 +1,5 @@
 # Public CPU only; private NBA SDK, original XYZ, touch events and results remain in private 104.
+# Reviewed source-only metadata boundary; guard allowlist verified on same branch.
 name: Full123 R13 complete private NBA-source touch replay
 on:
   push:
