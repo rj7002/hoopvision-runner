@@ -42,6 +42,12 @@ jobs:
             '/gamepulse/fusion/tests/test_igp_halfcourt_isolation_blowby_v1.py' \
             '/gamepulse/fusion/tests/test_igp_halfcourt_isolation_blowby_temporal_v2.py' \
             '/gamepulse/fusion/qa/igp_progress_20261030/igp_68_official_ten_scene_possession_ab_v3.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json' \
+            '/gamepulse/fusion/official_pbp_timing/index-2026-27-post36-additive.json' \
+            '/gamepulse/fusion/materialized/igp_all_original_xyz/0022600175/' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600175.json' \
+            '/gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600175/boxscore.json' \
             '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/official_ten_scene_possession_68_v3/0022600009.json.gz' \
             '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/official_ten_scene_possession_68_v3/0022600001.json.gz' \
             '/gamepulse/fusion/materialized/igp_all_original_xyz/0022600001/' \
