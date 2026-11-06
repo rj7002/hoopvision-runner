@@ -247,6 +247,31 @@ jobs:
           echo R13_V4_SOURCE_FIRST_NINE_GAME_PRIVATE_REPORT_SAVED
           echo R13_V4_NO_ORIGINAL_NBA_SOURCE_OR_R13_METRIC_OVERWRITE
 
+      - name: Compare V4b unthinned NBA SDK native frames with the 10Hz ballistic fit
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m gamepulse.fusion.analysis.igp_r13_ballxyz_dribble_shadow_v4b \
+                  --root . --private-persist \
+                  > "$RUNNER_TEMP/r13-v4b-model.log" 2>&1; then
+            python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          path='gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/houston9_ballxyz_v4b_private_failure_20261107.json'
+          api=f"repos/{os.environ['PRIVATE_REPO']}/contents/{path}"
+          body={'branch':os.environ['PRIVATE_BRANCH'],'message':'qa(private): V4b original SDK replay exception [skip ci]',
+             'content':base64.b64encode(json.dumps({'error_log':Path(os.environ['RUNNER_TEMP'],'r13-v4b-model.log').read_text()[-18000:]},sort_keys=True).encode()).decode()}
+          prior=subprocess.run(['gh','api',api+'?ref='+body['branch']],capture_output=True,text=True)
+          if prior.returncode==0:body['sha']=json.loads(prior.stdout)['sha']
+          subprocess.run(['gh','api','-X','PUT',api,'--input','-'],input=json.dumps(body),check=True)
+          PY
+            echo R13_V4B_UNTHINNED_NATIVE_SOURCE_REPLAY_FAILED_PRIVATE_TRACE_SAVED
+            exit 31
+          fi
+          echo R13_V4B_UNTHINNED_ORIGINAL_SOURCE_NINE_GAME_RESULTS_PRIVATE
+          echo R13_V4B_FROZEN_R13_AND_V2_COUNTS_UNMODIFIED
+
 # Reviewed confidentiality allowlist activation 2026-11-07; private output only.
 
 # Second private original source replay: frozen rejected-brief/geometry-only frontcourt uncertainty census.
