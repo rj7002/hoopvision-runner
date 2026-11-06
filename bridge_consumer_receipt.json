@@ -1,6 +1,6 @@
 {
-  "observed_at_utc": "2026-11-01T02:26:21Z",
-  "request_id": "req-e79ba28e07734137ef79feb705ae236d",
+  "observed_at_utc": "2026-11-06T22:50:08Z",
+  "request_id": "req-4103f5e8b383d111bc9ef7c85f5c4496",
   "schema": "hoopvision.public-consumer-receipt.v1",
-  "status": "CONSUMED"
+  "status": "FAILED_TO_START_RESOLVER"
 }
