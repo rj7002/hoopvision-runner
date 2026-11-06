@@ -1,3 +1,4 @@
+# Native screen v2 control debugging: log measured joint contact diagnostics; strict evidence gate.
 name: IGP isolation blowby private NBA pilot CPU
 on:
   push:
