@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/courtcoder-coach-gcp-canary-preflight-20261107.yml",  # public OIDC WIF auth only; no source/video/model data or deployment changes
     ".github/workflows/courtcoder-coach-private-browser-20261106.yml",  # reviewed SHA-pinned private Coach synthetic JS/Chromium QA; no private logs/screenshots in public
     ".github/workflows/igp-halfcourt-defense-speed-private-cpu-20261106.yml",  # reviewed ephemeral private-only 5v5 defense speed; no licensed XYZ, private data, or results leave worker
     ".github/workflows/igp-full121-six-player-source-diagnosis-20261106.yml",  # private original NBA source only; public logs contain per-game gap counts and grade labels
