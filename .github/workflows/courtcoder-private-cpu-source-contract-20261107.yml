@@ -1,0 +1,90 @@
+# Generic public control-plane CPU job. Source and test diagnostics remain
+# in an ephemeral authenticated PRIVATE checkout; only coarse status is public.
+name: CourtCoder private source-free CPU acceptance
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/courtcoder-private-cpu-source-contract-20261107.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: courtcoder-private-sourcefree-cpu-acceptance
+  cancel-in-progress: false
+jobs:
+  private-cpu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_PR: '1055'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Enforce existing public confidentiality rules
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+      - name: Run private source-free CPU acceptance in ephemeral checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}" || { echo PRIVATE_CPU_CONNECTOR_UNAVAILABLE; exit 20; }
+          gh auth setup-git
+          # Get an immutable source SHA from the authenticated private PR.
+          # Do not log commit/branch metadata or source code.
+          gh api "repos/$PRIVATE_REPO/pulls/$PRIVATE_PR" > "$RUNNER_TEMP/private-pr.json"
+          private_sha="$(python3 - "$RUNNER_TEMP/private-pr.json" <<'PY'
+          import json,sys
+          j=json.load(open(sys.argv[1]))
+          if (j["head"]["repo"]["full_name"]!="timeedmonds-maker/104"
+                  or j["base"]["repo"]["full_name"]!="timeedmonds-maker/104"
+                  or j["draft"] is not True):
+              raise SystemExit("PRIVATE_CPU_PR_SOURCE_NOT_RESEARCH_ONLY")
+          print(j["head"]["sha"])
+          PY
+          )"
+          git clone -q --depth=1 --filter=blob:none --sparse --no-checkout \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$private_sha"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set \
+            tools/github_first hoopvision/core screen_tracker_nextgen config/experiments
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$private_sha"
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$private_sha"
+          cd "$RUNNER_TEMP/private"
+          python3 -m pip install --quiet --disable-pip-version-check numpy==2.2.6 \
+            > "$RUNNER_TEMP/private-install.log" 2>&1 || {
+              echo PRIVATE_CPU_DEPENDENCY_INSTALL_FAILED; exit 21;
+            }
+          if PYTHONPATH=. python3 -m tools.github_first.courtcoder_private_cpu_suite \
+               --report "$RUNNER_TEMP/private-test-details.log" \
+               > "$RUNNER_TEMP/private-test-status.log" \
+               2> "$RUNNER_TEMP/private-error.log"; then
+            cat "$RUNNER_TEMP/private-test-status.log"
+            echo PRIVATE_CPU_SOURCE_FREE_TESTS_SUCCESS
+          else
+            echo PRIVATE_CPU_SOURCE_FREE_TESTS_FAILED
+            # Detailed module names and stack traces go to a PRIVATE PR only.
+            {
+              echo "Private ephemeral CPU suite failed; original logs remain private."
+              echo
+              echo '~~~'
+              tail -c 14000 "$RUNNER_TEMP/private-test-details.log" 2>/dev/null || true
+              tail -c 2000 "$RUNNER_TEMP/private-error.log" 2>/dev/null || true
+              echo '~~~'
+            } > "$RUNNER_TEMP/private-failure-comment.md"
+            gh api --method POST "repos/$PRIVATE_REPO/issues/$PRIVATE_PR/comments" \
+              -F body=@"$RUNNER_TEMP/private-failure-comment.md" \
+              >/dev/null 2>"$RUNNER_TEMP/private-comment-error.log" || true
+            exit 22
+          fi
+          rm -rf "$RUNNER_TEMP/private" "$RUNNER_TEMP/private-pr.json" \
+            "$RUNNER_TEMP/private-install.log" "$RUNNER_TEMP/private-test-details.log" \
+            "$RUNNER_TEMP/private-test-status.log" "$RUNNER_TEMP/private-error.log"
