@@ -19,7 +19,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: feature/courtcoder-coach-web-20261106
-      PRIVATE_SHA: 32d1a8f7d56d66529ac326b8e6352f880d926f81
+      PRIVATE_SHA: 7cb62e853abe157fc3220bbda696754749498212
       PRIVATE_REPO: timeedmonds-maker/104
     steps:
       - uses: actions/checkout@v4
@@ -114,6 +114,67 @@ jobs:
               courtcoder.coach.test_official_clips_v1
             check python_original_routes python3 -c "import sys;sys.path.insert(0,'courtcoder');from app import app;c=app.test_client();assert c.get('/api/health').status_code==200;assert c.get('/api/bootstrap').status_code==200;assert c.get('/').status_code==200;assert c.get('/coach/').status_code==404"
             check python_private_real_nba_pilot python3 -m unittest -v courtcoder.coach.qa.test_real_nba_pilot_release_v1
+            check python_yaml_emulator_dependency python3 -m pip install --quiet PyYAML==6.0.2
+            if grep -q '^python_yaml_emulator_dependency PASS
+          fi
+          # Persist synthetic screenshots only in an independent PRIVATE QA branch.
+          # The public runner never uploads them as public GitHub Actions artifacts.
+          if [ "$failed" -eq 0 ] && test -s "$RUNNER_TEMP/coach-private-qa/screenshots/coach-desktop.png" && test -s "$RUNNER_TEMP/coach-private-qa/screenshots/coach-mobile.png"; then
+            python3 - <<'PY'
+          import base64,json,os,pathlib,subprocess
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"coach-private-qa"/"screenshots"
+          repo=os.environ["PRIVATE_REPO"]
+          branch="qa/courtcoder-coach-browser-20261106"
+          prefix="courtcoder/coach/qa/browser-20261106"
+          ok=True
+          for name in ("coach-desktop.png","coach-mobile.png"):
+              source=root/name
+              if not source.is_file() or source.stat().st_size<100:
+                  ok=False;continue
+              dest=f"repos/{repo}/contents/{prefix}/{name}"
+              packet={"branch":branch,"message":"qa(coach): private synthetic Chromium acceptance screenshot",
+                      "content":base64.b64encode(source.read_bytes()).decode("ascii")}
+              before=subprocess.run(["gh","api",dest+"?ref="+branch],capture_output=True,text=True)
+              if before.returncode==0:
+                  packet["sha"]=json.loads(before.stdout)["sha"]
+              saved=subprocess.run(["gh","api","--method","PUT",dest,"--input","-"],
+                                   input=json.dumps(packet),capture_output=True,text=True)
+              ok=ok and saved.returncode==0
+          print("COACH_PRIVATE_SYNTHETIC_SCREENSHOTS_WRITTEN" if ok else
+                "COACH_PRIVATE_SYNTHETIC_SCREENSHOTS_UNAVAILABLE_NONBLOCKING")
+          PY
+          fi
+          # Private PR comment contains detailed source-free diagnostics;
+          # never send those logs to the public repo or its artifacts.
+          python3 - <<'PY'
+          import os,pathlib
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"coach-private-qa"
+          summary=(root/"summary.txt").read_text()
+          sections=["### Private Coach Chromium/Node acceptance",
+                    "Source SHA: "+os.environ["PRIVATE_SHA"],"",
+                    "```",summary,"```"]
+          for f in sorted(root.glob("*.log")):
+              if "FAIL" in summary and f.stem in [r.split()[0] for r in summary.splitlines() if "FAIL" in r]:
+                  sections.extend(["#### "+f.stem,"<details><summary>Private diagnostics</summary>","","```",f.read_text(errors="replace")[-8000:],"```","</details>"])
+          (root/"private-comment.txt").write_text("\n".join(sections)+"\n")
+          PY
+          if gh api --method POST "repos/$PRIVATE_REPO/issues/1052/comments" \
+              -F body=@"$RUNNER_TEMP/coach-private-qa/private-comment.txt" \
+              > "$RUNNER_TEMP/coach-private-qa/private-comment-receipt.json" \
+              2> "$RUNNER_TEMP/coach-private-qa/private-comment-error.txt"; then
+            echo COACH_PRIVATE_PR_QA_RECEIPT_WRITTEN
+          else
+            echo COACH_PRIVATE_PR_QA_RECEIPT_UNAVAILABLE_NONBLOCKING
+          fi
+          if [ "$failed" -eq 0 ]; then
+            echo COACH_NODE_AND_CHROMIUM_SOURCE_FREE_ACCEPTANCE_PASS
+          else
+            echo COACH_NODE_OR_CHROMIUM_SOURCE_FREE_ACCEPTANCE_FAIL
+            exit 1
+          fi
+ "$summary"; then
+              check python_cloudbuild_native_publish_emulation python3 -m unittest -v courtcoder.coach.qa.test_cloudbuild_original_release_emulation
+            fi
           fi
           # Persist synthetic screenshots only in an independent PRIVATE QA branch.
           # The public runner never uploads them as public GitHub Actions artifacts.
