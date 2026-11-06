@@ -1,0 +1,141 @@
+name: IGP Full123 three original companion-clock SDK recoveries
+on:
+  push:
+    branches: [feature/igp-full123-r13-public-cpu-20261107]
+    paths: ['.github/workflows/igp-full123-r13-three-companion-clock-source-20261107.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full123-three-missing-original-companion-20261107
+  cancel-in-progress: false
+jobs:
+  capture-original:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 80
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        game: ['0022600006','0022600086','0022600142']
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GAME: ${{ matrix.game }}
+      PRIVATE_BRANCH: feature/igp-full123-r13-touch-integration-20261107
+      IGP_SDK_SOURCE_VARIANT: events
+      IGP_SDK_INIT_TIMEOUT_MS: '22000'
+      IGP_CAPTURE_ZERO_SHOT_FULL_EVENTS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate privacy and derive SDK start from preserved official NBA original boxscore
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          work="$RUNNER_TEMP/companion-$GAME"
+          mkdir -p "$work/original" "$work/capture"
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" \
+            "https://github.com/timeedmonds-maker/104.git" "$work/read"
+          cd "$work/read"
+          git sparse-checkout set --no-cone \
+            '/gamepulse/fusion/qa/r13_full123_original_boxes_20261107/*.json' \
+            '/gamepulse/fusion/official_pbp_timing/original_nba_20261029/*/boxscore.json'
+          GAME="$GAME" WORK="$work" python3 - <<'PY'
+          import datetime as dt,json,os
+          from pathlib import Path
+          g=os.environ['GAME'];w=Path(os.environ['WORK'])
+          p=(Path('gamepulse/fusion/official_pbp_timing/original_nba_20261029')/g/'boxscore.json'
+             if g=='0022600142' else
+             Path('gamepulse/fusion/qa/r13_full123_original_boxes_20261107')/(g+'.json'))
+          d=json.loads(p.read_bytes())
+          assert str(d['game']['gameId'])==g
+          tip=dt.datetime.fromisoformat(d['game']['gameTimeUTC'].replace('Z','+00:00'))
+          assert tip.tzinfo is not None
+          (w/'original'/'tipoff.txt').write_text(tip.isoformat().replace('+00:00','Z'))
+          print('ORIGINAL_NBA_BOX_TIPOFF_SOURCE_ACCEPTED',g)
+          PY
+      - name: Initialize licensed SDK for game-specific original companion events
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/companion-$GAME"
+          export NBA_GAME_ID="$GAME"
+          export NBA_TIPOFF_UTC="$(cat "$work/original/tipoff.txt")"
+          export IGP_PRIVATE_CAPTURE_DIR="$work/capture"
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          (cd tools/licensed_feed && npm install --ignore-scripts --no-audit --no-fund --silent)
+          node tools/licensed_feed/companion_original_sdk_probe.mjs > "$work/licensed-sdk.private.log" 2>&1
+          GAME="$GAME" WORK="$work" python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          folder=Path(os.environ['WORK'])/'capture'
+          receipt=json.loads((folder/'companion_probe_receipt.json').read_bytes())
+          assert receipt['game_id']==os.environ['GAME']
+          assert receipt['authentication_bypass_attempted'] is False
+          assert receipt['app_program_variant']=='events'
+          assert receipt['status']=='FULL_EVENT_RESPONSE_OBSERVED',receipt['status']
+          raw=(folder/'companion_original_sdk_response.json').read_bytes()
+          assert hashlib.sha256(raw).hexdigest()==receipt['original_body_sha256']
+          events=json.loads(raw)
+          if isinstance(events,dict):events=events['events']
+          clock=[e for e in events if e.get('event')=='Time#show' and isinstance(e.get('timestamp'),int)]
+          live=sum((e.get('metadata') or {}).get('gameClockRunning') is True for e in clock)
+          assert len(clock)>=100 and live>=30,(len(clock),live)
+          print('FULL123_ORIGINAL_COMPANION_RUNNING_CLOCK_AVAILABLE',os.environ['GAME'],len(clock),live)
+          PY
+      - name: Admit only original licensed companion clock events to private immutable source
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/companion-$GAME"
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" \
+            "https://github.com/timeedmonds-maker/104.git" "$work/private"
+          cd "$work/private"
+          dst="gamepulse/fusion/evidence/companion_sdk_original_$GAME"
+          mkdir -p "$dst"
+          cp "$work/capture/companion_original_sdk_response.json" "$dst/sdk_observed_original.json"
+          GAME="$GAME" WORK="$work" DST="$dst" python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          g=os.environ['GAME'];w=Path(os.environ['WORK']);dst=Path(os.environ['DST'])
+          receipt=json.loads((w/'capture'/'companion_probe_receipt.json').read_bytes())
+          raw=(dst/'sdk_observed_original.json').read_bytes()
+          assert receipt['game_id']==g
+          assert receipt['authentication_bypass_attempted'] is False
+          assert receipt['original_body_sha256']==hashlib.sha256(raw).hexdigest()
+          events=json.loads(raw)
+          if isinstance(events,dict):events=events['events']
+          clock=[e for e in events if e.get('event')=='Time#show']
+          live=sum((e.get('metadata') or {}).get('gameClockRunning') is True for e in clock)
+          assert len(clock)>=100 and live>=30
+          proof={
+              'schema':'igp.full123.r13-original-companion-clock-source.v1',
+              'game_id':g,'source':'LICENSED_OFFICIAL_NBA_COMPANION_SDK',
+              'original_sdk_body_sha256':hashlib.sha256(raw).hexdigest(),
+              'original_companion_time_events':len(clock),
+              'original_companion_running_events':live,
+              'original_data_modified':False,
+          }
+          (dst/'sdk_original_clock_receipt.json').write_text(json.dumps(proof,indent=2,sort_keys=True)+'\n')
+          print('R13_ORIGINAL_COMPANION_CLOCK_ADMITTED',g,len(clock),live)
+          PY
+          git config user.name 'NBA licensed companion source'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f "$dst"
+          git diff --cached --check
+          if git diff --cached --quiet; then echo R13_ORIGINAL_CLOCK_ALREADY_PRESENT; exit 0; fi
+          git commit -q -m "data(private): licensed original companion clock source $GAME [skip ci]"
+          for attempt in $(seq 1 16); do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo "R13_PRIVATE_SHA_ORIGINAL_COMPANION_CLOCK_PRESERVED"
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 39
