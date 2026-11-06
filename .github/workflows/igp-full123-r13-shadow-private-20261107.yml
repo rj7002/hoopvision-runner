@@ -252,3 +252,5 @@ jobs:
 # Second private original source replay: frozen rejected-brief/geometry-only frontcourt uncertainty census.
 
 # V3 original-clock sparse-frame replay: 350ms context / 180ms event floor attribution.
+
+# Correct V4 zero-bounce player guard, original NBA nine-game replay 2026-11-07.
