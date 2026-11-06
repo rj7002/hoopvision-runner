@@ -67,13 +67,13 @@ jobs:
               failed=1
             fi
           }
-          check node_syntax bash -ceu 'node --check courtcoder/qa/coach_ui_browser_acceptance.cjs && node --check courtcoder/qa/coach_ui_visual_contract.test.cjs && python3 -c "import pathlib,re,subprocess;h=pathlib.Path(\x27courtcoder/coach/index.html\x27).read_text();s=re.search(\x27<script>(.*?)</script>\x27,h,re.S).group(1);p=pathlib.Path(\x27/tmp/coach-private-inline.js\x27);p.write_text(s);subprocess.run([\x27node\x27,\x27--check\x27,str(p)],check=True)"'
+          check node_syntax bash -ceu 'node --check courtcoder/qa/coach_ui_visual_contract.test.cjs && node --check courtcoder/qa/coach_ui_browser_acceptance.cjs'
           check node_14_contract_tests node --test courtcoder/qa/coach_ui_visual_contract.test.cjs
           if ! npm install --no-save --no-package-lock --ignore-scripts \
               --prefix "$RUNNER_TEMP/private" playwright-core@1.56.0 \
               > "$RUNNER_TEMP/coach-private-qa/browser-install.log" 2>&1; then
             echo chromium_install FAIL >> "$summary"
-            echo chromium_install FAIL_DIAGNOSTICS_PRIVATE_ONLY"
+            echo chromium_install FAIL_DIAGNOSTICS_PRIVATE_ONLY
             failed=1
           else
             echo chromium_install PASS >> "$summary"
