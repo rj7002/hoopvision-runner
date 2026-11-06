@@ -108,6 +108,10 @@ jobs:
                   f'/gamepulse/fusion/evidence/companion_sdk_original_{gid}/sdk_observed_original.json',
               ):
                   print(item)
+              if gid in p.EXTRA:
+                  extra=p.load(p.EXTRA_INDEX)['games'][gid]
+                  for field in ('native_manifest_path','official_boxscore_path','official_pbp_path','companion_clock_path'):
+                      print('/'+str(extra[field]).lstrip('/'))
               if gid not in p.EXTRA:
                   _,_,add=p.source_catalog('.')
                   row=add['games'].get(gid)
