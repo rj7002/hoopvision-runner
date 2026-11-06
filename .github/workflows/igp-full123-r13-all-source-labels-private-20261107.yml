@@ -91,7 +91,20 @@ jobs:
               accepted=$((accepted+1))
             else
               failed=$((failed+1))
-              # Never publish private SDK or player data into public Action logs.
+              # Preserve the exact failure-stage evidence only in private 104;
+              # never display original SDK content in the public workflow.
+              GAME="$game" SCRATCH="$scratch" LABELS="$labels" python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          gid=os.environ['GAME'];scratch=Path(os.environ['SCRATCH'])
+          logs={}
+          for tag in ('api','download','extract'):
+            file=scratch/(tag+'.log')
+            if file.is_file(): logs[tag]=file.read_text(errors='replace')[-2500:]
+          output=Path(os.environ['LABELS'])/(gid+'.error.json')
+          output.write_text(json.dumps({'game_id':gid,'source_status':'R13_ORIGINAL_SDK_LABEL_RECOVERY_FAILED',
+            'private_failure_logs':logs,'source_original_modified':False},sort_keys=True,indent=2)+'\n')
+          PY
               printf '%s\n' "$game" >> "$work/unavailable.txt"
             fi
             rm -rf "$scratch"
@@ -120,6 +133,9 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add --sparse -f "$labels"/*.json.gz "$labels"/*.receipt.json \
             "gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/source_label_shard_$SHARD.json"
+          if compgen -G "$labels/*.error.json" >/dev/null; then
+            git add --sparse -f "$labels"/*.error.json
+          fi
           git diff --cached --check
           if git diff --cached --quiet; then
             echo "FULL123_R13_ORIGINAL_SOURCE_SHARD_ALREADY_SAVED"
