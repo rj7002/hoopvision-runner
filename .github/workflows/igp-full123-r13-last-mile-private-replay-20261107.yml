@@ -57,7 +57,7 @@ jobs:
       fail-fast: false
       max-parallel: 4
       matrix:
-        shard: [1, 4, 11]
+        shard: [1, 4, 11, 16, 17]
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       REPO: timeedmonds-maker/104
@@ -126,6 +126,37 @@ jobs:
           work="$RUNNER_TEMP/r13-private"
           cd "$work"
           export PYTHONPATH="$work"
+          if test "$SHARD" = 1 || test "$SHARD" = 11; then
+            python3 - <<'PY'
+          import gzip,json,hashlib
+          from pathlib import Path
+          from gamepulse.fusion import igp_full123_r13_prior_verified_v1 as prior
+          from gamepulse.fusion.analysis import igp_full123_r13_batch_sourcefirst_v1 as w
+          from gamepulse.fusion.analysis.igp_full123_r13_private_persist_v1 import gh_put
+          for gid in (['0022600091'] if __import__('os').environ['SHARD']=='1' else ['0022600125']):
+            root=Path('gamepulse/fusion')
+            lab=root/'qa/r13_full123_original_labels_20261107'/(gid+'.json.gz')
+            manifest=json.loads((root/'materialized/igp_all_original_xyz'/gid/'index.json').read_bytes())
+            frozen=prior.player_game('.',gid)
+            source=json.loads(gzip.decompress(lab.read_bytes()))
+            got=w.git_blob_sha(lab.read_bytes())
+            checks={
+                'frozen_present': frozen is not None,
+                'frozen_source_parts_13':frozen.get('source_original_13_archive_parts')==13,
+                'frozen_original_unchanged':frozen.get('source_free_original_unchanged') is True,
+                'frozen_frame_count_matches_current_original':frozen.get('original_native_frames') == manifest['original_frame_counts']['unique_original_native_timestamps'],
+                'archive_part_count':len(manifest.get('original_archive_parts_sha256') or {}),
+                'git_blob_pin_matches':got==w.PINNED_PRIOR_LABEL_BLOBS[gid],
+                'label_game_id_matches':source.get('game_id')==gid,
+                'label_original_source_modified_false':source.get('original_source_modified') is False,
+                'label_source_modified_false':source.get('source_original_modified') is False,
+                'label_non_row_keys': sorted(set(source)-{'rows','parts'}),
+            }
+            d={'game_id':gid,'comparisons':checks,'no_original_nba_xyz_or_event_rows_exported':True}
+            gh_put('gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/'+gid+'.legacy_source_pin_diagnostic.json',(json.dumps(d,sort_keys=True,indent=2)+'\\n').encode())
+          print('R13_TWO_LEGACY_PIN_DIAGNOSTIC_PRESERVED_PRIVATELY')
+          PY
+          fi
           if test "$SHARD" = 4; then
             python3 - <<'PY'
           import json,traceback
