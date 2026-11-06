@@ -39,34 +39,43 @@ jobs:
           work="$RUNNER_TEMP/companion-$GAME"
           mkdir -p "$work/original" "$work/capture"
           python3 - <<'PY'
-          import datetime as dt,json,os,time,urllib.request
+          import datetime as dt,json,os,time,subprocess
           from pathlib import Path
           gid=os.environ['GAME']
           folder=Path(os.environ['RUNNER_TEMP'])/('companion-'+gid)/'original'
           for part in ('boxscore','playbyplay'):
-            candidates=(
-              f'https://cdn.nba.com/static/json/liveData/{part}/{part}_{gid}.json',
-              f'https://api.nba.com/statscapture/games/{gid}/{part}?Format=json',
-            )
-            found=False
-            for url in candidates:
+            url=f'https://cdn.nba.com/static/json/liveData/{part}/{part}_{gid}.json'
+            raw=None
+            for protocol in ('--http2','--http1.1'):
               for attempt in range(3):
-                try:
-                  req=urllib.request.Request(url,headers={'Accept':'application/json','Referer':'https://www.nba.com/','User-Agent':'Mozilla/5.0'})
-                  with urllib.request.urlopen(req,timeout=30) as response:
-                    raw=response.read(3_000_001)
-                  assert 200<len(raw)<=3_000_000
-                  obj=json.loads(raw)
-                  assert str(obj['game']['gameId'])==gid
-                  assert part!='playbyplay' or isinstance(obj['game'].get('actions'),list)
-                  (folder/(part+'.json')).write_bytes(raw)
-                  found=True
-                  print('NBA_OFFICIAL_SOURCE_ADMITTED',part,'cdn' if 'cdn.nba.com' in url else 'statscapture')
-                  break
-                except Exception:
-                  time.sleep(attempt+1)
-              if found:break
-            assert found,'OFFICIAL_NBA_'+part.upper()+'_UNAVAILABLE_BOTH_OFFICIAL_ENDPOINTS'
+                cmd=['curl',protocol,'--location','--silent','--show-error','--fail',
+                  '--compressed','--max-time','30',
+                  '-H','User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                  '-H','Accept: application/json, text/plain, */*',
+                  '-H','Accept-Language: en-US,en;q=0.9',
+                  '-H','Origin: https://www.nba.com',
+                  '-H','Referer: https://www.nba.com/',
+                  '-H','Sec-Ch-Ua: "Chromium";v="131", "Google Chrome";v="131", "Not_A Brand";v="24"',
+                  '-H','Sec-Ch-Ua-Mobile: ?0',
+                  '-H','Sec-Ch-Ua-Platform: "Windows"',
+                  '-H','Sec-Fetch-Dest: empty',
+                  '-H','Sec-Fetch-Mode: cors',
+                  '-H','Sec-Fetch-Site: cross-site',url]
+                r=subprocess.run(cmd,capture_output=True)
+                if r.returncode==0 and 200<len(r.stdout)<=3_000_000:
+                  try:
+                    obj=json.loads(r.stdout)
+                    if (str(obj['game']['gameId'])==gid and
+                        (part!='playbyplay' or isinstance(obj['game'].get('actions'),list))):
+                      raw=r.stdout
+                      break
+                  except (ValueError,KeyError,TypeError):
+                    pass
+                time.sleep(attempt+1)
+              if raw is not None:break
+            assert raw is not None,'OFFICIAL_NBA_'+part.upper()+'_UNAVAILABLE_AFTER_BROWSER_FINGERPRINT'
+            (folder/(part+'.json')).write_bytes(raw)
+            print('NBA_ORIGINAL_CDN_BYTES_SHA_READY',part,protocol,len(raw))
           pbp=json.loads((folder/'playbyplay.json').read_bytes())['game']
           box=json.loads((folder/'boxscore.json').read_bytes())['game']
           stamp=box.get('gameTimeUTC') or pbp.get('gameTimeUTC')
