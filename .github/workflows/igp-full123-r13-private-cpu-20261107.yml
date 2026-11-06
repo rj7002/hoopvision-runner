@@ -1,0 +1,87 @@
+name: Full123 R13 source-private CPU tests
+on:
+  push:
+    branches: [feature/igp-full123-r13-public-cpu-20261107]
+    paths: ['.github/workflows/igp-full123-r13-private-cpu-20261107.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: igp-full123-r13-private-cpu-20261107
+  cancel-in-progress: false
+jobs:
+  private-source-free-r13:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: feature/igp-full123-r13-touch-integration-20261107
+      PRIVATE_REPO: timeedmonds-maker/104
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify public content boundary before using private source
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Execute source-free R13 v2 and Full123 overlay regressions privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth=1 --filter=blob:none --sparse \
+            -b "$PRIVATE_BRANCH" "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          git sparse-checkout set --no-cone \
+            /gamepulse/fusion/analysis/igp_r13_touch_stats_v2.py \
+            /gamepulse/fusion/analysis/igp81_double_team_reboot_v1.py \
+            /gamepulse/fusion/analysis/test_igp_r13_touch_stats_v2.py \
+            /gamepulse/fusion/analysis/test_igp_full123_r13_touch_overlay_v1.py \
+            /gamepulse/fusion/igp_full123_r13_touch_overlay_v1.py \
+            /gamepulse/fusion/igp_full123_r13_original_labels_v1.py \
+            /gamepulse/fusion/igp_full121_source_default_v1.py
+          export PYTHONPATH="$RUNNER_TEMP/private:$RUNNER_TEMP/private/gamepulse/fusion:$RUNNER_TEMP/private/gamepulse/fusion/analysis"
+          set +e
+          python3 -m py_compile gamepulse/fusion/igp_full123_r13_touch_overlay_v1.py \
+            gamepulse/fusion/igp_full123_r13_original_labels_v1.py \
+            gamepulse/fusion/analysis/igp_r13_touch_stats_v2.py \
+            > "$RUNNER_TEMP/private-r13-qa.log" 2>&1
+          compile_result=$?
+          if test "$compile_result" -eq 0; then
+            python3 -m unittest discover -s gamepulse/fusion/analysis \
+              -p 'test_igp_full123_r13_touch_overlay_v1.py' -v \
+              >> "$RUNNER_TEMP/private-r13-qa.log" 2>&1
+            result=$?
+          else
+            result=$compile_result
+          fi
+          if test "$result" -eq 0; then
+            python3 -m unittest discover -s gamepulse/fusion/analysis \
+              -p 'test_igp_r13_touch_stats_v2.py' -v \
+              >> "$RUNNER_TEMP/private-r13-qa.log" 2>&1
+            result=$?
+          fi
+          set -e
+          if test "$result" -ne 0; then
+            python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          repo=os.environ['PRIVATE_REPO']
+          branch=os.environ['PRIVATE_BRANCH']
+          path='gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/source_free_test_diagnostic.json'
+          log=(Path(os.environ['RUNNER_TEMP'])/'private-r13-qa.log').read_text()[-16000:]
+          dest=f'repos/{repo}/contents/{path}'
+          body={'branch':branch,
+                'message':'qa(private): Full123 R13 source-free failure [skip ci]',
+                'content':base64.b64encode(json.dumps({'status':'SOURCE_FREE_FAIL','log':log}).encode()).decode()}
+          old=subprocess.run(['gh','api',dest+'?ref='+branch],capture_output=True,text=True)
+          if old.returncode==0:body['sha']=json.loads(old.stdout)['sha']
+          subprocess.run(['gh','api','-X','PUT',dest,'--input','-'],
+                         input=json.dumps(body),text=True,capture_output=True)
+          PY
+            echo "FULL123_R13_PRIVATE_SOURCE_FREE_TEST_FAILED"
+            exit "$result"
+          fi
+          echo "FULL123_R13_SOURCE_FREE_TESTS_PASSED"
