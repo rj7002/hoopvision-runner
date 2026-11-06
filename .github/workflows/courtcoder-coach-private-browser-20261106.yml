@@ -19,7 +19,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: feature/courtcoder-coach-web-20261106
-      PRIVATE_SHA: b810ef9db5066582a745a3a91fe361e258271b96
+      PRIVATE_SHA: f7d60f002b2594763489ac51fb30044d533c0945
       PRIVATE_REPO: timeedmonds-maker/104
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +45,7 @@ jobs:
           git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PRIVATE_SHA"
           git -C "$RUNNER_TEMP/private" checkout -q --detach "$PRIVATE_SHA"
           git -C "$RUNNER_TEMP/private" sparse-checkout set \
-            courtcoder config contracts hoopvision/scouting
+            courtcoder config contracts hoopvision/scouting gamepulse/coach_pilot_release_20261107_v2
           test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PRIVATE_SHA"
           test -f "$RUNNER_TEMP/private/courtcoder/coach/index.html"
           test -f "$RUNNER_TEMP/private/courtcoder/qa/coach_ui_visual_contract.test.cjs"
@@ -71,6 +71,9 @@ jobs:
               fi
               if [ "$title" = chromium_real_browser ]; then
                 sed -nE 's/.*AssertionError \[ERR_ASSERTION\]: (.{1,110}).*/COACH_BROWSER_ASSERTION \1/p' "$RUNNER_TEMP/coach-private-qa/$title.log" | head -3 || true
+              fi
+              if [ "$title" = python_private_real_nba_pilot ]; then
+                awk '/^(FAIL|ERROR): test_/ {print "COACH_REAL_PILOT_CASE_" $2}' "$RUNNER_TEMP/coach-private-qa/$title.log" | head -12 || true
               fi
               if [ "$title" = python_coach_source_free ]; then
                 awk '/^(FAIL|ERROR): test_/ {print "COACH_SOURCE_FREE_CASE_" $2}' "$RUNNER_TEMP/coach-private-qa/$title.log" | head -12 || true
@@ -110,6 +113,7 @@ jobs:
               courtcoder.coach.test_game_directory_v1 \
               courtcoder.coach.test_official_clips_v1
             check python_original_routes python3 -c "import sys;sys.path.insert(0,'courtcoder');from app import app;c=app.test_client();assert c.get('/api/health').status_code==200;assert c.get('/api/bootstrap').status_code==200;assert c.get('/').status_code==200;assert c.get('/coach/').status_code==404"
+            check python_private_real_nba_pilot python3 -m unittest -v courtcoder.coach.qa.test_real_nba_pilot_release_v1
           fi
           # Persist synthetic screenshots only in an independent PRIVATE QA branch.
           # The public runner never uploads them as public GitHub Actions artifacts.
