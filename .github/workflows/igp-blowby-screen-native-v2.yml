@@ -1,0 +1,53 @@
+name: IGP blowby screen native QA v2
+on:
+  push:
+    branches: [research/igp-strict-isolation-blowby-cpu-20261106]
+    paths: ['.github/workflows/igp-blowby-screen-native-v2.yml']
+permissions:
+  contents: read
+jobs:
+  baseline-screen-diagnostics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/igp-blowby-full121-full666-20261106
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Confidentiality and credentials
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Inspect real NBA source feature evidence for human-reviewed controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          git sparse-checkout set --no-cone '/gamepulse/fusion/qa/analysis/igp_isolation_blowby/full121_conservative_v4/'
+          python3 - <<'PY'
+          import json,pathlib
+          b=pathlib.Path("gamepulse/fusion/qa/analysis/igp_isolation_blowby/full121_conservative_v4")
+          cases={"0022600091":{221},"0022600181":{13,94,552,708}}
+          for p in sorted(b.glob("shard_*.json")):
+              j=json.loads(p.read_bytes())
+              for gid,actions in cases.items():
+                  game=j["per_game"].get(gid)
+                  if game is None:continue
+                  events=game["general_defender_beaten"]["events"]
+                  for e in events:
+                      matched=sorted(set(e.get("review_action_ids") or []) & actions)
+                      if not matched:continue
+                      print("NBA_SCREEN_SOURCE_CONTROL",json.dumps({
+                         "game_id":gid,"events":matched,"chain_id":e["chain_id"],
+                         "attacker":e.get("attacker_name"),"defender":e.get("defender_name"),
+                         "team":e["defense_team"],"tstart":e["initial_utc_ms"],
+                         "tbeat":e["beaten_utc_ms"],"tconfirm":e["confirmed_utc_ms"],
+                         "existing_screen":e["source_probable_screen_assisted_play"],
+                         "source_probe":e["source_screen_probe"],
+                         "screener_candidates":e.get("source_screen_candidate_details",[])}))
+          PY
