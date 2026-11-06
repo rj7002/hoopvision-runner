@@ -1,3 +1,4 @@
+# Temporal event run after HMM-informed source-first implementation; no coordinates in public logs.
 # CPU pilot tests original official ten-plus-ball sensitivity at gap bounds 350/500/800/1200ms.
 # Bounded 350ms direct-source sampling: official ten+ball, extra NBA actors ignored.
 # Fail closed if NBA logical possession owners are not mapped to their official team IDs.
@@ -42,7 +43,7 @@ jobs:
             '/gamepulse/fusion/official_pbp_timing/games/0022600009.json' \
             '/gamepulse/fusion/index/games/0022600009.json'
           export PYTHONPATH=gamepulse/fusion
-          python3 -m py_compile gamepulse/fusion/igp_halfcourt_isolation_blowby_v1.py gamepulse/fusion/igp_halfcourt_isolation_blowby_source_adapter_v1.py gamepulse/fusion/igp_halfcourt_isolation_blowby_pilot_v1.py
+          python3 -m py_compile gamepulse/fusion/igp_halfcourt_isolation_blowby_v1.py gamepulse/fusion/igp_halfcourt_isolation_blowby_source_adapter_v1.py gamepulse/fusion/igp_halfcourt_isolation_blowby_pilot_v1.py gamepulse/fusion/igp_halfcourt_isolation_blowby_temporal_v2.py
           python3 -m unittest -v gamepulse/fusion/tests/test_igp_halfcourt_isolation_blowby_v1.py
           if python3 -B gamepulse/fusion/igp_halfcourt_isolation_blowby_pilot_v1.py \
                --root . --games 0022600009 --output "$RUNNER_TEMP/igp_blowby_0009_qa.json" \
@@ -50,7 +51,7 @@ jobs:
             python3 - <<'PY'
           import json,os,pathlib
           r=json.loads((pathlib.Path(os.environ["RUNNER_TEMP"])/"igp_blowby_0009_qa.json").read_text())
-          print("IGP_BLOWBY_PRIVATE_REAL_SOURCE",json.dumps({"games":r["game_count"],"events":r["qualifying_blowby_events"],"chains":r["qualifying_official_chain_ids"],"source_qa":r["per_game_qa"]["0022600009"]["source_snapshot_counts"]},sort_keys=True))
+          print("IGP_BLOWBY_PRIVATE_REAL_SOURCE",json.dumps({"games":r["game_count"],"events":r["qualifying_blowby_events"],"chains":r["qualifying_official_chain_ids"],"v2_events":r["temporal_v2_research_event_count"],"source_qa":r["per_game_qa"]["0022600009"]["source_snapshot_counts"]},sort_keys=True))
           PY
           else
             python3 - <<'PY'
