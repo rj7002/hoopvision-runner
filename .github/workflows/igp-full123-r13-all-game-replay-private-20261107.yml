@@ -98,3 +98,5 @@ jobs:
             sleep "$attempt"
           done
           exit 39
+
+# Re-run after opt-in count/time decoupling; original NBA source and frozen R13 release unchanged.
