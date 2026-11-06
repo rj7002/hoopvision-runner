@@ -1,5 +1,6 @@
-# Full121 conservative source-only defender-beaten pass: identical geometry to Houston's 18.
-# NBA licensed original positions never leave private 104.
+# Validate additive source screen v2 against human NBA video controls without losing predrive evidence.
+# Three observed source contact samples with two temporal continuity checks; retest both video-positive cases.
+# Native screen v2 control debugging: log measured joint contact diagnostics; strict evidence gate.
 name: IGP isolation blowby private NBA pilot CPU
 on:
   push:
@@ -8,28 +9,23 @@ on:
 permissions:
   contents: read
 jobs:
-  full121-screen-v2:
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [0, 1, 2, 3, 4]
+  screen-v2-native-source-controls:
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 60
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: research/igp-blowby-full121-full666-20261106
-      SHARD: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Verify confidentiality
+      - name: Confidentiality guard and authenticated private source
         run: |
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
           gh auth setup-git
-      - name: Full121 original NBA conservative defender-beaten analysis, screen-graded
+      - name: Two NBA exact games native source clip-label screen v2 QA
         shell: bash
         run: |
           set -euo pipefail
@@ -37,51 +33,34 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git sparse-checkout set --no-cone \
             '/gamepulse/fusion/*.py' \
-            '/gamepulse/fusion/qa/igp_progress_20261030/igp_68_official_ten_scene_possession_ab_v3.json' \
             '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json' \
             '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json' \
-            '/gamepulse/fusion/official_pbp_timing/index-2026-27-post36-additive.json'
-          python3 - <<'PY' > "$RUNNER_TEMP/sourcepaths.txt"
-          import os,json
-          from pathlib import Path
-          b=Path("gamepulse/fusion")
-          master=json.loads((b/"materialized/igp_2026_27_unified_season_v3/index.json").read_bytes())
-          add=json.loads((b/"materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json").read_bytes())
-          qa=json.loads((b/"qa/igp_progress_20261030/igp_68_official_ten_scene_possession_ab_v3.json").read_bytes())
-          post=json.loads((b/"official_pbp_timing/index-2026-27-post36-additive.json").read_bytes())
-          ids=sorted(set(master["per_game_model"])|set(add["games"]))
-          assert len(ids)==121 and len(set(ids))==121
-          shard=int(os.environ["SHARD"]); paths=set()
-          for i,gid in enumerate(ids):
-              if i%5!=shard:continue
-              paths.add("/gamepulse/fusion/materialized/igp_all_original_xyz/"+gid+"/")
-              paths.add("/gamepulse/fusion/official_pbp_timing/games/"+gid+".json")
-              if gid in ("0022600130","0022600131"):
-                  paths.add("/gamepulse/fusion/materialized/igp_original_13part_legacy_completion_v1/"+gid+"/")
-              if gid in qa["per_game"]:
-                  paths.add("/"+qa["per_game"][gid]["path"])
-              if gid in post["games"]:
-                  paths.add("/"+post["games"][gid]["source_paths"][1])
-              else:
-                  paths.add("/gamepulse/fusion/index/games/"+gid+".json")
-          for path in sorted(paths):print(path)
-          PY
-          mapfile -t SOURCEPATHS < "$RUNNER_TEMP/sourcepaths.txt"
-          test "${#SOURCEPATHS[@]}" -gt 0
-          git sparse-checkout add "${SOURCEPATHS[@]}"
+            '/gamepulse/fusion/qa/igp_progress_20261030/' \
+            '/gamepulse/fusion/official_pbp_timing/index-2026-27-post36-additive.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/official_ten_scene_possession_68_v3/0022600091.json.gz' \
+            '/gamepulse/fusion/qa/analysis/igp_isolation_blowby/full121_conservative_v4/' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600091.json' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600181.json' \
+            '/gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600091/' \
+            '/gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600181/' \
+            '/gamepulse/fusion/materialized/igp_all_original_xyz/0022600091/' \
+            '/gamepulse/fusion/materialized/igp_all_original_xyz/0022600181/' \
+            '/gamepulse/fusion/index/games/0022600091.json' \
+            '/gamepulse/fusion/index/games/0022600181.json'
           export PYTHONPATH=gamepulse/fusion
-          python3 -m py_compile gamepulse/fusion/igp_halfcourt_blowby_general_v3.py gamepulse/fusion/igp_halfcourt_isolation_blowby_full121_v1.py
-          python3 -B gamepulse/fusion/igp_halfcourt_isolation_blowby_full121_v1.py --root . --shard "$SHARD" --shards 5 --include-general --general-mode conservative_screen_v2 --output "$RUNNER_TEMP/general_$SHARD.json"
+          python3 -m py_compile gamepulse/fusion/igp_blowby_screen_contact_v2.py gamepulse/fusion/igp_halfcourt_blowby_general_v3.py gamepulse/fusion/igp_blowby_screen_v2_review_controls_qa.py
+          python3 -m unittest -v test_igp_blowby_screen_contact_v2
+          python3 -B gamepulse/fusion/igp_blowby_screen_v2_review_controls_qa.py --root . --output "$RUNNER_TEMP/screen_v2_controls.json"
           git config user.name 'Integrated Pulse Research QA'
           git config user.email '41898282+igp-source@users.noreply.github.com'
-          DEST="gamepulse/fusion/qa/analysis/igp_isolation_blowby/full121_conservative_screen_v2/shard_$SHARD.json"
+          DEST='gamepulse/fusion/qa/analysis/igp_isolation_blowby/screen_contact_v2/source_video_review_controls_v1.json'
           mkdir -p "$(dirname "$DEST")"
-          cp "$RUNNER_TEMP/general_$SHARD.json" "$DEST"
+          cp "$RUNNER_TEMP/screen_v2_controls.json" "$DEST"
           git add --sparse -f "$DEST"
           if ! git diff --cached --quiet; then
-            git commit -qm "qa(private): Full121 general defender-beaten source-graded shard $SHARD [skip ci]"
+            git commit -qm 'qa(private): native Full121 source screen contact v2 confirmed video case controls [skip ci]'
             PUSH_OK=0
-            for retry in 1 2 3 4 5 6 7 8 9 10; do
+            for retry in 1 2 3 4 5; do
               git fetch -q origin "$PRIVATE_BRANCH"
               git rebase -q "origin/$PRIVATE_BRANCH"
               if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then PUSH_OK=1;break;fi
@@ -89,4 +68,3 @@ jobs:
             done
             test "$PUSH_OK" -eq 1
           fi
-          echo FULL121_CONSERVATIVE_SHARD_RESEARCH_PRIVATE_COMMITTED
