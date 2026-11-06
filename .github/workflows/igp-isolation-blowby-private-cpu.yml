@@ -1,3 +1,4 @@
+# Exact clips.nba source event audit for candidate possessions.
 # Temporal event run after HMM-informed source-first implementation; no coordinates in public logs.
 # CPU pilot tests original official ten-plus-ball sensitivity at gap bounds 350/500/800/1200ms.
 # Bounded 350ms direct-source sampling: official ten+ball, extra NBA actors ignored.
@@ -59,7 +60,7 @@ jobs:
           python3 -m py_compile gamepulse/fusion/igp_halfcourt_isolation_blowby_v1.py gamepulse/fusion/igp_halfcourt_isolation_blowby_source_adapter_v1.py gamepulse/fusion/igp_halfcourt_isolation_blowby_pilot_v1.py gamepulse/fusion/igp_halfcourt_isolation_blowby_temporal_v2.py
           python3 -m unittest -v gamepulse/fusion/tests/test_igp_halfcourt_isolation_blowby_v1.py gamepulse/fusion/tests/test_igp_halfcourt_isolation_blowby_temporal_v2.py
           if python3 -B gamepulse/fusion/igp_halfcourt_isolation_blowby_pilot_v1.py \
-               --root . --games 0022600001,0022600002,0022600003,0022600009 --output "$RUNNER_TEMP/igp_blowby_0009_qa.json" \
+               --root . --games 0022600009 --output "$RUNNER_TEMP/igp_blowby_0009_qa.json" \
                > "$RUNNER_TEMP/igp_private_pilot.log" 2> "$RUNNER_TEMP/igp_private_error.log"; then
             python3 - <<'PY'
           import json,os,pathlib
@@ -79,7 +80,7 @@ jobs:
           git config user.name 'Integrated Pulse Research QA'
           git config user.email '41898282+igp-source@users.noreply.github.com'
           mkdir -p gamepulse/fusion/qa/analysis/igp_isolation_blowby
-          cp "$RUNNER_TEMP/igp_blowby_0009_qa.json" gamepulse/fusion/qa/analysis/igp_isolation_blowby/fourgame_temporal_v2_pilot_v1.json
+          cp "$RUNNER_TEMP/igp_blowby_0009_qa.json" gamepulse/fusion/qa/analysis/igp_isolation_blowby/rockets_0009_pilot_v1.json
           git add --sparse -f gamepulse/fusion/qa/analysis/igp_isolation_blowby/rockets_0009_pilot_v1.json
           if ! git diff --cached --quiet; then
             git commit -qm 'qa(private): real NBA Rockets isolation blowby detector pilot [skip ci]'
