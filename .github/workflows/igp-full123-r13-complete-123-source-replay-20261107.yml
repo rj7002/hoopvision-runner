@@ -39,7 +39,7 @@ jobs:
             '/gamepulse/fusion/*.py' \
             '/gamepulse/fusion/analysis/*.py' \
             '/gamepulse/fusion/tests/test_igp_full123_r13_touch_overlay_v1.py'
-          export PYTHONPATH="$work"
+          export PYTHONPATH="$work:$work/gamepulse/fusion:$work/gamepulse/fusion/analysis"
           python3 -m py_compile \
             gamepulse/fusion/igp_full123_r13_touch_overlay_v1.py \
             gamepulse/fusion/analysis/igp_full123_r13_batch_sourcefirst_v1.py \
