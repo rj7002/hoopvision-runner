@@ -17,7 +17,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PROBE_SHA: 437022fdb9703db68ded35cf3944d41683aeb24e
+      PROBE_SHA: 69a09f4999195db75ad506390b04f74cfbd3f146
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -129,7 +129,7 @@ jobs:
                  "plays/0022600167.json","manifest.json")
           for relative in names:
               data=(root/relative).read_bytes()
-              blob=hashlib.sha1(("blob "+str(len(data))+"\\0").encode()+data).hexdigest()
+              blob=hashlib.sha1(b"blob "+str(len(data)).encode()+bytes([0])+data).hexdigest()
               remote="repos/"+repo+"/contents/"+prefix+"/"+relative
               old=subprocess.run(["gh","api",remote+"?ref="+branch],
                                  capture_output=True,text=True)
