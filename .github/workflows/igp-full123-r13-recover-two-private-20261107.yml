@@ -1,0 +1,123 @@
+# The public runner contains NO licensed NBA XYZ, native frame rows or player event exports.
+# Original 13-part assets and computed R13 touch sidecars remain inside private 104.
+name: IGP Full123 new-two original SDK and R13 lastTouch private recovery
+on:
+  push:
+    branches: [feature/igp-full123-r13-public-cpu-20261107]
+    paths: ['.github/workflows/igp-full123-r13-recover-two-private-20261107.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: igp-full123-r13-new-two-original-20261107
+  cancel-in-progress: false
+jobs:
+  two-new-source-games:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        game: ['0022600187','0022600188']
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: feature/igp-full123-r13-touch-integration-20261107
+      GAME: ${{ matrix.game }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate public-only boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Recover SHA-native XYZ and original NBA lastTouch privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/r13-new-two-$GAME"
+          mkdir -p "$work/sdk"
+          gh api "repos/$PRIVATE_REPO/releases/tags/gamepulse-sdk-$GAME" > "$work/release.json"
+          gh release download "gamepulse-sdk-$GAME" --repo "$PRIVATE_REPO" \
+            --pattern 'sdk-COMPLETE.json' --dir "$work" --clobber
+          gh release download "gamepulse-sdk-$GAME" --repo "$PRIVATE_REPO" \
+            --pattern 'sdk-part-*.tar.gz' --dir "$work/sdk" --clobber
+          test "$(find "$work/sdk" -type f -name 'sdk-part-*.tar.gz' | wc -l)" -eq 13
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$work/private"
+          cd "$work/private"
+          git sparse-checkout set --no-cone \
+            /gamepulse/fusion/igp_extract_all_original_sdk_xyz_2026.py \
+            /gamepulse/fusion/igp_full123_r13_original_labels_v1.py \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/
+          labels="gamepulse/fusion/qa/r13_full123_original_labels_20261107"
+          python3 gamepulse/fusion/igp_full123_r13_original_labels_v1.py \
+            --game-id "$GAME" --release-json "$work/release.json" \
+            --archive-dir "$work/sdk" --out-dir "$labels" \
+            > "$work/label-extract-private.log" 2>&1
+          dest="gamepulse/fusion/materialized/igp_all_original_xyz/$GAME"
+          if test ! -f "$dest/index.json"; then
+            python3 gamepulse/fusion/igp_extract_all_original_sdk_xyz_2026.py \
+              --game-id "$GAME" --archive-dir "$work/sdk" \
+              --release-manifest "$work/release.json" --out-dir "$dest" \
+              > "$work/native-extract-private.log" 2>&1
+          fi
+          GAME="$GAME" WORK="$work" python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          gid=os.environ['GAME'];work=Path(os.environ['WORK'])
+          cert=json.loads((work/'sdk-COMPLETE.json').read_bytes())
+          assert cert.get('game_id')==gid and cert.get('parts')==13
+          p=Path('gamepulse/fusion/materialized/igp_all_original_xyz')/gid/'index.json'
+          m=json.loads(p.read_bytes())
+          assert m['game_id']==gid and m['capture_archive_all_13_parts_verified'] is True
+          assert m['original_archive_part_count_verified']==13
+          n=0
+          for row in m['chunks']:
+              raw=(p.parent/row['path']).read_bytes()
+              assert hashlib.sha256(raw).hexdigest()==row['sha256']
+              n+=row['original_native_timestamps']
+          assert n==m['original_frame_counts']['unique_original_native_timestamps']
+          rec={
+              'schema':'igp.full123.new-game-original-source-recovery.v1',
+              'game_id':gid,
+              'original_13_archive_parts_sha_verified':True,
+              'expected_capture_windows':cert.get('expected_windows'),
+              'successful_capture_windows':cert.get('successful_windows'),
+              'source_window_capture_complete':cert.get('expected_windows')==cert.get('successful_windows'),
+              'native_manifest_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
+              'original_native_timestamps':n,
+              'source_original_modified':False,
+              'r13_sdk_lasttouch_labels_source_accepted':True,
+              'r13_frontcourt_game_scores_computed':False,
+              'independent_physical_touch_detection_certified':False,
+          }
+          path=Path('gamepulse/fusion/qa/r13_full123_original_labels_20261107')/(gid+'.source_grade.json')
+          path.write_text(json.dumps(rec,sort_keys=True,indent=2)+'\n')
+          PY
+          git config user.name 'GitHub Actions private original R13'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f "$dest" \
+            "$labels/$GAME.json.gz" "$labels/$GAME.receipt.json" \
+            "$labels/$GAME.source_grade.json"
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "FULL123_R13_NEW_GAME_SOURCE_ALREADY_SAVED"
+            exit 0
+          fi
+          git commit -q -m "data(private): original SDK 13part source and R13 labels $GAME [skip ci]"
+          for attempt in $(seq 1 12); do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo "FULL123_R13_SHA_ORIGINAL_GAME_SOURCE_COMMITTED"
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 37
