@@ -5,7 +5,7 @@ on:
     paths: ['.github/workflows/igp-full123-r13-season-shards-private-20261107.yml']
   workflow_dispatch:
 permissions: {contents: read}
-concurrency: {group: igp-full123-r13-season-shards-20261107, cancel-in-progress: false}
+concurrency: {group: igp-full123-r13-season-shards-20261107-v2, cancel-in-progress: false}
 jobs:
   source-shard:
     runs-on: ubuntu-24.04
@@ -86,41 +86,27 @@ jobs:
         run: |
           set -euo pipefail
           cd "$PRIVATE_ROOT"
-          PRIVATE_REPO="$PRIVATE_REPO" PRIVATE_BRANCH="$PRIVATE_BRANCH" SHARD="$SHARD" RUNNER_TEMP="$RUNNER_TEMP" python3 - <<'PY'
-          import base64,hashlib,json,os,subprocess,time
-          from pathlib import Path
-          repo=os.environ["PRIVATE_REPO"]; branch=os.environ["PRIVATE_BRANCH"]; k=int(os.environ["SHARD"])
-          report=json.loads((Path(os.environ["RUNNER_TEMP"])/f"r13-shard-{k}.json").read_bytes())
-          assert report["schema"]=="igp.full123.r13-source-shard-execution.v1"
-          assert report["exact_cohort_game_count"]==123 and report["original_source_modified"] is False
-          assert len(report["per_game"])==report["processed_game_count"]
-          out=Path("gamepulse/fusion/qa/r13_full123_touch_overlay_20261107")
-          labs=Path("gamepulse/fusion/qa/r13_full123_original_labels_20261107")
-          def save(path,blob):
-              url=f"repos/{repo}/contents/{path}"
-              target=hashlib.sha1(b"blob "+str(len(blob)).encode()+b"\x00"+blob).hexdigest()
-              for n in range(15):
-                  old=subprocess.run(["gh","api",url+"?ref="+branch],capture_output=True,text=True)
-                  req={"branch":branch,"message":f"data(private): SHA-original Full123 R13 shard {k} [skip ci]",
-                       "content":base64.b64encode(blob).decode()}
-                  if old.returncode==0:
-                      old_sha=json.loads(old.stdout).get("sha")
-                      if old_sha==target:return
-                      req["sha"]=old_sha
-                  x=subprocess.run(["gh","api","-X","PUT",url,"--input","-"],
-                                   input=json.dumps(req),capture_output=True,text=True)
-                  if x.returncode==0:return
-                  time.sleep(1+n//3)
-              raise RuntimeError("PRIVATE_R13_RESULT_SAVE_FAILED")
-          for rec in report["per_game"]:
-              gid=rec["game_id"]
-              for p in (labs/(gid+".json.gz"),labs/(gid+".receipt.json")):
-                  if p.is_file():save(p,p.read_bytes())
-              if rec["status"]=="R13_PASSED_SOURCE_GRADED":
-                  p=out/(gid+".json")
-                  blob=p.read_bytes()
-                  assert hashlib.sha256(blob).hexdigest()==rec["result_sha256"]
-                  save(p,blob)
-          save(out/f"shard_{k}.json",(json.dumps(report,indent=2,sort_keys=True)+"\n").encode())
-          print("FULL123_PRIVATE_R13_SHARD_PERSISTED",k,report["processed_game_count"],report["status_counts"]["R13_PASSED_SOURCE_GRADED"])
-          PY
+          # One private Git commit per shard is reproducible and avoids REST rate limits.
+          out="gamepulse/fusion/qa/r13_full123_touch_overlay_20261107"
+          labels="gamepulse/fusion/qa/r13_full123_original_labels_20261107"
+          cp "$RUNNER_TEMP/r13-shard-$SHARD.json" "$out/shard_$SHARD.json"
+          git sparse-checkout add "/$out/**" "/$labels/**"
+          git add --sparse -f "$out" "$labels"
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "PRIVATE_R13_SHARD_REUSED_UNCHANGED"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -q -m "data(private): source-graded Full123 R13 shard $SHARD [skip ci]"
+          for attempt in $(seq 1 18); do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo "FULL123_PRIVATE_R13_SHARD_GIT_PERSISTED"
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 35
