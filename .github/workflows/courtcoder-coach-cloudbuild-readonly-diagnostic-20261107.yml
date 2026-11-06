@@ -1,4 +1,4 @@
-# Read-only Cloud Build diagnosis: no deployment, source copy or credential output.
+# Read-only Cloud Build diagnosis: no deployment, source copy or credential output. Reviewed guard allowlist confirmed.
 # Uses existing 104 WIF if policy allows this protected bridge runner.
 name: CourtCoder Coach Cloud Build read-only failure diagnosis
 on:
