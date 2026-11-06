@@ -85,6 +85,50 @@ jobs:
               COURTCODER_BROWSER_QA_OUTPUT="$RUNNER_TEMP/coach-private-qa/screenshots" \
               node courtcoder/qa/coach_ui_browser_acceptance.cjs
           fi
+          export PYTHONPATH="$RUNNER_TEMP/private"
+          export COURTCODER_FIXTURE_REGISTRY="$RUNNER_TEMP/private/config/fixture-registry.json"
+          export COURTCODER_RENDER_SPEC="$RUNNER_TEMP/private/contracts/render-spec.json"
+          export COURTCODER_MODULE_REGISTRY="$RUNNER_TEMP/private/config/module-registry.json"
+          check python_dependencies python3 -m pip install --quiet -r courtcoder/requirements.txt
+          if grep -q '^python_dependencies PASS
+          # never send those logs to the public repo or its artifacts.
+          python3 - <<'PY'
+          import os,pathlib
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"coach-private-qa"
+          summary=(root/"summary.txt").read_text()
+          sections=["### Private Coach Chromium/Node acceptance",
+                    "Source SHA: "+os.environ["PRIVATE_SHA"],"",
+                    "```",summary,"```"]
+          for f in sorted(root.glob("*.log")):
+              if "FAIL" in summary and f.stem in [r.split()[0] for r in summary.splitlines() if "FAIL" in r]:
+                  sections.extend(["#### "+f.stem,"<details><summary>Private diagnostics</summary>","","```",f.read_text(errors="replace")[-8000:],"```","</details>"])
+          (root/"private-comment.txt").write_text("\n".join(sections)+"\n")
+          PY
+          if gh api --method POST "repos/$PRIVATE_REPO/issues/1052/comments" \
+              -F body=@"$RUNNER_TEMP/coach-private-qa/private-comment.txt" \
+              > "$RUNNER_TEMP/coach-private-qa/private-comment-receipt.json" \
+              2> "$RUNNER_TEMP/coach-private-qa/private-comment-error.txt"; then
+            echo COACH_PRIVATE_PR_QA_RECEIPT_WRITTEN
+          else
+            echo COACH_PRIVATE_PR_QA_RECEIPT_UNAVAILABLE_NONBLOCKING
+          fi
+          if [ "$failed" -eq 0 ]; then
+            echo COACH_NODE_AND_CHROMIUM_SOURCE_FREE_ACCEPTANCE_PASS
+          else
+            echo COACH_NODE_OR_CHROMIUM_SOURCE_FREE_ACCEPTANCE_FAIL
+            exit 1
+          fi
+ "$summary"; then
+            check python_coach_source_free python3 -m unittest -v \
+              courtcoder.qa.test_igp_coach_web_v1 \
+              courtcoder.coach.test_shot_quality_ruler_v1 \
+              courtcoder.coach.test_action_pps_v2 \
+              courtcoder.coach.test_catalog_release_gate \
+              courtcoder.coach.test_action_source_fga_ledger_v2 \
+              courtcoder.coach.test_game_directory_v1 \
+              courtcoder.coach.test_official_clips_v1
+            check python_original_routes python3 -c "import sys;sys.path.insert(0,'courtcoder');from app import app;c=app.test_client();assert c.get('/api/health').status_code==200;assert c.get('/api/bootstrap').status_code==200;assert c.get('/').status_code==200;assert c.get('/coach/').status_code==404"
+          fi
           # Private PR comment contains detailed source-free diagnostics;
           # never send those logs to the public repo or its artifacts.
           python3 - <<'PY'
