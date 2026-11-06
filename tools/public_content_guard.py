@@ -8,6 +8,7 @@ from pathlib import Path
 
 ALLOWED_STATIC = {
     ".github/workflows/igp-full123-r13-recover-two-private-20261107.yml",  # source-only original archive and SDK touch index for the two latest Full123 games
+    ".github/workflows/igp-full123-r13-0130-0131-fulloriginal-private-20261107.yml",  # source-private 13 SDK part recovery replacing no frozen source
     ".github/workflows/igp-full123-r13-all-game-replay-private-20261107.yml",  # original NBA 123 game R13 detector source replay, private only
     ".github/workflows/igp-full123-r13-all-source-labels-private-20261107.yml",  # 123 private SDK 13-part SHA lastTouch label backfill sharded, no public source rows
     ".github/workflows/igp-full123-r13-fivegame-private-replay-20261107.yml",  # five source-pinned official NBA touch comparisons, results private only
