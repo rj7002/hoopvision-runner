@@ -66,7 +66,7 @@ jobs:
               echo "$title FAIL rc=$rc" >> "$summary"
               echo "$title FAIL_DIAGNOSTICS_PRIVATE_ONLY"
               if [ "$title" = python_coach_source_free ]; then
-                sed -nE 's/^(FAIL|ERROR): (test_[A-Za-z0-9_]+).*/COACH_SOURCE_FREE_CASE_\\1 \\2/p' "$RUNNER_TEMP/coach-private-qa/$title.log" | head -12 || true
+                awk '/^(FAIL|ERROR): test_/ {print "COACH_SOURCE_FREE_CASE_" $2}' "$RUNNER_TEMP/coach-private-qa/$title.log" | head -12 || true
               fi
               failed=1
             fi
