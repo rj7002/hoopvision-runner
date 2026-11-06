@@ -123,3 +123,5 @@ jobs:
           fi
           grep '^HOUSTON9_R13_SHADOW_' "$RUNNER_TEMP/r13-shadow.log"
           echo R13_FROZEN_123_GAME_COUNTS_AND_DEFAULTS_UNCHANGED
+
+# Reviewed confidentiality allowlist activation 2026-11-07; private output only.
