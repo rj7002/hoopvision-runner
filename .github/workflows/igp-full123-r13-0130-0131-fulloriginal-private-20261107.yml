@@ -1,0 +1,88 @@
+name: IGP Full123 R13 original 0130 and 0131 13-part recovery
+on:
+  push:
+    branches: [feature/igp-full123-r13-public-cpu-20261107]
+    paths: ['.github/workflows/igp-full123-r13-0130-0131-fulloriginal-private-20261107.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        game: ['0022600130','0022600131']
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GAME: ${{ matrix.game }}
+      BRANCH: feature/igp-full123-r13-touch-integration-20261107
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Validate private boundary
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Extract independently SHA-verified original full13 SDK source privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/private-sdk-$GAME"
+          mkdir -p "$work/source"
+          gh api "repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-$GAME" > "$work/release.json"
+          gh release download "gamepulse-sdk-$GAME" --repo timeedmonds-maker/104 --pattern 'sdk-COMPLETE.json' --dir "$work" --clobber
+          gh release download "gamepulse-sdk-$GAME" --repo timeedmonds-maker/104 --pattern 'sdk-part-*.tar.gz' --dir "$work/source" --clobber
+          test "$(find "$work/source" -name 'sdk-part-*.tar.gz' -type f | wc -l)" -eq 13
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$work/private"
+          cd "$work/private"
+          git sparse-checkout set --no-cone \
+            '/gamepulse/fusion/igp_extract_all_original_sdk_xyz_2026.py' \
+            '/gamepulse/fusion/qa/r13_full123_recovered_native_20261107/*'
+          dest="gamepulse/fusion/qa/r13_full123_recovered_native_20261107/$GAME"
+          if test ! -f "$dest/index.json"; then
+            python3 gamepulse/fusion/igp_extract_all_original_sdk_xyz_2026.py \
+              --game-id "$GAME" --archive-dir "$work/source" \
+              --release-manifest "$work/release.json" --out-dir "$dest" \
+              > "$work/private-extract.log" 2>&1
+          fi
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          gid=os.environ['GAME']
+          p=Path('gamepulse/fusion/qa/r13_full123_recovered_native_20261107')/gid/'index.json'
+          m=json.loads(p.read_bytes())
+          assert m['game_id']==gid and m['original_archive_part_count_verified']==13
+          assert m['capture_archive_all_13_parts_verified'] is True
+          assert m['physical_possessions_certified']==0
+          n=0
+          for ch in m['chunks']:
+            raw=(p.parent/ch['path']).read_bytes()
+            assert hashlib.sha256(raw).hexdigest()==ch['sha256']
+            n+=ch['original_native_timestamps']
+          assert n==m['original_frame_counts']['unique_original_native_timestamps']>0
+          receipt={'schema':'igp.full123.r13-original-13part-additive-source-recovery.v1',
+            'game_id':gid,'original_sdk_13_archive_parts_sha_verified':True,
+            'native_manifest_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
+            'original_source_modified':False,'original_native_timestamps':n,
+            'historical_native_partial_manifest_unchanged':True,
+            'physical_possession_certified':False}
+          p.with_name('recovery.json').write_text(json.dumps(receipt,indent=2,sort_keys=True)+'\n')
+          print('R13_FULL123_FULL13_ORIGINAL_SOURCE_ADMITTED',gid,n)
+          PY
+          git config user.name 'R13 historical original source sidecar'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f "$dest"
+          git diff --cached --check
+          if git diff --cached --quiet; then echo R13_ORIGINAL_SOURCE_ALREADY_ADMITTED; exit 0; fi
+          git commit -q -m "data(private): immutable original Full123 R13 full13 additive source $GAME [skip ci]"
+          for attempt in $(seq 1 12); do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then echo R13_FULL123_NATIVE_SOURCE_SAVED; exit 0; fi
+            sleep "$attempt"
+          done
+          exit 39
