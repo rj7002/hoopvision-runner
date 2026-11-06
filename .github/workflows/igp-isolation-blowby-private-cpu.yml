@@ -62,7 +62,7 @@ jobs:
           git config user.email '41898282+igp-source@users.noreply.github.com'
           mkdir -p gamepulse/fusion/qa/analysis/igp_isolation_blowby
           cp "$RUNNER_TEMP/igp_blowby_0009_qa.json" gamepulse/fusion/qa/analysis/igp_isolation_blowby/rockets_0009_pilot_v1.json
-          git add -f gamepulse/fusion/qa/analysis/igp_isolation_blowby/rockets_0009_pilot_v1.json
+          git add --sparse -f gamepulse/fusion/qa/analysis/igp_isolation_blowby/rockets_0009_pilot_v1.json
           if ! git diff --cached --quiet; then
             git commit -qm 'qa(private): real NBA Rockets isolation blowby detector pilot [skip ci]'
             for retry in 1 2 3 4 5; do
