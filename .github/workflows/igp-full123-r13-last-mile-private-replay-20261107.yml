@@ -9,7 +9,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: full123-r13-last-mile-20261107
+  group: full123-r13-123-private-replay-20261107
   cancel-in-progress: false
 jobs:
   private-source-regression:
@@ -57,7 +57,7 @@ jobs:
       fail-fast: false
       max-parallel: 4
       matrix:
-        shard: [1, 4, 11, 16, 17]
+        shard: [0, 1, 2, 11, 16, 17]
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       REPO: timeedmonds-maker/104
@@ -100,6 +100,7 @@ jobs:
               for item in (
                   f'/gamepulse/fusion/materialized/igp_all_original_xyz/{gid}/**',
                   f'/gamepulse/fusion/materialized/igp_all_original_xyz_0131_eight_part/{gid}/**',
+                f'/gamepulse/fusion/qa/r13_full123_recovered_native_20261107/{gid}/**',
                   f'/gamepulse/fusion/qa/r13_full123_original_labels_20261107/{gid}.*',
                   f'/gamepulse/fusion/qa/r13_full123_original_boxes_20261107/{gid}.*',
                   f'/gamepulse/fusion/official_pbp_timing/games/{gid}.json',
