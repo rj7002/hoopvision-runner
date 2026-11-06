@@ -1,13 +1,5 @@
-# Full121 new-game smoke rerun after bounded 121-part smoke shard allowance.
-# Constrained pre-drive screener source rule against five NBA human reviewed candidates.
-# User-labeled Wembanyama screen: source-only 4.5s predrive screen feature audit.
-# Exact clips.nba source event audit for candidate possessions.
-# Temporal event run after HMM-informed source-first implementation; no coordinates in public logs.
-# CPU pilot tests original official ten-plus-ball sensitivity at gap bounds 350/500/800/1200ms.
-# Bounded 350ms direct-source sampling: official ten+ball, extra NBA actors ignored.
-# Fail closed if NBA logical possession owners are not mapped to their official team IDs.
-# Pilot source fix: exclude roster IDs lacking original official two-team assignment.
-# Re-run after guarded public-to-private workflow allowlist approval (2026-11-06).
+# Public runner only orchestrates private GitHub CPU source processing.
+# Original NBA positions and derived per-event evidence remain private.
 name: IGP isolation blowby private NBA pilot CPU
 on:
   push:
@@ -17,11 +9,16 @@ permissions:
   contents: read
 jobs:
   run-source-graded:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4]
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 120
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: research/igp-blowby-full121-full666-20261106
+      SHARD: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,7 +29,7 @@ jobs:
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
           gh auth setup-git
-      - name: Private 5v5 source-free tests and real Rockets source pilot
+      - name: Full121 original NBA tracking isolation and native screen exclusion
         shell: bash
         run: |
           set -euo pipefail
@@ -46,63 +43,57 @@ jobs:
             '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json' \
             '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json' \
             '/gamepulse/fusion/official_pbp_timing/index-2026-27-post36-additive.json' \
-            '/gamepulse/fusion/materialized/igp_all_original_xyz/0022600175/' \
-            '/gamepulse/fusion/official_pbp_timing/games/0022600175.json' \
-            '/gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600175/boxscore.json' \
-            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/official_ten_scene_possession_68_v3/0022600009.json.gz' \
-            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/official_ten_scene_possession_68_v3/0022600001.json.gz' \
-            '/gamepulse/fusion/materialized/igp_all_original_xyz/0022600001/' \
-            '/gamepulse/fusion/official_pbp_timing/games/0022600001.json' \
-            '/gamepulse/fusion/index/games/0022600001.json' \
-            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/official_ten_scene_possession_68_v3/0022600002.json.gz' \
-            '/gamepulse/fusion/materialized/igp_all_original_xyz/0022600002/' \
-            '/gamepulse/fusion/official_pbp_timing/games/0022600002.json' \
-            '/gamepulse/fusion/index/games/0022600002.json' \
-            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/official_ten_scene_possession_68_v3/0022600003.json.gz' \
-            '/gamepulse/fusion/materialized/igp_all_original_xyz/0022600003/' \
-            '/gamepulse/fusion/official_pbp_timing/games/0022600003.json' \
-            '/gamepulse/fusion/index/games/0022600003.json' \
-            '/gamepulse/fusion/materialized/igp_all_original_xyz/0022600009/' \
-            '/gamepulse/fusion/official_pbp_timing/games/0022600009.json' \
-            '/gamepulse/fusion/index/games/0022600009.json'
+            '/gamepulse/fusion/qa/analysis/igp_isolation_blowby/rockets_0009_video_review_labels_20261106.json'
+          python3 - <<'PY' > "$RUNNER_TEMP/shard_paths.txt"
+          import os,json
+          from pathlib import Path
+          base=Path("gamepulse/fusion")
+          master=json.loads((base/"materialized/igp_2026_27_unified_season_v3/index.json").read_bytes())
+          add=json.loads((base/"materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json").read_bytes())
+          qa=json.loads((base/"qa/igp_progress_20261030/igp_68_official_ten_scene_possession_ab_v3.json").read_bytes())
+          post=json.loads((base/"official_pbp_timing/index-2026-27-post36-additive.json").read_bytes())
+          ids=sorted(set(master["per_game_model"])|set(add["games"]))
+          assert len(ids)==121 and len(set(ids))==121
+          shard=int(os.environ["SHARD"]);paths=set()
+          for i,gid in enumerate(ids):
+              if i%5!=shard:continue
+              paths.add("/gamepulse/fusion/materialized/igp_all_original_xyz/"+gid+"/")
+              paths.add("/gamepulse/fusion/official_pbp_timing/games/"+gid+".json")
+              if gid in ("0022600130","0022600131"):
+                  paths.add("/gamepulse/fusion/materialized/igp_original_13part_legacy_completion_v1/"+gid+"/")
+              if gid in qa["per_game"]:
+                  paths.add("/"+qa["per_game"][gid]["path"])
+              if gid in post["games"]:
+                  paths.add("/"+post["games"][gid]["source_paths"][1])
+              else:
+                  paths.add("/gamepulse/fusion/index/games/"+gid+".json")
+          for x in sorted(paths):print(x)
+          PY
+          mapfile -t EXTRA_PATHS < "$RUNNER_TEMP/shard_paths.txt"
+          test "${#EXTRA_PATHS[@]}" -gt 0
+          git sparse-checkout add --no-cone "${EXTRA_PATHS[@]}"
           export PYTHONPATH=gamepulse/fusion:gamepulse/fusion/tests
-          python3 -m py_compile gamepulse/fusion/igp_halfcourt_isolation_blowby_v1.py gamepulse/fusion/igp_halfcourt_isolation_blowby_source_adapter_v1.py gamepulse/fusion/igp_halfcourt_isolation_blowby_pilot_v1.py gamepulse/fusion/igp_halfcourt_isolation_blowby_temporal_v2.py
-          python3 -m unittest -v gamepulse/fusion/tests/test_igp_halfcourt_isolation_blowby_v1.py gamepulse/fusion/tests/test_igp_halfcourt_isolation_blowby_temporal_v2.py
-          python3 -m py_compile gamepulse/fusion/igp_halfcourt_isolation_blowby_full121_v1.py
-          python3 -B gamepulse/fusion/igp_halfcourt_isolation_blowby_full121_v1.py --root . --shard 109 --shards 121 --output "$RUNNER_TEMP/igp_full121_smoke_0175.json"
-          if python3 -B gamepulse/fusion/igp_halfcourt_isolation_blowby_pilot_v1.py \
-               --root . --games 0022600009 --output "$RUNNER_TEMP/igp_blowby_0009_qa.json" \
-               > "$RUNNER_TEMP/igp_private_pilot.log" 2> "$RUNNER_TEMP/igp_private_error.log"; then
-            python3 - <<'PY'
-          import json,os,pathlib
-          r=json.loads((pathlib.Path(os.environ["RUNNER_TEMP"])/"igp_blowby_0009_qa.json").read_text())
-          print("IGP_BLOWBY_PRIVATE_REAL_SOURCE",json.dumps({"games":r["game_count"],"events":r["qualifying_blowby_events"],"chains":r["qualifying_official_chain_ids"],"v2_events":r["temporal_v2_research_event_count"],"source_qa":r["per_game_qa"]["0022600009"]["source_snapshot_counts"]},sort_keys=True))
-          PY
-          else
-            python3 - <<'PY'
-          import json,os,pathlib
-          p=pathlib.Path(os.environ["RUNNER_TEMP"])
-          d={"status":"PRIVATE_NBA_SOURCE_RUN_FAILED","private_error":(p/"igp_private_error.log").read_text()[-9000:]}
-          (p/"igp_blowby_0009_qa.json").write_text(json.dumps(d)+"\n")
-          print("IGP_BLOWBY_PRIVATE_SOURCE_PILOT_FAILURE_RECORDED")
-          PY
-            FAILED=1
-          fi
+          python3 -m py_compile gamepulse/fusion/igp_halfcourt_isolation_blowby_full121_v1.py gamepulse/fusion/igp_halfcourt_isolation_screen_probe_v1.py gamepulse/fusion/igp_halfcourt_isolation_blowby_temporal_v2.py
+          python3 -m unittest -q gamepulse/fusion/tests/test_igp_halfcourt_isolation_blowby_v1.py gamepulse/fusion/tests/test_igp_halfcourt_isolation_blowby_temporal_v2.py
+          python3 -B gamepulse/fusion/igp_halfcourt_isolation_blowby_full121_v1.py --root . --shard "$SHARD" --shards 5 --output "$RUNNER_TEMP/shard_$SHARD.json"
           git config user.name 'Integrated Pulse Research QA'
           git config user.email '41898282+igp-source@users.noreply.github.com'
-          mkdir -p gamepulse/fusion/qa/analysis/igp_isolation_blowby
-          cp "$RUNNER_TEMP/igp_blowby_0009_qa.json" gamepulse/fusion/qa/analysis/igp_isolation_blowby/rockets_0009_pilot_v1.json
-          git add --sparse -f gamepulse/fusion/qa/analysis/igp_isolation_blowby/rockets_0009_pilot_v1.json
+          DEST="gamepulse/fusion/qa/analysis/igp_isolation_blowby/full121/shard_$SHARD.json"
+          mkdir -p "$(dirname "$DEST")"
+          cp "$RUNNER_TEMP/shard_$SHARD.json" "$DEST"
+          git add --sparse -f "$DEST"
           if ! git diff --cached --quiet; then
-            git commit -qm 'qa(private): real NBA Rockets isolation blowby detector pilot [skip ci]'
-            for retry in 1 2 3 4 5; do
+            git commit -qm "qa(private): Full121 NBA original screen-graded shard $SHARD [skip ci]"
+            PUSH_OK=0
+            for retry in 1 2 3 4 5 6 7 8; do
               git fetch -q origin "$PRIVATE_BRANCH"
               git rebase -q "origin/$PRIVATE_BRANCH"
               if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
-                echo IGP_BLOWBY_PRIVATE_QA_COMMITTED
+                PUSH_OK=1
                 break
               fi
               sleep "$retry"
             done
+            test "$PUSH_OK" -eq 1
           fi
-          test "${FAILED:-0}" = 0
+          echo FULL121_BLOWBY_SHARD_PRIVATE_COMMITTED
