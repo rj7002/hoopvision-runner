@@ -222,7 +222,26 @@ jobs:
           if ! python3 -m gamepulse.fusion.analysis.igp_r13_ballxyz_dribble_shadow_v4 \
                   --root . --private-persist \
                   > "$RUNNER_TEMP/r13-v4-model.log" 2>&1; then
-            echo R13_V4_SOURCE_FIRST_NINE_GAME_REPLAY_FAILED
+            python3 - <<'PY'
+          import base64,json,os,subprocess,time
+          from pathlib import Path
+          raw=Path(os.environ['RUNNER_TEMP'],'r13-v4-model.log').read_text()[-20000:]
+          path='gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/houston9_ballxyz_v4_private_failure_20261107.json'
+          api=f"repos/{os.environ['PRIVATE_REPO']}/contents/{path}"
+          body={'branch':os.environ['PRIVATE_BRANCH'],
+                'message':'qa(private): preserve V4 source replay exception [skip ci]',
+                'content':base64.b64encode(json.dumps(
+                  {'status':'FAILED','private_error_log':raw,'source_tracking_not_exported':True},
+                  sort_keys=True).encode()).decode()}
+          for attempt in range(8):
+              prior=subprocess.run(['gh','api',api+'?ref='+body['branch']],capture_output=True,text=True)
+              if prior.returncode==0:body['sha']=json.loads(prior.stdout)['sha']
+              done=subprocess.run(['gh','api','-X','PUT',api,'--input','-'],
+                                  input=json.dumps(body),capture_output=True,text=True)
+              if done.returncode==0:break
+              time.sleep(attempt+1)
+          PY
+            echo R13_V4_SOURCE_FIRST_NINE_GAME_REPLAY_FAILED_PRIVATE_TRACE_CAPTURED
             exit 30
           fi
           echo R13_V4_SOURCE_FIRST_NINE_GAME_PRIVATE_REPORT_SAVED
