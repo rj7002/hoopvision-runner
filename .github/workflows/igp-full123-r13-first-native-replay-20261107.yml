@@ -1,0 +1,107 @@
+# SHA-original Full123 R13 pilot; private source-data and event outputs never enter public runner artifacts/logs.
+name: Full123 R13 first original-native frontcourt touch replay
+on:
+  push:
+    branches: [feature/igp-full123-r13-public-cpu-20261107]
+    paths: ['.github/workflows/igp-full123-r13-first-native-replay-20261107.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: full123-r13-first-original-native-20261107
+  cancel-in-progress: false
+jobs:
+  paired-original-r13:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      REPO: timeedmonds-maker/104
+      BRANCH: feature/igp-full123-r13-touch-integration-20261107
+      GAME: '0022600021'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce public repository privacy guard
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Run and preserve real private SHA-original R13 episode replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/private-r13-pilot"
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" "https://github.com/$REPO.git" "$work"
+          cd "$work"
+          git sparse-checkout set --no-cone \
+            '/gamepulse/fusion/*.py' \
+            '/gamepulse/fusion/analysis/igp_r13_touch_stats_v2.py' \
+            '/gamepulse/fusion/qa/r13_full123_original_labels_20261107/0022600021.json.gz' \
+            '/gamepulse/fusion/qa/igp_progress_20261030/igp_full121_default_source_release_v1.json' \
+            '/gamepulse/fusion/qa/igp_progress_20261030/full121_original_native_sha_admission/*.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json' \
+            '/gamepulse/fusion/materialized/igp_all_original_xyz/*/index.json' \
+            '/gamepulse/fusion/materialized/igp_all_original_xyz/0022600021/**' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600021.json' \
+            '/gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600021/boxscore.json' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_0022600021/sdk_observed_original.json'
+          export PYTHONPATH="$work:$work/gamepulse/fusion:$work/gamepulse/fusion/analysis"
+          out="gamepulse/fusion/qa/r13_full123_touch_overlay_20261107"
+          mkdir -p "$out"
+          set +e
+          python3 gamepulse/fusion/igp_full123_r13_touch_overlay_v1.py \
+            --root . --game-id "$GAME" --out "$out" \
+            > "$RUNNER_TEMP/private-r13-pilot.log" 2>&1
+          status=$?
+          set -e
+          if test "$status" -ne 0; then
+            python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          d=Path('gamepulse/fusion/qa/r13_full123_touch_overlay_20261107')
+          result={'schema':'igp.full123.r13.original-replay-private-diagnostic.v1',
+                  'game_id':os.environ['GAME'],
+                  'status':'SOURCE_REPLAY_NOT_ACCEPTED',
+                  'private_log':(Path(os.environ['RUNNER_TEMP'])/'private-r13-pilot.log').read_text()[-12000:]}
+          (d/(os.environ['GAME']+'.diagnostic.json')).write_text(json.dumps(result,indent=2))
+          PY
+            echo "PRIVATE_R13_ORIGINAL_SOURCE_PILOT_NOT_ACCEPTED"
+          else
+            GAME="$GAME" python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          p=Path('gamepulse/fusion/qa/r13_full123_touch_overlay_20261107')/(os.environ['GAME']+'.json')
+          d=json.loads(p.read_bytes())
+          assert d['game_id']==os.environ['GAME']
+          assert d['source_original_modified'] is False
+          assert not d['nba_frontcourt_metric_parity_certified']
+          assert d['accepted_touch_episodes'] == sum(r['touches'] for r in d['player_stats'].values())
+          assert d['accepted_touch_episodes']>0
+          print('PRIVATE_R13_ORIGINAL_GAME_SOURCE_CHECK_PASSED')
+          PY
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f "$out/$GAME.json" 2>/dev/null || true
+          git add --sparse -f "$out/$GAME.diagnostic.json" 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "PRIVATE_R13_PILOT_NO_RESULT_COMMITTED"
+            exit 33
+          fi
+          git diff --cached --check
+          git commit -q -m "qa(private): SHA-original Full123 R13 actual touch replay $GAME [skip ci]"
+          for attempt in $(seq 1 12); do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo "PRIVATE_R13_ORIGINAL_PILOT_RECEIPT_COMMITTED"
+              test "$status" -eq 0
+              exit $?
+            fi
+            sleep "$attempt"
+          done
+          exit 34
