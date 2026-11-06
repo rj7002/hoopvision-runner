@@ -59,4 +59,5 @@ jobs:
             --root . --private-persist
           python3 gamepulse/fusion/analysis/igp_full123_r13_frontcourt_cross_team_validation_20261107.py \
             --root . --private-persist
-          echo FULL123_R13_HOUSTON9_AND_CROSS_TEAM_26_PLAYER_FRONTCOURT_QA_PRIVATE_SHA_COMPLETE
+          python3 gamepulse/fusion/analysis/igp_full123_r13_official_league_frontcourt_probe_20261107.py
+          echo FULL123_R13_HOUSTON9_CROSS_TEAM26_AND_OFFICIAL_NBA_SOURCE_PROBE_COMPLETE
