@@ -1,4 +1,5 @@
 # Public control plane only: private CourtCoder source and browser screenshots
+# Reviewed and explicitly allowlisted in tools/public_content_guard.py.
 # are never uploaded to this public repository, Actions logs, or artifacts.
 name: CourtCoder Coach protected Chromium and CPU acceptance
 on:
