@@ -176,6 +176,32 @@ jobs:
           echo R13_10HZ_V2_9_GAMES_COMPLETED_PRIVATE_REPORT
           echo R13_10HZ_V1_AND_FROZEN_R13_PRESERVED
 
+      - name: Run V3 source-free physics and handler identity tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m unittest discover -s gamepulse/fusion/analysis \
+                  -p test_igp_r13_ballxyz_10hz_dribble_shadow_v3.py -v \
+                  > "$RUNNER_TEMP/r13-v3-tests.log" 2>&1; then
+            echo R13_V3_SOURCE_FREE_TESTS_FAILED
+            exit 27
+          fi
+          echo R13_V3_SOURCE_FREE_REGRESSIONS_PASSED
+      - name: Independently adjudicate BOTH original and newly identified ball bounces V3
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m gamepulse.fusion.analysis.igp_r13_ballxyz_10hz_dribble_shadow_v3 \
+                  --root . --private-persist \
+                  > "$RUNNER_TEMP/r13-v3-model.log" 2>&1; then
+            echo R13_V3_ORIGINAL_SDK_SOURCE_ADJUDICATION_FAILED
+            exit 28
+          fi
+          echo R13_V3_NINE_GAME_SHA_VERIFIED_PRIVATE_RESULTS_SAVED
+          echo R13_V3_FROZEN_R13_AND_V2_RESULT_UNCHANGED
+
 # Reviewed confidentiality allowlist activation 2026-11-07; private output only.
 
 # Second private original source replay: frozen rejected-brief/geometry-only frontcourt uncertainty census.
