@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/courtcoder-coach-cloudbuild-readonly-diagnostic-20261107.yml",  # read-only Google Cloud build status; no credentials, private data or log payloads
     ".github/workflows/igp-full123-r13-shadow-private-20261107.yml",  # reviewed private-SHA 9-game frontcourt crossing hypothesis; public logs aggregate-only, all source/episode results stay in private 104
     ".github/workflows/courtcoder-coach-native-probe-20261107.yml",  # private SHA-original HOU-BOS SDK XYZ source: aggregate-only QA posted privately; public logs contain no coordinates
     ".github/workflows/courtcoder-private-cpu-source-contract-20261107.yml",  # authenticated ephemeral private checkout for source-free registration/cache/H1 tests; no source/logs/artifacts public
