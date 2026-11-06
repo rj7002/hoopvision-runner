@@ -19,7 +19,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: feature/courtcoder-coach-web-20261106
-      PRIVATE_SHA: 662c69113656d06fb773caadaa15234e0258d0e4
+      PRIVATE_SHA: bc8d4ea6197cb0ae15639d5fb927627d452cdf2d
       PRIVATE_REPO: timeedmonds-maker/104
     steps:
       - uses: actions/checkout@v4
@@ -71,6 +71,9 @@ jobs:
               fi
               if [ "$title" = chromium_real_browser ]; then
                 sed -nE 's/.*AssertionError \[ERR_ASSERTION\]: (.{1,110}).*/COACH_BROWSER_ASSERTION \1/p' "$RUNNER_TEMP/coach-private-qa/$title.log" | head -3 || true
+              fi
+              if [ "$title" = python_cloudbuild_native_publish_emulation ]; then
+                awk '/^(FAIL|ERROR): test_/ {print "COACH_CLOUDBUILD_EMULATOR_CASE_" $2}' "$RUNNER_TEMP/coach-private-qa/$title.log" | head -12 || true
               fi
               if [ "$title" = python_private_real_nba_pilot ]; then
                 awk '/^(FAIL|ERROR): test_/ {print "COACH_REAL_PILOT_CASE_" $2}' "$RUNNER_TEMP/coach-private-qa/$title.log" | head -12 || true
