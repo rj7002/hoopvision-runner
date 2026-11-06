@@ -1,0 +1,84 @@
+# Ephemeral, private-source-only Integrated Pulse CPU calculation.
+# Output is committed exclusively to the private source repository.
+name: Integrated Pulse private NBA defensive speed CPU analysis
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-halfcourt-defense-speed-private-cpu-20261106.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-halfcourt-defense-speed-source-only-20261106
+  cancel-in-progress: false
+jobs:
+  run-private-analysis:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/igp-halfcourt-defensive-speed-20261106
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify confidential execution boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Run full-source analysis without printing protected inputs or results
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set scripts gamepulse/fusion/materialized/igp_all_original_xyz gamepulse/fusion/official_pbp_timing gamepulse/fusion/official_lineup_clock
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile scripts/igp_full121_halfcourt_defensive_speed_20261106.py
+          if ! python3 -B scripts/igp_full121_halfcourt_defensive_speed_20261106.py \
+                 --max-games 4 --output "$RUNNER_TEMP/igp_speed_private_smoke.json" \
+                 > "$RUNNER_TEMP/igp_speed_private_smoke.log" 2>&1; then
+            echo 'PRIVATE_ANALYSIS_SMOKE_ERROR'
+            exit 32
+          fi
+          if ! python3 -B scripts/igp_full121_halfcourt_defensive_speed_20261106.py \
+                --output "$RUNNER_TEMP/igp_speed_private_all.json" \
+                > "$RUNNER_TEMP/igp_speed_private_all.log" 2>&1; then
+            echo 'PRIVATE_ANALYSIS_FULL_ERROR'
+            exit 33
+          fi
+          python3 - <<'PY'
+          import json,os,pathlib
+          p=pathlib.Path(os.environ['RUNNER_TEMP'])
+          a=json.loads((p/'igp_speed_private_smoke.json').read_text())
+          b=json.loads((p/'igp_speed_private_all.json').read_text())
+          assert a['successful_games']>=3 and a['team_quarter'], 'SMOKE_NO_ELIGIBLE_SOURCE'
+          assert b['selected_games']==121 and b['successful_games']>=20, 'FULL121_SOURCE_FAILURES'
+          assert len(set(x['team'] for x in b['team_quarter']))>=10, 'INSUFFICIENT_TEAM_COVERAGE'
+          assert all(x['defender_seconds']>0 for x in b['team_quarter']), 'INVALID_DENOMINATOR'
+          print('PRIVATE_5V5_HALFCOURT_SOURCE_QA_VALID')
+          PY
+      - name: Commit aggregate quarter measurements to private repository only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          rel='results/igp_full121_halfcourt_defensive_speed_by_team_quarter_20261106.json'
+          mkdir -p results
+          cp "$RUNNER_TEMP/igp_speed_private_all.json" "$rel"
+          git config user.name 'Integrated Pulse Private Research'
+          git config user.email '41898282+igp-source@users.noreply.github.com'
+          git add -f "$rel"
+          git diff --cached --check
+          git commit -qm 'data(igp): private aggregated 5v5 halfcourt defensive speed by quarter'
+          for retry in $(seq 1 12); do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo 'PRIVATE_SOURCE_DERIVED_AGGREGATE_COMMITTED'
+              exit 0
+            fi
+            sleep "$retry"
+          done
+          exit 34
