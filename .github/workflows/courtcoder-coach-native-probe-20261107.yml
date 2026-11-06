@@ -101,7 +101,14 @@ jobs:
             grep -Eo "(ValueError|KeyError|TypeError): [A-Z][A-Z0-9_]+" "$RUNNER_TEMP/native-pilot-diagnostics-private.log" | tail -1 || true
             # Print only exception class and PRIVATE PUBLISHER source line number;
             # never print NBA JSON payloads, source frames or player coordinates.
-            python3 -c 'import os,pathlib,re; data=(pathlib.Path(os.environ["RUNNER_TEMP"])/"native-pilot-diagnostics-private.log").read_text(errors="replace"); matches=re.findall(r"File [^\x22]*build_private_event_pilot_v1[.]py\x22, line ([0-9]+), in ([A-Za-z0-9_]+)",data)'
+            python3 - <<'PY'
+          import os,pathlib,re
+          data=(pathlib.Path(os.environ["RUNNER_TEMP"])/"native-pilot-diagnostics-private.log").read_text(errors="replace")
+          matches=re.findall(r'File "[^"]*build_private_event_pilot_v1[.]py", line ([0-9]+), in ([A-Za-z0-9_]+)',data)
+          print("COACH_PRIVATE_PUBLISHER_FAILURE_LINE",matches[-1] if matches else "UNKNOWN")
+          exception=(data.strip().splitlines() or ["UnknownError"])[-1].split(":",1)[0]
+          print("COACH_PRIVATE_PUBLISHER_EXCEPTION_CLASS",exception if re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{1,60}",exception) else "UNKNOWN")
+          PY
             exit 1
           fi
           python3 - <<'PY'
