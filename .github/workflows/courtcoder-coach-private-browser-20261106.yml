@@ -65,6 +65,9 @@ jobs:
               rc=$?
               echo "$title FAIL rc=$rc" >> "$summary"
               echo "$title FAIL_DIAGNOSTICS_PRIVATE_ONLY"
+              if [ "$title" = node_21_contract_tests ]; then
+                awk '/^not ok [0-9]+/ {print "COACH_NODE_TEST_FAILURE " $2}' "$RUNNER_TEMP/coach-private-qa/$title.log" | head -25 || true
+              fi
               if [ "$title" = python_coach_source_free ]; then
                 awk '/^(FAIL|ERROR): test_/ {print "COACH_SOURCE_FREE_CASE_" $2}' "$RUNNER_TEMP/coach-private-qa/$title.log" | head -12 || true
               fi
@@ -72,7 +75,7 @@ jobs:
             fi
           }
           check node_syntax bash -ceu 'node --check courtcoder/qa/coach_ui_visual_contract.test.cjs && node --check courtcoder/qa/coach_ui_browser_acceptance.cjs'
-          check node_18_contract_tests node --test courtcoder/qa/coach_ui_visual_contract.test.cjs
+          check node_21_contract_tests node --test courtcoder/qa/coach_ui_visual_contract.test.cjs
           if ! npm install --no-save --no-package-lock --ignore-scripts \
               --prefix "$RUNNER_TEMP/private" playwright-core@1.56.0 \
               > "$RUNNER_TEMP/coach-private-qa/browser-install.log" 2>&1; then
