@@ -1,0 +1,138 @@
+# Unmodified official NBA SDK original 13-part archives -> private-only SHA lastTouch source labels.
+name: IGP Full123 all-original SDK R13 labels private backfill
+on:
+  push:
+    branches: [feature/igp-full123-r13-public-cpu-20261107]
+    paths: ['.github/workflows/igp-full123-r13-all-source-labels-private-20261107.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full123-original-lasttouch-all-source-20261107
+  cancel-in-progress: false
+jobs:
+  backfill-source-shard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0,1,2,3,4,5,6,7]
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: feature/igp-full123-r13-touch-integration-20261107
+      SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Protect public release boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Verify 123 source game membership and privately SHA-harvest full original lastTouch
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/full123-r13-shard-$SHARD"
+          mkdir -p "$work"
+          git clone --quiet --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$work/private"
+          cd "$work/private"
+          git sparse-checkout set --no-cone \
+            '/gamepulse/fusion/igp_full123_r13_original_labels_v1.py' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json' \
+            '/gamepulse/fusion/qa/r13_full123_original_labels_20261107/*'
+          SHARD="$SHARD" WORK="$work" python3 - <<'PY'
+          import json,os,subprocess
+          from pathlib import Path
+          base=Path('gamepulse/fusion/materialized/igp_2026_27_unified_season_v3')
+          idx=base/'index.json'
+          add=base/'post56_additive_20261028/index.json'
+          def blob(p):return subprocess.check_output(['git','hash-object',str(p)],text=True).strip()
+          assert blob(idx)=='ddb5192718b4ce6f203fc6be0ec3cf6bd3aa841c'
+          assert blob(add)=='b94ff1d748a9f09adf72debc1fab3ec7513c0143'
+          first=json.loads(idx.read_bytes())['per_game_model']
+          later=json.loads(add.read_bytes())['games']
+          games=sorted(set(first)|set(later)|{'0022600187','0022600188'})
+          assert len(first)==56 and len(later)==65 and len(games)==123
+          shard=int(os.environ['SHARD'])
+          selected=[g for i,g in enumerate(games) if i%8==shard]
+          (Path(os.environ['WORK'])/'ids.txt').write_text('\n'.join(selected)+'\n')
+          print('FULL123_R13_ORIGINAL_SOURCE_SHARD_SELECTED',shard,len(selected))
+          PY
+          accepted=0
+          skipped=0
+          failed=0
+          labels='gamepulse/fusion/qa/r13_full123_original_labels_20261107'
+          mkdir -p "$labels"
+          while read -r game; do
+            test -n "$game" || continue
+            if test -f "$labels/$game.json.gz"; then
+              skipped=$((skipped+1))
+              continue
+            fi
+            scratch="$work/sdk-$game"
+            mkdir -p "$scratch/parts"
+            if gh api "repos/$PRIVATE_REPO/releases/tags/gamepulse-sdk-$game" > "$scratch/release.json" 2> "$scratch/api.log" \
+              && gh release download "gamepulse-sdk-$game" --repo "$PRIVATE_REPO" \
+                   --pattern 'sdk-part-*.tar.gz' --dir "$scratch/parts" --clobber \
+                   > "$scratch/download.log" 2>&1 \
+              && test "$(find "$scratch/parts" -type f -name 'sdk-part-*.tar.gz' | wc -l)" -eq 13 \
+              && python3 gamepulse/fusion/igp_full123_r13_original_labels_v1.py \
+                   --game-id "$game" --release-json "$scratch/release.json" \
+                   --archive-dir "$scratch/parts" --out-dir "$labels" \
+                   > "$scratch/extract.log" 2>&1; then
+              accepted=$((accepted+1))
+            else
+              failed=$((failed+1))
+              # Never publish private SDK or player data into public Action logs.
+              printf '%s\n' "$game" >> "$work/unavailable.txt"
+            fi
+            rm -rf "$scratch"
+          done < "$work/ids.txt"
+          SHARD="$SHARD" WORK="$work" ACCEPTED="$accepted" SKIPPED="$skipped" FAILED="$failed" python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          work=Path(os.environ['WORK']);ids=work.joinpath('ids.txt').read_text().splitlines()
+          failed=work.joinpath('unavailable.txt').read_text().splitlines() if work.joinpath('unavailable.txt').exists() else []
+          assert len(ids)==int(os.environ['ACCEPTED'])+int(os.environ['SKIPPED'])+int(os.environ['FAILED'])
+          data={
+              'schema':'igp.full123.r13-original-sdk-label-shard-qa.v1',
+              'shard':int(os.environ['SHARD']),'shards':8,'games_assigned':len(ids),
+              'source_label_archives_newly_SHA_verified':int(os.environ['ACCEPTED']),
+              'source_label_archives_previously_present':int(os.environ['SKIPPED']),
+              'source_label_archives_unavailable':int(os.environ['FAILED']),
+              'unavailable_game_ids':failed,
+              'original_NBA_source_modified':False,
+              'frontcourt_touch_replay_completed_by_this_job':False,
+          }
+          p=Path('gamepulse/fusion/qa/r13_full123_touch_overlay_20261107')/('source_label_shard_'+os.environ['SHARD']+'.json')
+          p.parent.mkdir(parents=True,exist_ok=True)
+          p.write_text(json.dumps(data,sort_keys=True,indent=2)+'\n')
+          PY
+          git config user.name 'R13 original SDK source backfill'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f "$labels"/*.json.gz "$labels"/*.receipt.json \
+            "gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/source_label_shard_$SHARD.json"
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "FULL123_R13_ORIGINAL_SOURCE_SHARD_ALREADY_SAVED"
+            exit 0
+          fi
+          git commit -q -m "data(private): Full123 original NBA SDK R13 SHA labels shard $SHARD [skip ci]"
+          for attempt in $(seq 1 18); do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo "FULL123_R13_ORIGINAL_SDK_SHARD_SAVED"
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 39
