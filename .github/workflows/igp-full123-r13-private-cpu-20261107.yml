@@ -42,6 +42,8 @@ jobs:
             /gamepulse/fusion/igp_full123_r13_touch_overlay_v1.py \
             /gamepulse/fusion/igp_full123_r13_original_labels_v1.py \
             /gamepulse/fusion/igp_full121_source_default_v1.py
+            /gamepulse/fusion/igp_full123_r13_prior_verified_v1.py \
+            /gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/verified_5game/
           export PYTHONPATH="$RUNNER_TEMP/private:$RUNNER_TEMP/private/gamepulse/fusion:$RUNNER_TEMP/private/gamepulse/fusion/analysis"
           set +e
           python3 -m py_compile gamepulse/fusion/igp_full123_r13_touch_overlay_v1.py \
@@ -84,4 +86,18 @@ jobs:
             echo "FULL123_R13_PRIVATE_SOURCE_FREE_TEST_FAILED"
             exit "$result"
           fi
+          python3 - <<'PY'
+          from gamepulse.fusion.igp_full123_r13_prior_verified_v1 import summary,player_game
+          data=summary('.')
+          assert data['validated_R13_player_game_count_games']==5
+          assert data['full123_123_of_123_r13_processed'] is False
+          assert sum(x['touches'] for x in data['player_sample_5game'].values())==1952
+          assert sum(x['frontcourt_touches'] for x in data['player_sample_5game'].values())==1088
+          assert abs(data['frontcourt_player_game_WAPE']-84/1122)<1e-12
+          a=player_game('.','0022600021','201142')
+          assert a['player_rows'][0]['touches']==57
+          assert a['player_rows'][0]['frontcourt_touches']==43
+          assert a['full123_game_source_event_replay'] is False
+          print('R13_FIVE_GAME_ORIGINAL_PRIVATE_QA_CONSERVATION_PASS')
+          PY
           echo "FULL123_R13_SOURCE_FREE_TESTS_PASSED"
