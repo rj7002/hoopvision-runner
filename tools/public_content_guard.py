@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full123-r13-recover-two-private-20261107.yml",  # source-only original archive and SDK touch index for the two latest Full123 games
     ".github/workflows/igp-full123-r13-private-cpu-20261107.yml",  # source-free R13 private CPU; no NBA XYZ or event data in public logs
     ".github/workflows/courtcoder-coach-private-browser-20261106.yml",  # reviewed SHA-pinned private Coach synthetic JS/Chromium QA; no private logs/screenshots in public
     ".github/workflows/igp-halfcourt-defense-speed-private-cpu-20261106.yml",  # reviewed ephemeral private-only 5v5 defense speed; no licensed XYZ, private data, or results leave worker
