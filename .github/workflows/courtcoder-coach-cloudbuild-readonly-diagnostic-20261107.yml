@@ -1,0 +1,78 @@
+# Read-only Cloud Build diagnosis: no deployment, source copy or credential output.
+# Uses existing 104 WIF if policy allows this protected bridge runner.
+name: CourtCoder Coach Cloud Build read-only failure diagnosis
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/courtcoder-coach-cloudbuild-readonly-diagnostic-20261107.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  build-diagnosis:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      PROJECT_ID: project-d88c48c6-7f48-4c33-928
+      WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-104
+      CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce public repository confidentiality
+        run: python3 tools/public_content_guard.py
+      - name: Attempt read-only existing WIF authentication
+        id: google_auth
+        uses: google-github-actions/auth@v2
+        continue-on-error: true
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - name: Query ONLY aggregate Cloud Build step statuses and build error classes
+        if: steps.google_auth.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -q google-auth google-api-python-client
+          python3 - <<'PY'
+          import google.auth
+          from googleapiclient.discovery import build
+          from googleapiclient.errors import HttpError
+          project="project-d88c48c6-7f48-4c33-928"
+          client=build("cloudbuild","v1",cache_discovery=False)
+          try:
+              result=client.projects().locations().builds().list(
+                  parent="projects/"+project+"/locations/asia-southeast1",pageSize=50
+              ).execute()
+          except HttpError as exc:
+              print("COACH_GCP_BUILD_READ_DENIED",exc.resp.status)
+              raise SystemExit(0)
+          matching=[r for r in result.get("builds",[])
+                    if str(r.get("id","")).startswith(("3217bff1","b7d48335"))
+                    or (r.get("substitutions",{}).get("TRIGGER_NAME")=="integrated-pulse-coach-preview"
+                        and r.get("substitutions",{}).get("BRANCH_NAME")=="feature/courtcoder-coach-web-20261106")]
+          for b in matching[:5]:
+              steps=b.get("steps",[])
+              print("COACH_BUILD_READONLY_SUMMARY",
+                    "id="+str(b.get("id",""))[:8],
+                    "status="+str(b.get("status")),
+                    "commit="+str(b.get("substitutions",{}).get("COMMIT_SHA",""))[:8],
+                    "step_count="+str(len(steps)))
+              for step in steps:
+                  print("COACH_BUILD_PHASE",
+                        str(step.get("id","UNKNOWN")),
+                        str(step.get("status","UNKNOWN")))
+              detail=(b.get("statusDetail") or "")
+              if detail:
+                  # No raw failure logs, secret payload or private GCS content.
+                  summary=detail.splitlines()[0][:250]
+                  print("COACH_BUILD_STATUS_DETAIL_CLASS",summary)
+          if not matching:
+              print("COACH_BUILD_READONLY_QUERY_RETURNED_NO_MATCH")
+          PY
+      - name: State WIF limitation explicitly
+        if: steps.google_auth.outcome != 'success'
+        run: echo "COACH_GCP_WIF_NOT_AUTHORIZED_FOR_PUBLIC_RUNNER_NO_CLOUD_DETAILS_OBTAINED"
