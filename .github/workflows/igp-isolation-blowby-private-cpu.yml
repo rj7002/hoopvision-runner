@@ -1,3 +1,4 @@
+# Re-run after guarded public-to-private workflow allowlist approval (2026-11-06).
 name: IGP isolation blowby private NBA pilot CPU
 on:
   push:
