@@ -46,7 +46,11 @@ jobs:
             "refs/pull/$PRIVATE_PR/head"
           private_sha="$(git -C "$RUNNER_TEMP/private" rev-parse FETCH_HEAD)"
           git -C "$RUNNER_TEMP/private" sparse-checkout set \
-            tools/github_first tools/release hoopvision/core screen_tracker_nextgen config/experiments
+            tools hoopvision/core hoopvision/config hoopvision/scouting \
+            hoopvision/render hoopvision/tactical hoopvision/adapters \
+            hoopvision/freeview hoopvision/worker screen_tracker_nextgen \
+            screen_tracker_kickout3 courtcoder/ENGINE_VERSION release \
+            config/experiments
           git -C "$RUNNER_TEMP/private" checkout -q --detach "$private_sha"
           test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$private_sha"
           cd "$RUNNER_TEMP/private"
@@ -60,6 +64,25 @@ jobs:
                2> "$RUNNER_TEMP/private-error.log"; then
             cat "$RUNNER_TEMP/private-test-status.log"
             echo PRIVATE_CPU_SOURCE_FREE_TESTS_SUCCESS
+            if PYTHONPATH=. python3 -m tools.github_first.arcsort_cpu_bundle_preflight \
+                 --source-sha "$private_sha" \
+                 --report "$RUNNER_TEMP/private-bundle-report.json" \
+                 > "$RUNNER_TEMP/private-bundle-log.txt" 2>&1; then
+              echo COURTCODER_PRIVATE_ARC_BOTH_IMMUTABLE_APP_BUNDLES_PASS
+            else
+              echo COURTCODER_PRIVATE_ARC_BUNDLE_DRYRUN_FAILED
+              {
+                echo "Private offline McByte/ARC deterministic app packaging failed."
+                echo
+                echo '~~~'
+                tail -c 12000 "$RUNNER_TEMP/private-bundle-log.txt"
+                echo '~~~'
+              } > "$RUNNER_TEMP/private-bundle-error.md"
+              gh api --method POST "repos/$PRIVATE_REPO/issues/$PRIVATE_PR/comments" \
+                -F body=@"$RUNNER_TEMP/private-bundle-error.md" \
+                >/dev/null 2>"$RUNNER_TEMP/private-bundle-comment-error.txt" || true
+              exit 23
+            fi
           else
             echo PRIVATE_CPU_SOURCE_FREE_TESTS_FAILED
             # Detailed module names and stack traces go to a PRIVATE PR only.
