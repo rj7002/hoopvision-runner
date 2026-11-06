@@ -67,6 +67,8 @@ jobs:
           export PYTHONPATH=gamepulse/fusion:gamepulse/fusion/tests
           python3 -m py_compile gamepulse/fusion/igp_halfcourt_isolation_blowby_v1.py gamepulse/fusion/igp_halfcourt_isolation_blowby_source_adapter_v1.py gamepulse/fusion/igp_halfcourt_isolation_blowby_pilot_v1.py gamepulse/fusion/igp_halfcourt_isolation_blowby_temporal_v2.py
           python3 -m unittest -v gamepulse/fusion/tests/test_igp_halfcourt_isolation_blowby_v1.py gamepulse/fusion/tests/test_igp_halfcourt_isolation_blowby_temporal_v2.py
+          python3 -m py_compile gamepulse/fusion/igp_halfcourt_isolation_blowby_full121_v1.py
+          python3 -B gamepulse/fusion/igp_halfcourt_isolation_blowby_full121_v1.py --root . --shard 109 --shards 121 --output "$RUNNER_TEMP/igp_full121_smoke_0175.json"
           if python3 -B gamepulse/fusion/igp_halfcourt_isolation_blowby_pilot_v1.py \
                --root . --games 0022600009 --output "$RUNNER_TEMP/igp_blowby_0009_qa.json" \
                > "$RUNNER_TEMP/igp_private_pilot.log" 2> "$RUNNER_TEMP/igp_private_error.log"; then
