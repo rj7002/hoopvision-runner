@@ -64,7 +64,7 @@ jobs:
           import collections,hashlib,json
           from pathlib import Path
           from gamepulse.fusion import igp_full123_r13_touch_overlay_v1 as model
-          from gamepulse.fusion.analysis import igp_full123_r13_prior_verified_v1 as prior
+          from gamepulse.fusion import igp_full123_r13_prior_verified_v1 as prior
           from gamepulse.fusion.analysis.igp_full123_r13_houston_nine_game_screenshot_qa_20261107 import summarize
           from gamepulse.fusion.analysis.igp_full123_r13_private_persist_v1 import OUT,gh_put
           root=Path('.')
