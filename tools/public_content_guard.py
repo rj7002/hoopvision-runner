@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full123-r13-final-source-qa-20261107.yml",  # source-free public orchestration of full123 private SHA-replay and Houston9 check; no original NBA rows public
     ".github/workflows/igp-full123-r13-three-companion-clock-source-20261107.yml",  # 3 licensed original companion clock receipts remain private; public metadata-only status
     ".github/workflows/igp-full123-r13-last-mile-private-replay-20261107.yml",  # three private SHA-original R13 shards and protected per-game error trace with private-only outputs
     ".github/workflows/igp-full123-r13-complete-123-source-replay-20261107.yml",  # private licensed NBA R13 123-game replay, metadata-only public logs
