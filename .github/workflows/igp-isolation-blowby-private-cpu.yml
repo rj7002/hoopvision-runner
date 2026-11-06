@@ -6,9 +6,9 @@ on:
 permissions:
   contents: read
 jobs:
-  screen-native-reviewed-cases:
+  screen-v2-native-source-controls:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: research/igp-blowby-full121-full666-20261106
@@ -16,41 +16,49 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Guard public runner and authenticate
+      - name: Confidentiality guard and authenticated private source
         run: |
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
           gh auth setup-git
-      - name: Inspect original NBA source features for reviewed screen controls
+      - name: Two NBA exact games native source clip-label screen v2 QA
         shell: bash
         run: |
           set -euo pipefail
           git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           cd "$RUNNER_TEMP/private"
-          git sparse-checkout set --no-cone '/gamepulse/fusion/qa/analysis/igp_isolation_blowby/full121_conservative_v4/'
-          python3 - <<'PY'
-          import json,pathlib
-          b=pathlib.Path("gamepulse/fusion/qa/analysis/igp_isolation_blowby/full121_conservative_v4")
-          cases={"0022600091":{221},"0022600181":{13,94,552,708}}
-          found=set()
-          for p in sorted(b.glob("shard_*.json")):
-              j=json.loads(p.read_bytes())
-              for gid,actions in cases.items():
-                  game=j["per_game"].get(gid)
-                  if game is None:continue
-                  events=game["general_defender_beaten"]["events"]
-                  for e in events:
-                      matched=sorted(set(e.get("review_action_ids") or []) & actions)
-                      if not matched:continue
-                      found|={(gid,k) for k in matched}
-                      print("NBA_SCREEN_SOURCE_CONTROL",json.dumps({
-                         "game_id":gid,"events":matched,"chain_id":e["chain_id"],
-                         "attacker":e.get("attacker_name"),"defender":e.get("defender_name"),
-                         "team":e["defense_team"],"tstart":e["initial_utc_ms"],
-                         "tbeat":e["beaten_utc_ms"],"tconfirm":e["confirmed_utc_ms"],
-                         "existing_screen":e["source_probable_screen_assisted_play"],
-                         "source_probe":e["source_screen_probe"],
-                         "screener_candidates":e.get("source_screen_candidate_details",[])}))
-          assert ("0022600091",221) in found, "MISSING_AMEN_REVIEW_CONTROL"
-          PY
+          git sparse-checkout set --no-cone \
+            '/gamepulse/fusion/*.py' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json' \
+            '/gamepulse/fusion/qa/igp_progress_20261030/' \
+            '/gamepulse/fusion/qa/analysis/igp_isolation_blowby/full121_conservative_v4/' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600091.json' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600181.json' \
+            '/gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600091/' \
+            '/gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600181/' \
+            '/gamepulse/fusion/materialized/igp_all_original_xyz/0022600091/' \
+            '/gamepulse/fusion/materialized/igp_all_original_xyz/0022600181/' \
+            '/gamepulse/fusion/index/games/0022600091.json' \
+            '/gamepulse/fusion/index/games/0022600181.json'
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_blowby_screen_contact_v2.py gamepulse/fusion/igp_halfcourt_blowby_general_v3.py gamepulse/fusion/igp_blowby_screen_v2_review_controls_qa.py
+          python3 -B gamepulse/fusion/igp_blowby_screen_v2_review_controls_qa.py --root . --output "$RUNNER_TEMP/screen_v2_controls.json"
+          git config user.name 'Integrated Pulse Research QA'
+          git config user.email '41898282+igp-source@users.noreply.github.com'
+          DEST='gamepulse/fusion/qa/analysis/igp_isolation_blowby/screen_contact_v2/source_video_review_controls_v1.json'
+          mkdir -p "$(dirname "$DEST")"
+          cp "$RUNNER_TEMP/screen_v2_controls.json" "$DEST"
+          git add --sparse -f "$DEST"
+          if ! git diff --cached --quiet; then
+            git commit -qm 'qa(private): native Full121 source screen contact v2 confirmed video case controls [skip ci]'
+            PUSH_OK=0
+            for retry in 1 2 3 4 5; do
+              git fetch -q origin "$PRIVATE_BRANCH"
+              git rebase -q "origin/$PRIVATE_BRANCH"
+              if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then PUSH_OK=1;break;fi
+              sleep "$retry"
+            done
+            test "$PUSH_OK" -eq 1
+          fi
