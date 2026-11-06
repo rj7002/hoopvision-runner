@@ -202,6 +202,32 @@ jobs:
           echo R13_V3_NINE_GAME_SHA_VERIFIED_PRIVATE_RESULTS_SAVED
           echo R13_V3_FROZEN_R13_AND_V2_RESULT_UNCHANGED
 
+      - name: Validate V4 10Hz gravity-constrained source-free ball rebound model
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m unittest discover -s gamepulse/fusion/analysis \
+                  -p test_r13_ballistics_v4.py -v \
+                  > "$RUNNER_TEMP/r13-v4-physics-tests.log" 2>&1; then
+            echo R13_V4_BALLISTIC_SOURCE_FREE_TESTS_FAILED
+            exit 29
+          fi
+          echo R13_V4_SOURCE_FREE_PHYSICS_REGRESSIONS_PASSED
+      - name: Evaluate V4 inferred 10Hz floor rebound against nine NBA original-source games
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m gamepulse.fusion.analysis.igp_r13_ballxyz_dribble_shadow_v4 \
+                  --root . --private-persist \
+                  > "$RUNNER_TEMP/r13-v4-model.log" 2>&1; then
+            echo R13_V4_SOURCE_FIRST_NINE_GAME_REPLAY_FAILED
+            exit 30
+          fi
+          echo R13_V4_SOURCE_FIRST_NINE_GAME_PRIVATE_REPORT_SAVED
+          echo R13_V4_NO_ORIGINAL_NBA_SOURCE_OR_R13_METRIC_OVERWRITE
+
 # Reviewed confidentiality allowlist activation 2026-11-07; private output only.
 
 # Second private original source replay: frozen rejected-brief/geometry-only frontcourt uncertainty census.
