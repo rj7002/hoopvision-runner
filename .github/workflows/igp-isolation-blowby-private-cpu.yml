@@ -1,3 +1,4 @@
+# CPU pilot tests original official ten-plus-ball sensitivity at gap bounds 350/500/800/1200ms.
 # Bounded 350ms direct-source sampling: official ten+ball, extra NBA actors ignored.
 # Fail closed if NBA logical possession owners are not mapped to their official team IDs.
 # Pilot source fix: exclude roster IDs lacking original official two-team assignment.
