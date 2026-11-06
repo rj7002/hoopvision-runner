@@ -17,7 +17,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PROBE_SHA: ddc666b954fcf1bcf19c8eb6475d97be244262aa
+      PROBE_SHA: 728459c640a8d1533f641099824ef0643f86729e
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -125,7 +125,7 @@ jobs:
           root=pathlib.Path(os.environ["RUNNER_TEMP"])/"coach-native-pilot"
           repo=os.environ["PRIVATE_REPO"]
           branch="feature/courtcoder-coach-web-20261106"
-          prefix="gamepulse/coach_pilot_release_20261107"
+          prefix="gamepulse/coach_pilot_release_20261107_v2"
           names=("catalog.json","catalog.qa.json",
                  "plays/0022600167.json","manifest.json")
           for relative in names:
