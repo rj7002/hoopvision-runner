@@ -56,6 +56,18 @@ jobs:
             exit 21
           fi
           echo R13_SOURCE_FREE_SHADOW_REGRESSION_PASSED
+      - name: Verify source-free native 10Hz XYZ velocity and heading dribble model
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m unittest discover -s gamepulse/fusion/analysis \
+                  -p test_igp_r13_ballxyz_10hz_dribble_shadow_v1.py -v \
+                  > "$RUNNER_TEMP/r13-10hz-tests.log" 2>&1; then
+            echo R13_10HZ_DRIBBLE_SOURCE_FREE_REGRESSIONS_FAILED
+            exit 23
+          fi
+          echo R13_10HZ_DRIBBLE_SOURCE_FREE_REGRESSIONS_PASSED
       - name: Sparse materialize nine original NBA SDK games in private
         shell: bash
         run: |
@@ -123,6 +135,20 @@ jobs:
           fi
           grep '^HOUSTON9_R13_SHADOW_' "$RUNNER_TEMP/r13-shadow.log"
           echo R13_FROZEN_123_GAME_COUNTS_AND_DEFAULTS_UNCHANGED
+
+      - name: Independently evaluate raw 10Hz ball-speed direction and floor rebounds in Houston9
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m gamepulse.fusion.analysis.igp_r13_ballxyz_10hz_dribble_shadow_v1 \
+                --root . --private-persist \
+                > "$RUNNER_TEMP/r13-10hz-model.log" 2>&1; then
+            echo R13_10HZ_PRIVATE_MODEL_REPLAY_FAILED
+            exit 24
+          fi
+          echo R13_10HZ_NINE_GAME_MODEL_COMPLETED_AND_RESULTS_PRIVATE
+          echo R13_ORIGINAL_TOUCH_LEDGER_AND_SDK_SHA_SOURCE_UNCHANGED
 
 # Reviewed confidentiality allowlist activation 2026-11-07; private output only.
 
