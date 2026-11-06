@@ -71,7 +71,7 @@ jobs:
           PY
           mapfile -t EXTRA_PATHS < "$RUNNER_TEMP/shard_paths.txt"
           test "${#EXTRA_PATHS[@]}" -gt 0
-          git sparse-checkout add --no-cone "${EXTRA_PATHS[@]}"
+          git sparse-checkout add "${EXTRA_PATHS[@]}"
           export PYTHONPATH=gamepulse/fusion:gamepulse/fusion/tests
           python3 -m py_compile gamepulse/fusion/igp_halfcourt_isolation_blowby_full121_v1.py gamepulse/fusion/igp_halfcourt_isolation_screen_probe_v1.py gamepulse/fusion/igp_halfcourt_isolation_blowby_temporal_v2.py
           python3 -m unittest -q gamepulse/fusion/tests/test_igp_halfcourt_isolation_blowby_v1.py gamepulse/fusion/tests/test_igp_halfcourt_isolation_blowby_temporal_v2.py
