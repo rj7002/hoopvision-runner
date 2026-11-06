@@ -41,7 +41,7 @@ jobs:
             /gamepulse/fusion/analysis/test_igp_full123_r13_touch_overlay_v1.py \
             /gamepulse/fusion/igp_full123_r13_touch_overlay_v1.py \
             /gamepulse/fusion/igp_full123_r13_original_labels_v1.py \
-            /gamepulse/fusion/igp_full121_source_default_v1.py
+            /gamepulse/fusion/igp_full121_source_default_v1.py \
             /gamepulse/fusion/igp_full123_r13_prior_verified_v1.py \
             /gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/verified_5game/
           export PYTHONPATH="$RUNNER_TEMP/private:$RUNNER_TEMP/private/gamepulse/fusion:$RUNNER_TEMP/private/gamepulse/fusion/analysis"
