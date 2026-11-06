@@ -110,3 +110,5 @@ jobs:
             sleep "$attempt"
           done
           exit 35
+
+# Re-run after SHA-pinned legacy-format label correction in private 104.
