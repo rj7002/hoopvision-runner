@@ -69,7 +69,7 @@ jobs:
           cp "$RUNNER_TEMP/igp_speed_private_all.json" "$rel"
           git config user.name 'Integrated Pulse Private Research'
           git config user.email '41898282+igp-source@users.noreply.github.com'
-          git add -f "$rel"
+          git add --sparse -f "$rel"
           git diff --cached --check
           git commit -qm 'data(igp): private aggregated 5v5 halfcourt defensive speed by quarter'
           for retry in $(seq 1 12); do
