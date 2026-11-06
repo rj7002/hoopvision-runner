@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        game: ['0022600125','0022600138','0022600153']
+        game: ['0022600138','0022600153']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       REPO: timeedmonds-maker/104
@@ -54,6 +54,14 @@ jobs:
             "/gamepulse/fusion/official_pbp_timing/games/$GAME.json" \
             "/gamepulse/fusion/official_pbp_timing/original_nba_20261029/$GAME/boxscore.json" \
             "/gamepulse/fusion/evidence/companion_sdk_original_$GAME/sdk_observed_original.json"
+          # Restore exact committed original NBA box bytes on hosts whose
+          # sparse checkout omitted a nested boxscore even though its Git blob exists.
+          box="gamepulse/fusion/official_pbp_timing/original_nba_20261029/$GAME/boxscore.json"
+          if test ! -f "$box"; then
+            mkdir -p "$(dirname "$box")"
+            git show "HEAD:$box" > "$box"
+          fi
+          test -s "$box"
           export PYTHONPATH="$work:$work/gamepulse/fusion:$work/gamepulse/fusion/analysis"
           out="gamepulse/fusion/qa/r13_full123_touch_overlay_20261107"
           mkdir -p "$out"
