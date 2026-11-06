@@ -1,0 +1,115 @@
+# Public control plane only: private CourtCoder source and browser screenshots
+# are never uploaded to this public repository, Actions logs, or artifacts.
+name: CourtCoder Coach protected Chromium and CPU acceptance
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/courtcoder-coach-private-browser-20261106.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: courtcoder-coach-private-browser-source-free-20261106
+  cancel-in-progress: false
+jobs:
+  private-coach-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: feature/courtcoder-coach-web-20261106
+      PRIVATE_SHA: 9a20271661db56f57ba5cda199d9221f738f863f
+      PRIVATE_REPO: timeedmonds-maker/104
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Validate public-to-private confidentiality boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Test exact private Coach commit without public logs or screenshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git clone --quiet --depth=1 --filter=blob:none --sparse \
+            -b "$PRIVATE_BRANCH" "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PRIVATE_SHA"
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$PRIVATE_SHA"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set \
+            courtcoder config contracts hoopvision/scouting
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PRIVATE_SHA"
+          test -f "$RUNNER_TEMP/private/courtcoder/coach/index.html"
+          test -f "$RUNNER_TEMP/private/courtcoder/qa/coach_ui_visual_contract.test.cjs"
+          test -f "$RUNNER_TEMP/private/courtcoder/qa/coach_ui_browser_acceptance.cjs"
+          echo COACH_PINNED_PRIVATE_SOURCE_READY
+          cd "$RUNNER_TEMP/private"
+          mkdir -p "$RUNNER_TEMP/coach-private-qa"
+          summary="$RUNNER_TEMP/coach-private-qa/summary.txt"
+          : > "$summary"
+          failed=0
+          check() {
+            title="$1"; shift
+            if "$@" > "$RUNNER_TEMP/coach-private-qa/$title.log" 2>&1; then
+              echo "$title PASS" >> "$summary"
+              echo "$title PASS"
+            else
+              rc=$?
+              echo "$title FAIL rc=$rc" >> "$summary"
+              echo "$title FAIL_DIAGNOSTICS_PRIVATE_ONLY"
+              failed=1
+            fi
+          }
+          check node_syntax bash -ceu 'node --check courtcoder/qa/coach_ui_browser_acceptance.cjs && node --check courtcoder/qa/coach_ui_visual_contract.test.cjs && python3 -c "import pathlib,re,subprocess;h=pathlib.Path(\x27courtcoder/coach/index.html\x27).read_text();s=re.search(\x27<script>(.*?)</script>\x27,h,re.S).group(1);p=pathlib.Path(\x27/tmp/coach-private-inline.js\x27);p.write_text(s);subprocess.run([\x27node\x27,\x27--check\x27,str(p)],check=True)"'
+          check node_14_contract_tests node --test courtcoder/qa/coach_ui_visual_contract.test.cjs
+          if ! npm install --no-save --no-package-lock --ignore-scripts \
+              --prefix "$RUNNER_TEMP/private" playwright-core@1.56.0 \
+              > "$RUNNER_TEMP/coach-private-qa/browser-install.log" 2>&1; then
+            echo chromium_install FAIL >> "$summary"
+            echo chromium_install FAIL_DIAGNOSTICS_PRIVATE_ONLY"
+            failed=1
+          else
+            echo chromium_install PASS >> "$summary"
+            if ! (command -v google-chrome || command -v chromium || command -v chromium-browser) >/dev/null 2>&1; then
+              npx playwright-core install chromium > "$RUNNER_TEMP/coach-private-qa/browser-download.log" 2>&1 || true
+            fi
+            check chromium_real_browser env \
+              COURTCODER_BROWSER_QA_OUTPUT="$RUNNER_TEMP/coach-private-qa/screenshots" \
+              node courtcoder/qa/coach_ui_browser_acceptance.cjs
+          fi
+          # Private PR comment contains detailed source-free diagnostics;
+          # never send those logs to the public repo or its artifacts.
+          python3 - <<'PY'
+          import os,pathlib
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"coach-private-qa"
+          summary=(root/"summary.txt").read_text()
+          sections=["### Private Coach Chromium/Node acceptance",
+                    "Source SHA: "+os.environ["PRIVATE_SHA"],"",
+                    "```",summary,"```"]
+          for f in sorted(root.glob("*.log")):
+              if "FAIL" in summary and f.stem in [r.split()[0] for r in summary.splitlines() if "FAIL" in r]:
+                  sections.extend(["#### "+f.stem,"<details><summary>Private diagnostics</summary>","","```",f.read_text(errors="replace")[-8000:],"```","</details>"])
+          (root/"private-comment.txt").write_text("\n".join(sections)+"\n")
+          PY
+          if gh api --method POST "repos/$PRIVATE_REPO/issues/1052/comments" \
+              -F body=@"$RUNNER_TEMP/coach-private-qa/private-comment.txt" \
+              > "$RUNNER_TEMP/coach-private-qa/private-comment-receipt.json" \
+              2> "$RUNNER_TEMP/coach-private-qa/private-comment-error.txt"; then
+            echo COACH_PRIVATE_PR_QA_RECEIPT_WRITTEN
+          else
+            echo COACH_PRIVATE_PR_QA_RECEIPT_UNAVAILABLE
+            failed=1
+          fi
+          if [ "$failed" -eq 0 ]; then
+            echo COACH_NODE_AND_CHROMIUM_SOURCE_FREE_ACCEPTANCE_PASS
+          else
+            echo COACH_NODE_OR_CHROMIUM_SOURCE_FREE_ACCEPTANCE_FAIL
+            exit 1
+          fi
