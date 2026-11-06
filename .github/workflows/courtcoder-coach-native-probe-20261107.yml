@@ -116,5 +116,38 @@ jobs:
                             "complete_ten_plus_ball_frames":qa["full_ten_plus_direct_ball_frames"]},
                            sort_keys=True))
           PY
+          # Publish only to the authenticated PRIVATE 104 feature branch.
+          # GitHub contents API enforces branch permissions, and existing bytes
+          # must match exactly. Never print original NBA licensed coordinates.
+          python3 - <<'PY'
+          import base64,hashlib,json,os,pathlib,subprocess
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"coach-native-pilot"
+          repo=os.environ["PRIVATE_REPO"]
+          branch="feature/courtcoder-coach-web-20261106"
+          prefix="gamepulse/coach_pilot_release_20261107"
+          names=("catalog.json","catalog.qa.json",
+                 "plays/0022600167.json","manifest.json")
+          for relative in names:
+              data=(root/relative).read_bytes()
+              blob=hashlib.sha1(("blob "+str(len(data))+"\\0").encode()+data).hexdigest()
+              remote="repos/"+repo+"/contents/"+prefix+"/"+relative
+              old=subprocess.run(["gh","api",remote+"?ref="+branch],
+                                 capture_output=True,text=True)
+              if old.returncode==0:
+                  if json.loads(old.stdout)["sha"]!=blob:
+                      raise ValueError("PRIVATE_NATIVE_PILOT_EXISTING_BLOB_IMMUTABILITY_DRIFT")
+                  continue
+              if "404" not in old.stderr and "Not Found" not in old.stderr:
+                  raise ValueError("PRIVATE_NATIVE_PILOT_REMOTE_READ_REJECTED")
+              packet={"branch":branch,"message":"coach(native): original NBA 12-play private pilot SHA source release",
+                      "content":base64.b64encode(data).decode("ascii")}
+              saved=subprocess.run(["gh","api","--method","PUT",remote,"--input","-"],
+                     input=json.dumps(packet),capture_output=True,text=True)
+              if saved.returncode!=0:
+                  raise ValueError("PRIVATE_NATIVE_PILOT_WRITE_PERMISSION_OR_CONFLICT")
+              if json.loads(saved.stdout)["content"]["sha"]!=blob:
+                  raise ValueError("PRIVATE_NATIVE_PILOT_PRIVATE_GIT_SHA_READBACK_DRIFT")
+          print("COACH_NATIVE_PILOT_PRIVATE_FEATURE_ASSETS_PUBLISHED")
+          PY
           echo COACH_PRIVATE_NATIVE_PILOT_BUILD_PASS
           echo COACH_PRIVATE_NATIVE_SOURCE_PROBE_PASS
