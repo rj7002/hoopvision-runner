@@ -1,0 +1,78 @@
+name: CourtCoder Coach private original NBA event diagnostics
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/courtcoder-coach-native-probe-20261107.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: coach-native-probe-20261107
+  cancel-in-progress: false
+jobs:
+  private-native-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PROBE_SHA: 84326d2a69efbfaa299b1235b7a78f1469876f3c
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Verify private 60Hz-derived NBA event windows
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse \
+            -b research/gamepulse-clock-boundary-integrity-20261025 \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/native"
+          git -C "$RUNNER_TEMP/native" sparse-checkout set \
+            gamepulse/fusion/materialized/igp_all_original_xyz/0022600167 \
+            gamepulse/fusion/official_pbp_timing/games \
+            gamepulse/fusion/evidence/companion_sdk_original_0022600167
+          git clone -q --filter=blob:none --depth=1 --sparse \
+            -b feature/courtcoder-coach-web-20261106 \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/coach"
+          git -C "$RUNNER_TEMP/coach" fetch -q --depth=1 origin "$PROBE_SHA"
+          git -C "$RUNNER_TEMP/coach" checkout -q --detach "$PROBE_SHA"
+          git -C "$RUNNER_TEMP/coach" sparse-checkout set courtcoder/coach
+          test "$(git -C "$RUNNER_TEMP/coach" rev-parse HEAD)" = "$PROBE_SHA"
+          set +e
+          python3 "$RUNNER_TEMP/coach/courtcoder/coach/qa/private_native_probe_v1.py" \
+            --source-root "$RUNNER_TEMP/native" \
+            --roster-file "$RUNNER_TEMP/coach/courtcoder/coach/game_player_directory_full121_v1.json" \
+            --private-output "$RUNNER_TEMP/native-probe.json" \
+            >"$RUNNER_TEMP/private-diagnostics.log" 2>&1
+          rc=$?
+          set -e
+          export COACH_RC="$rc"
+          python3 - <<'PY'
+          import os,json,pathlib
+          tmp=pathlib.Path(os.environ['RUNNER_TEMP'])
+          rc=int(os.environ['COACH_RC'])
+          lines=['### Private Coach original-source HOU-BOS test','',
+                 'Original source SHA-gated, game 0022600167; no fabricated event positions.',
+                 'Probe implementation commit: '+os.environ['PROBE_SHA'],'']
+          if rc==0:
+              d=json.loads((tmp/'native-probe.json').read_text())
+              lines+=['PASS — source-native player/ball coverage measured','',
+                      '```json',json.dumps(d,sort_keys=True,indent=2),'```']
+          else:
+              lines+=['FAIL — private diagnostic traceback','',
+                      '```',(tmp/'private-diagnostics.log').read_text(errors='replace')[-3000:],'```']
+          (tmp/'private-coach-comment.md').write_text('\n'.join(lines)+'\n')
+          PY
+          gh api --method POST "repos/$PRIVATE_REPO/issues/1052/comments" \
+            -F body=@"$RUNNER_TEMP/private-coach-comment.md" >/dev/null
+          if [ "$rc" -ne 0 ]; then
+            echo COACH_PRIVATE_NATIVE_SOURCE_PROBE_FAIL
+            exit 1
+          fi
+          echo COACH_PRIVATE_NATIVE_SOURCE_PROBE_PASS
