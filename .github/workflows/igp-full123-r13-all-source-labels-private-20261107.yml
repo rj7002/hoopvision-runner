@@ -136,3 +136,5 @@ jobs:
             sleep "$attempt"
           done
           exit 39
+
+# Retry source-grade 6-of-123 SDK labels after 117/123 first-pass SHA success.
