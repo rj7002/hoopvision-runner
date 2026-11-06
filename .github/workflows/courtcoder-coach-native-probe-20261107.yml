@@ -54,26 +54,24 @@ jobs:
           rc=$?
           set -e
           export COACH_RC="$rc"
-          python3 - <<'PY'
-          import os,json,pathlib
-          tmp=pathlib.Path(os.environ['RUNNER_TEMP'])
-          rc=int(os.environ['COACH_RC'])
-          lines=['### Private Coach original-source HOU-BOS test','',
-                 'Original source SHA-gated, game 0022600167; no fabricated event positions.',
-                 'Probe implementation commit: '+os.environ['PROBE_SHA'],'']
-          if rc==0:
-              d=json.loads((tmp/'native-probe.json').read_text())
-              lines+=['PASS — source-native player/ball coverage measured','',
-                      '```json',json.dumps(d,sort_keys=True,indent=2),'```']
-          else:
-              lines+=['FAIL — private diagnostic traceback','',
-                      '```',(tmp/'private-diagnostics.log').read_text(errors='replace')[-3000:],'```']
-          (tmp/'private-coach-comment.md').write_text('\n'.join(lines)+'\n')
-          PY
-          gh api --method POST "repos/$PRIVATE_REPO/issues/1052/comments" \
-            -F body=@"$RUNNER_TEMP/private-coach-comment.md" >/dev/null
+          # Never export original XYZ, actor identities or per-frame observations
+          # from the private runner. Public console receives counts only.
           if [ "$rc" -ne 0 ]; then
-            echo COACH_PRIVATE_NATIVE_SOURCE_PROBE_FAIL
+            echo COACH_PRIVATE_ORIGINAL_PROBE_RUNTIME_FAIL
             exit 1
           fi
+          python3 - <<'PY'
+          import json,os,pathlib
+          data=json.loads((pathlib.Path(os.environ["RUNNER_TEMP"])/"native-probe.json").read_text())
+          fields=("native_window_frames","shot_event_candidates",
+                  "events_with_native_five_plus_ball","events_with_native_ten_plus_ball")
+          print("COACH_ORIGINAL_NATIVE_SAFE_COUNTS "+json.dumps({k:data[k] for k in fields},sort_keys=True))
+          for field in ("sample_event_313","sample_event_7"):
+              e=data.get(field) or {}
+              print("COACH_EVENT_SAFE_COVERAGE "+json.dumps({"which":field,
+                  "frame_count":e.get("frame_count",0),
+                  "full5_plus_ball_frames":e.get("full5_plus_ball_frames",0),
+                  "full10_plus_ball_frames":e.get("full10_plus_ball_frames",0),
+                  "original_ball_frames":e.get("original_ball_frames",0)},sort_keys=True))
+          PY
           echo COACH_PRIVATE_NATIVE_SOURCE_PROBE_PASS
