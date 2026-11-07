@@ -1,0 +1,48 @@
+name: Coach original contest field audit (aggregate only)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/courtcoder-coach-contest-field-audit-20261107.yml]
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: coach-original-contest-field-audit
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_SHA: fa03b91e9991c934c52b3902528a7666ec8c5871
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Audit SHA-verified original shot metadata privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          root="$RUNNER_TEMP/coach-original-contest"
+          mkdir -p "$root/history"
+          for pair in "courtcoder/coach/qa/audit_historical_release_contest_v1.py audit.py" "gamepulse/coach_event_proxy_release_20261107/source-event-pressure-qa.json source-qa.json"; do
+            read -r source destination <<< "$pair"
+            gh api "repos/$PRIVATE_REPO/contents/$source?ref=$PRIVATE_SHA" --jq .content | base64 -d > "$root/$destination"
+            test -s "$root/$destination"
+          done
+          gh release download igp-2025-26-defender-xyz-proxy-20261105 --repo "$PRIVATE_REPO" \
+            --dir "$root/history" --pattern 'defender-xyz-nba-2025-26-shard-*.jsonl.gz' \
+            > "$root/download.log" 2>&1
+          test "$(find "$root/history" -name 'defender-xyz-*.jsonl.gz' | wc -l)" -eq 15
+          python3 "$root/audit.py" --historical "$root/history" --source-receipt "$root/source-qa.json" \
+            > "$root/aggregate.json"
+          # Source rows, player IDs, game IDs, event IDs and XYZ never leave this
+          # ephemeral workspace. Only aggregate statistics are printed.
+          python3 - "$root/aggregate.json" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1]))
+          assert a["source_sha_verified_shards"]==15
+          print("COACH_ORIGINAL_CONTEST_AGGREGATE",json.dumps(a,sort_keys=True))
+          PY
