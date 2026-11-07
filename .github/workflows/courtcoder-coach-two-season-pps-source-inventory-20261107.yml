@@ -187,6 +187,60 @@ jobs:
               print("COACH_HIST_NESTED_FIELD_NAMES",name,",".join(sorted(sample)))
 
           PY
+      - name: Execute actual two-season native 5v5 event-time pressure pilot (PRIVATE)
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/coach-source"
+          gh api 'repos/timeedmonds-maker/104/contents/courtcoder/coach/qa/two_season_native_event_pressure_v1.py?ref=feature/courtcoder-coach-web-20261106' \
+            --jq .content | base64 -d > "$root/two_season_native_event_pressure_v1.py"
+          python3 - <<'PY'
+          import base64,hashlib,importlib.util,json,os,pathlib,subprocess
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"coach-source"
+          spec=importlib.util.spec_from_file_location("real_coach",root/"two_season_native_event_pressure_v1.py")
+          module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+          def get(path,ref="research/gamepulse-clock-boundary-integrity-20261025"):
+              resource="repos/timeedmonds-maker/104/contents/"+path+"?ref="+ref
+              obj=json.loads(subprocess.run(["gh","api",resource],capture_output=True,check=True).stdout)
+              assert obj["encoding"]=="base64","PRIVATE_SOURCE_BLOB_NOT_AVAILABLE"
+              return base64.b64decode(obj["content"])
+          historic=root/"historical-shot-sample"
+          blob=(historic/"defender-xyz-nba-2025-26-shard-001.jsonl.gz").read_bytes()
+          qa=(historic/"defender-xyz-nba-2025-26-shard-001-qa.json").read_bytes()
+          old,oldcounts=module.historical_rows(blob,qa)
+          ptr=json.loads((root/"pointer.json").read_bytes())
+          idxraw=get(ptr["index_path"])
+          assert hashlib.sha256(idxraw).hexdigest()==ptr["index_sha256"]
+          idx=json.loads(idxraw)
+          game="0022600188"
+          row=idx["games"][game]
+          source=get(row["shots_path"])
+          assert hashlib.sha256(source).hexdigest()==row["shot_sha256"]
+          native_base="gamepulse/fusion/materialized/igp_all_original_xyz/"+game+"/"
+          native=get(native_base+"index.json")
+          official_box=get("gamepulse/fusion/official_pbp_timing/original_nba_20261029/"+game+"/boxscore.json")
+          imported=[]
+          def read_chunk(name):
+              assert name.startswith("original-native-") and name.endswith(".jsonl.gz") and "/" not in name
+              imported.append(name)
+              return get(native_base+name)
+          now,newcounts,chunks=module.current_rows(source,native,official_box,read_chunk)
+          assert len(old)>0 and len(now)>0,"NO_REAL_CROSS_SEASON_FGA_SOURCE_SCENES"
+          receipt=module.qa_result(old,now,oldcounts,newcounts,
+              {"Full666_historical_shard_sha256":hashlib.sha256(blob).hexdigest(),
+               "Full123_shot_sha256":row["shot_sha256"],
+               "Full123_original_native_manifest_sha256":hashlib.sha256(native).hexdigest()})
+          output=root/"pilot"
+          module.write(output,old+now,receipt)
+          assert receipt["promoted_to_live_coach"] is False
+          print("COACH_REAL_ORIGINAL_XY_PRESSURE_PILOT_PASS",
+              "Full666_qualified_FGA",len(old),"Full123_qualified_FGA",len(now),
+              "Full123_original_chunks_SHA",chunks,
+              "Full666_source_rejections",json.dumps(oldcounts,sort_keys=True),
+              "Full123_source_rejections",json.dumps(newcounts,sort_keys=True))
+          print("COACH_PRESSURE_GRADE",receipt["grade"],"NBA_release_time_certified",False,
+                "shot_actions_certified",False)
+          PY
       - name: Publish SOURCE-ONLY aggregate readiness to private GitHub release
         shell: bash
         run: |
@@ -197,4 +251,5 @@ jobs:
             gh release create "$TAG" --repo "$REPO" --target research/gamepulse-clock-boundary-integrity-20261025 --title 'Private Full666 and Full123 Coach source readiness' --notes 'SHA-verified source inventory, NOT accepted PPS model'
           fi
           gh release upload "$TAG" "$RUNNER_TEMP/coach-source/readiness.json" --repo "$REPO" --clobber
+          gh release upload "$TAG" "$RUNNER_TEMP/coach-source/pilot/source-event-pressure-fga.jsonl.gz" "$RUNNER_TEMP/coach-source/pilot/source-event-pressure-qa.json" --repo "$REPO" --clobber
           echo COACH_PRIVATE_TWO_SEASON_SOURCE_READINESS_PUBLISHED
