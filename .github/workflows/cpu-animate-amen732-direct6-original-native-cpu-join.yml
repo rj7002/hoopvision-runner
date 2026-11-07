@@ -112,7 +112,7 @@ jobs:
           PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git sparse-checkout add --no-cone /docs/cpu_animate/qa/
+          git sparse-checkout add /docs/cpu_animate/qa/
           git add --sparse -f docs/cpu_animate/qa/amen732_native_sixvideo_CPU_original_utc_candidate.json
           git diff --cached --check
           git commit -qm 'evidence(cpu-animate): exact Amen block source-native data vs six direct HLS video PTS and audio, CPU candidate only'
