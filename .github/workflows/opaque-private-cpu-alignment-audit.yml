@@ -62,7 +62,7 @@ jobs:
               or m.get('storage')!='private_release_only'):
               raise SystemExit(4)
           pins=m.get('approved_source_git_blob_sha1') or {}
-          if len(pins)!=7 or m.get('detail_gallery_required') is not True or m.get('review_video_requested') is not True or m.get('ball_rim_frame_grid_requested') is not True:raise SystemExit(4)
+          if len(pins)!=8 or m.get('detail_gallery_required') is not True or m.get('review_video_requested') is not True or m.get('ball_rim_frame_grid_requested') is not True or m.get('four_panel_original_source_candidate_requested') is not True:raise SystemExit(4)
           for path,hash_value in pins.items():
               if not path.startswith(('cpu_animate/','tests/','docs/cpu_animate/')):raise SystemExit(4)
               if not re.fullmatch(r'[0-9a-f]{40}',hash_value):raise SystemExit(4)
@@ -191,6 +191,21 @@ jobs:
              exit 5
           }
           echo PRIVATE_THREEVIEW_RIM_CONTACT_CAMERA_FRAMES_READY
+          python3 -m cpu_animate.min_ato_0181_four_panel_candidate \
+            --media "$ROOT/media" \
+            --original "$ROOT/output/original_source_window_private.json" \
+            --audit "$ROOT/output/min_ato_0181_multiview_alignment_audit.json" \
+            --out "$ROOT/output" > "$ROOT/fourpanel.log" 2>&1 || {
+              python3 - "$ROOT/fourpanel.log" <<'PY'
+          import re,sys
+          s=open(sys.argv[1]).read()
+          matched=re.findall(r'(?m)^([\w.]+(?:Error|Exception)):',s)
+          print('PRIVATE_FOUR_PANEL_FAILURE_CLASS',matched[-1] if matched else 'UNKNOWN')
+          PY
+              echo PRIVATE_ORIGINAL_SOURCE_FOUR_PANEL_RENDER_FAILED
+              exit 5
+            }
+          echo PRIVATE_REAL_THREEVIEW_PLUS_SOURCE_XYZ_FOUR_PANEL_READY
           base64 -w0 "$ROOT/output/min_ato_0181_threeview_storyboard.jpg" \
             > "$ROOT/output/min_ato_0181_threeview_storyboard.b64.txt"
           if ! gh release view "$output_tag" --repo timeedmonds-maker/104 >/dev/null 2>&1; then
@@ -213,7 +228,9 @@ jobs:
                       min_ato_0181_rim_anchor_review.json \
                       rim-frames-broadcast.jpg \
                       rim-frames-left-above-rim.jpg \
-                      rim-frames-right-above-rim.jpg; do
+                      rim-frames-right-above-rim.jpg \
+                      min_ato_0181_four_panel_original_XYZ_CANDIDATE_ONLY.mp4 \
+                      min_ato_0181_fourpanel_candidate_receipt.json; do
               gh release upload "$output_tag" "$ROOT/output/$name" \
                 --repo timeedmonds-maker/104 --clobber \
                 >/dev/null 2>&1 || { echo PRIVATE_OUTPUT_UPLOAD_FAILED; exit 5; }
@@ -232,6 +249,7 @@ jobs:
               'original_source_window_private.json':'private_min_ato_original_source_window.json',
               'min_ato_0181_synced_review_receipt.json':'private_min_ato_synced_review_receipt.json',
               'min_ato_0181_rim_anchor_review.json':'private_min_ato_rim_anchor_review.json',
+              'min_ato_0181_fourpanel_candidate_receipt.json':'private_min_ato_fourpanel_candidate_receipt.json',
           }
           for filename,target in targets.items():
               payload={'message':'qa(cpu-animate): private original source video timing and geometry candidate audit',
@@ -306,7 +324,9 @@ jobs:
                  'min_ato_0181_rim_anchor_review.json',
                  'rim-frames-broadcast.jpg',
                  'rim-frames-left-above-rim.jpg',
-                 'rim-frames-right-above-rim.jpg']
+                 'rim-frames-right-above-rim.jpg',
+                 'min_ato_0181_four_panel_original_XYZ_CANDIDATE_ONLY.mp4',
+                 'min_ato_0181_fourpanel_candidate_receipt.json']
           expected={name:'sha256:'+hashlib.sha256((root/name).read_bytes()).hexdigest() for name in files}
           for _ in range(12):
               q=subprocess.run(['gh','api','repos/timeedmonds-maker/104/releases/tags/'+sys.argv[2]],
@@ -314,7 +334,7 @@ jobs:
               if q.returncode==0:
                   assets={a['name']:a.get('digest') for a in json.loads(q.stdout)['assets']}
                   if all(assets.get(name)==value for name,value in expected.items()):
-                      print('PRIVATE_THREEVIEW_AUDIT_FIFTEEN_ASSETS_SHA256_READBACK_PASS')
+                      print('PRIVATE_THREEVIEW_AUDIT_SEVENTEEN_ASSETS_SHA256_READBACK_PASS')
                       break
               time.sleep(3)
           else:raise SystemExit(5)
