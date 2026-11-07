@@ -197,7 +197,21 @@ jobs:
           if ! python3 -m unittest discover -s gamepulse/fusion/analysis \
               -p test_igp_r13_dribble_double_blind_label_gate_v11.py -v \
               > "$RUNNER_TEMP/r13-v11-unit.log" 2>&1; then
-            echo R13_V11_DOUBLE_REVIEW_SOURCE_FREE_TESTS_FAILED
+            python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          rel='gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/houston9_r13_v11_unit_test_private_failure_20261107.json'
+          ep=f"repos/{os.environ['PRIVATE_REPO']}/contents/{rel}"
+          data={'branch':os.environ['PRIVATE_BRANCH'],
+            'message':'qa(private): R13 V11 source-free regression diagnostic [skip ci]',
+            'content':base64.b64encode(json.dumps({'private_trace':
+            Path(os.environ['RUNNER_TEMP'],'r13-v11-unit.log').read_text()[-15000:]}).encode()).decode()}
+          p=subprocess.run(['gh','api',ep+'?ref='+data['branch']],capture_output=True,text=True)
+          if p.returncode==0:data['sha']=json.loads(p.stdout)['sha']
+          subprocess.run(['gh','api','-X','PUT',ep,'--input','-'],input=json.dumps(data),
+                         text=True,capture_output=True,check=True)
+          PY
+            echo R13_V11_DOUBLE_REVIEW_SOURCE_FREE_TESTS_FAILED_PRIVATE_DIAGNOSTIC
             exit 50
           fi
           echo R13_V11_TWO_ANNOTATOR_SYNC_AND_EXACT_BOUNCE_MATCH_TESTS_PASSED
