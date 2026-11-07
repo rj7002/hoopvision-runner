@@ -106,4 +106,34 @@ jobs:
             z:[mod.predict(model,"201939",z,p)["league_points_per_shot"] for p in (1.,12.)]
             for z in ("above_break_three","corner_three","midrange_two")},sort_keys=True))
           assert qa["status"]=="PASS", "PUBLISHED_CONTEST_MODEL_NOT_ACCEPTED"
+          source_current_sha=__import__("hashlib").sha256((dbroot/"full107_shots.sqlite").read_bytes()).hexdigest()
+          source_history_sha=__import__("hashlib").sha256((root.parent/"coach-original-contest/source-qa.json").read_bytes()).hexdigest()
+          model["source_current_sha256"]=source_current_sha
+          model["source_historical_receipt_sha256"]=source_history_sha
+          model_raw=(json.dumps(model,sort_keys=True,separators=(",",":"))+"\\n").encode()
+          (root/"contest-model.json").write_bytes(model_raw)
+          qa["source_current_sha256"]=source_current_sha
+          qa["source_historical_receipt_sha256"]=source_history_sha
+          qa["model_sha256"]=__import__("hashlib").sha256(model_raw).hexdigest()
+          (root/"contest-heldout.json").write_text(json.dumps(qa,sort_keys=True,separators=(",",":"))+"\\n")
           PY
+      - name: Commit accepted model and receipt only to the private feature branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/coach-current-contest"
+          for name in contest-model.json contest-heldout.json; do
+            python3 - "$root/$name" "$root/private-body.json" <<'PY'
+          import base64,json,sys
+          from pathlib import Path
+          data=Path(sys.argv[1]).read_bytes()
+          Path(sys.argv[2]).write_text(json.dumps({
+            "message":"Stage accepted two-season Coach contest model and source receipt",
+            "content":base64.b64encode(data).decode(),
+            "branch":"feature/courtcoder-coach-web-20261106"}))
+          PY
+            gh api --method PUT "repos/$PRIVATE_REPO/contents/gamepulse/coach_contest_release_20261107/$name" \
+              --input "$root/private-body.json" --silent
+          done
+          echo COACH_ACCEPTED_CONTEST_ASSETS_COMMITTED_PRIVATE_BRANCH
+
