@@ -1,3 +1,4 @@
+# Incremental SHA-verified source intake: batch manifests immutable and readback retries.
 name: CPU Animate 12-source-label multi-angle CPU private ingest
 
 on:
