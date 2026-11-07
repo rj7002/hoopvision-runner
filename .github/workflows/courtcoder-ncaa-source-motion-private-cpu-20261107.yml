@@ -17,7 +17,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_BRANCH: research/courtcoder-ncaa-transfer-gates-20261107
-      PINNED_PRIVATE_SHA: 8e1c0219ea3bb36a979294272f4c42232992f35e
+      PINNED_PRIVATE_SHA: e998d962979f708701823c0a9e764f7084873e49
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
