@@ -67,6 +67,17 @@ jobs:
                           for r in rows if isinstance(r.get("original_native_nearest_official_event_frame"),dict)]
                   print("COACH_CURRENT_FGA_EVENT_NATIVE_FRAME_COVERAGE",
                         len(frames),"of",len(rows))
+                  from collections import Counter
+                  grades=Counter(str(p.get("original_frame_source_grade")) for p in frames)
+                  offset=Counter("<=100" if isinstance(p.get("delta_from_anchor_ms"),(int,float)) and abs(p["delta_from_anchor_ms"])<=100 else
+                                "<=250" if isinstance(p.get("delta_from_anchor_ms"),(int,float)) and abs(p["delta_from_anchor_ms"])<=250 else ">250" for p in frames)
+                  native=Counter(str(p.get("native_player_count")) for p in frames)
+                  print("COACH_CURRENT_EVENT_SOURCE_FRAME_GRADES",json.dumps(dict(grades),sort_keys=True))
+                  print("COACH_CURRENT_EVENT_SOURCE_CLOCK_DELTA",json.dumps(dict(offset),sort_keys=True))
+                  print("COACH_CURRENT_EVENT_SOURCE_PLAYER_COUNTS",json.dumps(dict(native),sort_keys=True))
+                  print("COACH_CURRENT_NATIVE_CHUNK_POINTER_KIND",
+                        type(frames[0].get("native_chunk")).__name__,
+                        "chunk_id_or_path_form",str(frames[0].get("native_chunk")).split("/")[-1][:38])
               verified+=len(rows)
           receipt={"schema":"igp.coach.real-two-season-source-census.v1",
                    "full666_original_games":666,
