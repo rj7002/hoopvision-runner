@@ -64,12 +64,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG="igp-coach-event-proxy-20261107-b2c9c61e-25game-pilot"
-          if ! gh release view "$TAG" --repo "$PRIVATE_REPO" >/dev/null 2>&1; then
-            gh release create "$TAG" --repo "$PRIVATE_REPO" \
-              --target "$PRIVATE_SHA" --title 'Coach original-event-time source proxy PPS pilot' \
-              --notes 'Original source-verified historical/current pilot; NOT exact shot-release pressure, NOT verified seven-action classification. Model can only be promoted if independent game-holdout QA passes.'
-          fi
+          # The pre-existing restricted PRIVATE release already stores source
+          # readiness and historical audit receipts. Do not create an unauthorised
+          # public release or move any licensed data outside private 104.
+          TAG=igp-coach-pps-two-season-readiness-20261107
+          gh release view "$TAG" --repo "$PRIVATE_REPO" --json tagName --jq .tagName \
+            | grep -Fx "$TAG"
           gh release upload "$TAG" "$RUNNER_TEMP/coach-release/"* \
             --repo "$PRIVATE_REPO" --clobber
           echo COACH_REAL_DATA_EVALUATION_RECEIPTS_RELEASED_PRIVATE_ONLY
+
