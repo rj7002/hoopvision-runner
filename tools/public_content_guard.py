@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full132-hou-kick-ahead-20261108.yml",  # SHA-pinned private Full132 Rockets native XYZ tactical analysis, private-only possession case ledger
     ".github/workflows/cpu-animate-encrypted-chat-transfer.yml",  # AES-256-GCM ciphertext only; key stored in private repo release; no public NBA video
     ".github/workflows/cpu-animate-transfer-probe.yml",  # synthetic bytes only; tests connector artifact handoff to ChatGPT
     ".github/workflows/cpu-animate-m1-private-side-by-side-review.yml",  # private 104-only original-video versus frozen ring review MP4; no public video/log arrays
