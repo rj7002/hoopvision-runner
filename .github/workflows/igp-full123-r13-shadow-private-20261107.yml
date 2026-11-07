@@ -493,6 +493,47 @@ jobs:
           echo R13_V8B_BOUNDED_NBA_SOURCE_PAGE_CAMERA_LISTINGS_SAVED_PRIVATELY
           echo R13_V8B_NO_SIGNED_MEDIA_URL_NO_HLS_DOWNLOAD_NO_INDEPENDENT_BOUNCE_LABEL
 
+      - name: Validate V8c two-case ephemeral NBA replay video decoder safeguards
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m unittest discover -s gamepulse/fusion/analysis \
+                  -p test_igp_r13_dribble_ephemeral_video_probe_v8c.py -v \
+                  > "$RUNNER_TEMP/r13-v8c-unit.log" 2>&1; then
+            echo R13_V8C_SOURCE_FREE_VIDEO_DECODER_QA_FAILED
+            exit 42
+          fi
+          echo R13_V8C_SOURCE_FREE_NO_MEDIA_RETENTION_CONTROLS_PASSED
+      - name: Ephemerally decode two licensed exact NBA event streams privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          test -s nba_event_angle_discovery.py
+          command -v ffmpeg >/dev/null
+          if ! python3 -m gamepulse.fusion.analysis.igp_r13_dribble_ephemeral_video_probe_v8c \
+                  --root . --private-persist \
+                  > "$RUNNER_TEMP/r13-v8c-replay.log" 2>&1; then
+            python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          rel='gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/houston9_v8c_private_failure_20261107.json'
+          ep=f"repos/{os.environ['PRIVATE_REPO']}/contents/{rel}"
+          data={'branch':os.environ['PRIVATE_BRANCH'],'message':'qa(private): V8c media decode QA trace [skip ci]',
+                'content':base64.b64encode(json.dumps({'trace':
+                 Path(os.environ['RUNNER_TEMP'],'r13-v8c-replay.log').read_text()[-17000:]}).encode()).decode()}
+          p=subprocess.run(['gh','api',ep+'?ref='+data['branch']],capture_output=True,text=True)
+          if p.returncode==0:data['sha']=json.loads(p.stdout)['sha']
+          subprocess.run(['gh','api','-X','PUT',ep,'--input','-'],
+                         input=json.dumps(data),text=True,capture_output=True,check=True)
+          PY
+            echo R13_V8C_PRIVATE_EPHEMERAL_VIDEO_DECODE_FAILED_REDACTED_TRACE
+            exit 43
+          fi
+          echo R13_V8C_EXACT_NBA_VIDEO_SOURCE_DECODE_QA_SAVED_PRIVATE
+          echo R13_V8C_NO_MEDIA_NO_HLS_URL_PERSISTED_NO_DRIBBLE_LABEL_CERTIFIED
+
 # Reviewed confidentiality allowlist activation 2026-11-07; private output only.
 
 # Second private original source replay: frozen rejected-brief/geometry-only frontcourt uncertainty census.
