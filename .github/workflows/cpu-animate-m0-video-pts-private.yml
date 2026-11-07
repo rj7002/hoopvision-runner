@@ -1,0 +1,94 @@
+# CPU Animate M0 source video timing proof; authentic NBA source bytes never enter public artifacts.
+name: CPU Animate M0 private original-video PTS source check
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/cpu-animate-m0-video-pts-private.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cpu-animate-m0-private-pts-v1
+  cancel-in-progress: false
+
+jobs:
+  m0-cpu-source-pts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Enforce reviewed public workflow boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from tools.public_content_guard import scan
+          path = '.github/workflows/cpu-animate-m0-video-pts-private.yml'
+          violations = scan([path])
+          if violations:
+              for code, name in violations: print('PUBLIC_BRIDGE_REJECTED', code, name)
+              raise SystemExit(3)
+          print('CPU_ANIMATE_PUBLIC_BRIDGE_GUARD_OK')
+          PY
+
+      - name: Fetch only verified private test code and source material ephemerally
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}" || { echo PRIVATE_RELEASE_TOKEN_MISSING; exit 3; }
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          command -v ffmpeg
+          command -v ffprobe
+          ROOT="$(mktemp -d)"
+          trap 'rm -rf "$ROOT"' EXIT
+          export CPU_ANIMATE_ROOT="$ROOT"
+          mkdir -p "$ROOT/cpu_animate" "$ROOT/tests" "$ROOT/tools" "$ROOT/private_media"
+          BRANCH='cpu-animate%2Fm0-m1-validation-core-20261107'
+          gh api "repos/timeedmonds-maker/104/contents/cpu_animate/core.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/cpu_animate/core.py"
+          gh api "repos/timeedmonds-maker/104/contents/cpu_animate/video_probe.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/cpu_animate/video_probe.py"
+          gh api "repos/timeedmonds-maker/104/contents/tests/test_cpu_animate_core.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/tests/test_cpu_animate_core.py"
+          gh api "repos/timeedmonds-maker/104/contents/tests/test_cpu_animate_video_probe.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/tests/test_cpu_animate_video_probe.py"
+          gh api "repos/timeedmonds-maker/104/contents/tools/locked_broadcast_screen_v5_rings.py?ref=courtcoder%2Fintegration" --jq .content | base64 -d > "$ROOT/tools/locked_broadcast_screen_v5_rings.py"
+          (
+            cd "$ROOT"
+            python3 -m unittest discover -s tests -p 'test_cpu_animate_core.py' -v
+            python3 -m unittest discover -s tests -p 'test_cpu_animate_video_probe.py' -v
+          )
+          gh release download 'clip-lab-hls-0022600091-616' \
+            --repo timeedmonds-maker/104 --dir "$ROOT/private_media" \
+            --pattern 'event616-broadcast.mp4'
+          python3 - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          root = Path(os.environ['CPU_ANIMATE_ROOT'])
+          sys.path.insert(0, str(root))
+          from cpu_animate.video_probe import probe_video
+          expected = '9df90d9f76b3bf2f9698ac3d1c25016eb8adfab27dc65b12c3202e7b661e8aba'
+          result = probe_video(root/'private_media'/'event616-broadcast.mp4',
+                               expected_sha256=expected)
+          assert result['source_frame_count'] > 1
+          assert result['original_media_unchanged']
+          assert result['video_sha256_verified']
+          print('PRIVATE_NBA_VIDEO_M0_SOURCE_PTS_PROBE_OK')
+          print(json.dumps({
+              'video_sha256_matched_private_release': True,
+              'native_frame_count': result['source_frame_count'],
+              'width': result['native_width'],
+              'height': result['native_height'],
+              'source_time_base': result['source_time_base'],
+              'detected_pts_gap_count': len(result['suspicious_pts_gap_frame_indices']),
+              'camera_cuts_certified': False,
+              'tracking_to_video_sync_certified': False,
+              'm1_accepted': False
+          }, sort_keys=True))
+          PY
