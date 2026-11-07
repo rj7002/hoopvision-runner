@@ -71,6 +71,50 @@ jobs:
                 "Full123_games",123,"current_FGA",counts["official_fga"],
                 "exact_current_FGA_rows_checked",verified)
           PY
+      - name: Audit real historical xFG and shot-level defender data, private only
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/coach-source/historical-shot-sample"
+          mkdir -p "$dir"
+          if ! gh release download igp-2025-26-xfg-archive-20261105 \
+              --repo timeedmonds-maker/104 \
+              --pattern 'nba-xfg-nba-2025-26-shard-001*' --dir "$dir" \
+              > "$RUNNER_TEMP/hist-xfg-download.log" 2>&1; then
+            echo COACH_2025_XFG_DRAFT_SOURCE_NOT_ACCESSIBLE_TO_RUNNER
+            exit 0
+          fi
+          if ! gh release download igp-2025-26-defender-xyz-proxy-20261105 \
+              --repo timeedmonds-maker/104 \
+              --pattern 'defender-xyz-nba-2025-26-shard-001*' \
+              --pattern 'defender-summary-nba-2025-26-shard-001.json' \
+              --dir "$dir" > "$RUNNER_TEMP/hist-defender-download.log" 2>&1; then
+            echo COACH_2025_DEFENDER_DRAFT_SOURCE_NOT_ACCESSIBLE_TO_RUNNER
+            exit 0
+          fi
+          python3 - <<'PY'
+          import collections,gzip,json,os,pathlib
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"coach-source/historical-shot-sample"
+          names=["nba-xfg-nba-2025-26-shard-001",
+                 "defender-xyz-nba-2025-26-shard-001"]
+          for name in names:
+              path=root/(name+".jsonl.gz")
+              qa=json.loads((root/(name+"-qa.json")).read_bytes())
+              assert path.is_file()
+              rows=[json.loads(line) for line in gzip.decompress(path.read_bytes()).splitlines() if line]
+              assert rows
+              shapes=collections.Counter(tuple(sorted(r)) for r in rows if isinstance(r,dict))
+              identifiers=collections.Counter(k for r in rows if isinstance(r,dict) for k,v in r.items()
+                                            if any(term in k.lower() for term in ("shot","release","defend","cont","xfg","dist","xyz")))
+              print("COACH_REAL_HIST_SOURCE_SHARD_ACCESS_PASS",
+                    "type",name.split("-nba-")[0],"rows",len(rows),
+                    "schema_variants",len(shapes),"shot_evidence_keys",
+                    ",".join(sorted(identifiers)[:25]),
+                    "qa_schema",str(qa.get("schema"))[:95])
+          summary=json.loads((root/"defender-summary-nba-2025-26-shard-001.json").read_bytes())
+          print("COACH_HIST_DEFENDER_AGGREGATE_SUMMARY_FIELDS",
+                ",".join(sorted(summary.keys())[:25]))
+          PY
       - name: Publish SOURCE-ONLY aggregate readiness to private GitHub release
         shell: bash
         run: |
