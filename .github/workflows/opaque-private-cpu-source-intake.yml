@@ -185,6 +185,15 @@ jobs:
           echo PRIVATE_CPU_ANGLE_DISCOVERY_RUNNING
           if ! python3 -m cpu_animate.multi_angle_cpu_ingest \
              > "$ROOT/ingest.log" 2>&1; then
+             python3 - "$ROOT/ingest.log" <<'PY'
+          import re,sys
+          trace=open(sys.argv[1]).read()
+          kinds=re.findall(r'(?m)^([A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception)):',trace)
+          methods=re.findall(r'File "[^"]*/cpu_animate/multi_angle_cpu_ingest.py", line \\d+, in ([A-Za-z_][A-Za-z0-9_]*)',trace)
+          print("PRIVATE_NBA_INGEST_EXCEPTION_CLASS", kinds[-1] if kinds else "UNKNOWN")
+          print("PRIVATE_NBA_INGEST_METHOD_CHAIN", ",".join(methods[-4:]) if methods else "UNKNOWN")
+          print("PRIVATE_NBA_ANGLE_DISCOVERY_STAGE", "YES" if "private_source_discovery" in trace else "NO")
+          PY
              echo PRIVATE_VIDEO_INGEST_DID_NOT_COMPLETE
              exit 5
           fi
