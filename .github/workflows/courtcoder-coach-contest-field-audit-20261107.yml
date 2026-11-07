@@ -15,7 +15,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PRIVATE_SHA: 774b47f9879a15ede1e12d1b92262892bc517c9a
+      PRIVATE_SHA: 0b1c8d3352f27d77ce6d63e87109425cccf17a9e
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -79,4 +79,29 @@ jobs:
           a=json.load(open(sys.argv[1]))
           assert a["source_sha_verified"] and a["client_shots"]>=15000
           print("COACH_CURRENT_CONTEST_PAIRED_AGGREGATE",json.dumps(a,sort_keys=True))
+          PY
+
+      - name: Validate published contest model against unseen games
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/coach-current-contest"
+          gh api "repos/$PRIVATE_REPO/contents/courtcoder/coach/contest_pps_v1.py?ref=$PRIVATE_SHA" \
+            --jq .content | base64 -d > "$root/contest_pps_v1.py"
+          python3 - "$root" <<'PY'
+          import importlib.util,json,sys
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          spec=importlib.util.spec_from_file_location("contest_pps",root/"contest_pps_v1.py")
+          mod=importlib.util.module_from_spec(spec);spec.loader.exec_module(mod)
+          dbroot=root/"private-canonical/gamepulse/fusion/materialized/igp_full107_client_shot_defense_v1"
+          rows=list(mod.source_rows(dbroot/"full107_shots.sqlite",dbroot/"full107_shots.qa.json"))
+          qa=mod.evaluate(rows)
+          model=mod.fit(rows)
+          assert len(rows)>17000 and model["source_games"]==107
+          print("COACH_PUBLISHED_CONTEST_MODEL_QA",json.dumps(qa,sort_keys=True))
+          print("COACH_PUBLISHED_CONTEST_RESPONSE",json.dumps({
+            z:[mod.predict(model,"201939",z,p)["league_points_per_shot"] for p in (1.,12.)]
+            for z in ("above_break_three","corner_three","midrange_two")},sort_keys=True))
+          assert qa["status"]=="PASS", "PUBLISHED_CONTEST_MODEL_NOT_ACCEPTED"
           PY
