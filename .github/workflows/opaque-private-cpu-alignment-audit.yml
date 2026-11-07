@@ -62,7 +62,7 @@ jobs:
               or m.get('storage')!='private_release_only'):
               raise SystemExit(4)
           pins=m.get('approved_source_git_blob_sha1') or {}
-          if len(pins)!=8 or m.get('detail_gallery_required') is not True or m.get('review_video_requested') is not True or m.get('ball_rim_frame_grid_requested') is not True or m.get('four_panel_original_source_candidate_requested') is not True:raise SystemExit(4)
+          if len(pins)!=8 or m.get('detail_gallery_required') is not True or m.get('review_video_requested') is not True or m.get('ball_rim_frame_grid_requested') is not True or m.get('four_panel_original_source_candidate_requested') is not True or m.get('four_panel_native_fps_preservation_required') is not True:raise SystemExit(4)
           for path,hash_value in pins.items():
               if not path.startswith(('cpu_animate/','tests/','docs/cpu_animate/')):raise SystemExit(4)
               if not re.fullmatch(r'[0-9a-f]{40}',hash_value):raise SystemExit(4)
