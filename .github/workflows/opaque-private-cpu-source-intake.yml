@@ -49,89 +49,71 @@ jobs:
           chmod 700 "$ROOT"
           trap 'rm -rf "$ROOT"' EXIT
 
-          # The ONLY public request input is opaque. Experiment selection,
-          # exact private branch, SHA, source game and event are private issue data.
-          if ! gh api search/issues -X GET \
-             -f "q=repo:timeedmonds-maker/104 is:issue in:title ${REQUEST_ID}" \
-             --jq '.items' > "$ROOT/private-issue-list.json" 2>"$ROOT/query-error"; then
-             echo PRIVATE_REGISTRATION_LOOKUP_FAILED
-             exit 4
-          fi
-          ISSUE_NUMBER="$(python3 - "$ROOT/private-issue-list.json" <<'PY'
-          import json,sys
-          rows=json.load(open(sys.argv[1]))
-          if len(rows)!=1:raise SystemExit(4)
-          print(rows[0]['number'])
-          PY
-          )"
-          test -n "$ISSUE_NUMBER" || { echo PRIVATE_REGISTRATION_NOT_UNIQUE; exit 4; }
-          if ! gh api "repos/timeedmonds-maker/104/issues/$ISSUE_NUMBER" --jq '.body' \
-             > "$ROOT/private-registration.txt" 2>"$ROOT/issue-error"; then
-             echo PRIVATE_REGISTRATION_UNREADABLE
-             exit 4
-          fi
-          python3 - "$ROOT/private-registration.txt" "$REQUEST_ID" > "$ROOT/private-selection.txt" <<'PY'
-          import json,re,sys
-          body=open(sys.argv[1]).read()
-          m=re.search(r'```json\s*(.*?)\s*```',body,re.S)
-          if m is None:raise SystemExit(4)
-          item=json.loads(m.group(1))
-          if (item.get('schema')!='cpu-animate.private-cpu-registration.v1'
-              or item.get('request_id')!=sys.argv[2]
-              or item.get('private_repository')!='timeedmonds-maker/104'
-              or item.get('status')!='AUTHORIZED_NOT_YET_RUN'
-              or item.get('authorize_this_exact_request_once') is not True
-              or item.get('gpu_allowed') is not False
-              or item.get('gcp_allowed') is not False
-              or item.get('max_camera_views')!=3
-              or item.get('max_github_cpu_runtime_minutes')!=22
-              or item.get('purpose')!='source_gate_then_private_original_NBA_event_HLS_ingest'):
-              raise SystemExit(4)
-          ref=item.get('private_branch','')
-          sha=item.get('private_head_sha','')
-          gid=item.get('game_id','')
-          event=item.get('source_shot_event')
-          if not re.fullmatch(r'cpu-animate/[A-Za-z0-9._/-]{1,100}',ref):raise SystemExit(4)
-          if not re.fullmatch(r'[0-9a-f]{40}',sha):raise SystemExit(4)
-          if not re.fullmatch(r'00226[0-9]{5}',gid):raise SystemExit(4)
-          if not isinstance(event,int) or event<1 or event>999999:raise SystemExit(4)
-          print(ref)
-          print(sha)
-          print(gid)
-          print(event)
-          print(item['max_camera_views'])
-          PY
-          mapfile -t CONTROL < "$ROOT/private-selection.txt"
-          test "${#CONTROL[@]}" = 5 || { echo PRIVATE_AUTHORIZATION_INVALID; exit 4; }
-
-          # Authorization is recorded PRIVATE; exact SHA must match, never
-          # run attacker-selected or branch-drifted source.
+          # Only the opaque request ID traverses the public bridge.
+          # A PRIVATE branch named by that ID holds the source authorization,
+          # fixture identity and immutable reviewed code blob hashes.
           if ! gh auth setup-git > "$ROOT/auth.log" 2>&1; then
               echo PRIVATE_GIT_AUTH_HELPER_UNAVAILABLE
               exit 4
           fi
           if ! git clone -q --depth=1 --filter=blob:none --sparse \
-               --branch "${CONTROL[0]}" \
+               --branch "$REQUEST_ID" \
                https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
                > "$ROOT/clone.log" 2>&1; then
-              echo PRIVATE_SOURCE_CHECKOUT_UNAVAILABLE
+              echo PRIVATE_OPAQUE_SOURCE_CHECKOUT_UNAVAILABLE
               exit 4
           fi
-          test "$(git -C "$ROOT/private" rev-parse HEAD)" = "${CONTROL[1]}" || {
-              echo PRIVATE_SOURCE_SHA_CHANGED
-              exit 4
-          }
           if ! git -C "$ROOT/private" sparse-checkout set cpu_animate tests docs/cpu_animate \
              > "$ROOT/sparse.log" 2>&1; then
               echo PRIVATE_SOURCE_SPARSE_CHECKOUT_FAILED
               exit 4
           fi
           cd "$ROOT/private"
-          export CPU_ANIMATE_SOURCE_GAME_ID="${CONTROL[2]}"
-          export CPU_ANIMATE_SOURCE_EVENT_NUM="${CONTROL[3]}"
-          export CPU_ANIMATE_ANGLE_LIMIT="${CONTROL[4]}"
+          python3 - "$REQUEST_ID" > "$ROOT/private-selection.txt" <<'PY'
+          import json,re,subprocess,sys
+          from pathlib import Path
+          item=json.loads(Path('docs/cpu_animate/opaque_private_cpu_request.json').read_text())
+          if (item.get('schema')!='cpu-animate.private-opaque-execution.v1'
+              or item.get('request_id')!=sys.argv[1]
+              or item.get('owner_approved') is not True
+              or item.get('operation')!='private_sha_source_gate_and_cpu_angle_ingest'
+              or item.get('storage')!='private_release_only'
+              or item.get('gpu_allowed') is not False
+              or item.get('gcp_allowed') is not False
+              or item.get('public_video_release_allowed') is not False
+              or item.get('max_cpu_minutes')!=22
+              or item.get('angle_limit')!=3
+              or item.get('source_gate_required') is not True):
+              raise SystemExit(4)
+          reviewed=item.get('approved_source_git_blob_sha1') or {}
+          required={
+             'cpu_animate/multi_angle_cpu_ingest.py',
+             'cpu_animate/min_ato_0181_source_gate.py',
+             'docs/cpu_animate/rockets_minnesota_0022600181_ato_manifest.json',
+             'tests/test_cpu_animate_minnesota_ato_0181.py'
+          }
+          if set(reviewed)!=required:raise SystemExit(4)
+          for path,expected in reviewed.items():
+              if not re.fullmatch(r'[0-9a-f]{40}',expected):raise SystemExit(4)
+              actual=subprocess.run(['git','hash-object',path],capture_output=True,
+                                    text=True,check=True).stdout.strip()
+              if actual!=expected:raise SystemExit(4)
+          gid=item.get('game_id','')
+          event=item.get('shot_event')
+          if not re.fullmatch(r'00226[0-9]{5}',gid):raise SystemExit(4)
+          if not isinstance(event,int) or event<1 or event>999999:raise SystemExit(4)
+          print(gid)
+          print(event)
+          print(item['angle_limit'])
+          PY
+          mapfile -t CONTROL < "$ROOT/private-selection.txt"
+          test "${#CONTROL[@]}" = 3 || { echo PRIVATE_AUTHORIZATION_INVALID; exit 4; }
+          export CPU_ANIMATE_SOURCE_GAME_ID="${CONTROL[0]}"
+          export CPU_ANIMATE_SOURCE_EVENT_NUM="${CONTROL[1]}"
+          export CPU_ANIMATE_ANGLE_LIMIT="${CONTROL[2]}"
           export CPU_ANIMATE_HISTORICAL_REGISTRY_JSON="$PWD/docs/cpu_animate/frozen_reference/adams_jazz_game_camera_registry_v6.json"
           export CPU_ANIMATE_HISTORICAL_CHOOSER_JSON="$PWD/docs/cpu_animate/frozen_reference/event489_camera_options.json"
+          echo PRIVATE_OPAQUE_REQUEST_AND_REVIEWED_SOURCE_BLOBS_VERIFIED
           if ! python3 -m unittest discover -s tests -p test_cpu_animate_minnesota_ato_0181.py \
              > "$ROOT/tests.log" 2>&1; then
              echo PRIVATE_SOURCE_REGRESSION_TEST_FAILED
