@@ -1,0 +1,84 @@
+name: CourtCoder Coach Full666 plus Full123 original source census
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/courtcoder-coach-two-season-pps-source-inventory-20261107.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Read SHA-verified PRIVATE Full666 and Full123 original NBA sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          mkdir -p "$RUNNER_TEMP/coach-source"
+          gh release download igp-2025-26-source-feature-census-20261105 --repo timeedmonds-maker/104 --pattern historical-source-feature-census.json --dir "$RUNNER_TEMP/coach-source"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_fullx_v2_latest.json?ref=research/gamepulse-clock-boundary-integrity-20261025' --jq .content | base64 -d > "$RUNNER_TEMP/coach-source/pointer.json"
+          python3 - <<'PY'
+          import base64,gzip,hashlib,json,os,pathlib,subprocess
+          d=pathlib.Path(os.environ["RUNNER_TEMP"])/"coach-source"
+          hist=json.loads((d/"historical-source-feature-census.json").read_bytes())
+          ptr=json.loads((d/"pointer.json").read_bytes())
+          assert hist["schema"]=="igp.historical-source-feature-census.v1" and hist["source_tracking_games"]==666
+          assert ptr["game_count"]==123 and ptr["schema"]=="igp.fullx.multiview-latest-pointer.v2"
+          def get(path):
+              url="repos/timeedmonds-maker/104/contents/"+path+"?ref=research/gamepulse-clock-boundary-integrity-20261025"
+              obj=json.loads(subprocess.run(["gh","api",url],capture_output=True,check=True).stdout)
+              assert obj["encoding"]=="base64"
+              return base64.b64decode(obj["content"])
+          assert ptr["index_path"].startswith("gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL123_")
+          raw=get(ptr["index_path"])
+          assert hashlib.sha256(raw).hexdigest()==ptr["index_sha256"]
+          idx=json.loads(raw)
+          assert idx["game_count"]==123 and len(idx["games"])==123
+          counts=idx["counts"];assert counts["official_fga"]>=21000
+          verified=0
+          for game in sorted(idx["games"])[-2:]:
+              item=idx["games"][game]
+              blob=get(item["shots_path"])
+              assert hashlib.sha256(blob).hexdigest()==item["shot_sha256"]
+              rows=[json.loads(x) for x in gzip.decompress(blob).splitlines() if x]
+              assert len(rows)==item["counts"]["official_fga"]
+              verified+=len(rows)
+          receipt={"schema":"igp.coach.real-two-season-source-census.v1",
+                   "full666_original_games":666,
+                   "full666_shotdetail_events":hist.get("companion_event_counts",{}).get("ShotDetails#show",0),
+                   "full123_games":123,"full123_official_fga":counts["official_fga"],
+                   "full123_native_250ms":counts.get("native_official_event_250ms"),
+                   "full123_source_release_time":counts.get("source_release_time"),
+                   "full123_companion_exact":counts.get("companion_exact"),
+                   "full123_exact_FGA_sample_rows_sha_verified":verified,
+                   "full123_index_sha256":ptr["index_sha256"],
+                   "full666_census_sha256":hashlib.sha256((d/"historical-source-feature-census.json").read_bytes()).hexdigest(),
+                   "seven_actions_normalized_for_both_seasons":False,
+                   "identical_defender_pressure_verified_at_shot_release":False,
+                   "independent_model_game_holdout_passed":False,
+                   "model_promoted":False}
+          (d/"readiness.json").write_text(json.dumps(receipt,indent=2,sort_keys=True)+"\n")
+          print("COACH_REAL_TWO_SEASON_ORIGINAL_SOURCE_CENSUS_PASS",
+                "Full666_games",666,
+                "historical_shotdetails_events",receipt["full666_shotdetail_events"],
+                "Full123_games",123,"current_FGA",counts["official_fga"],
+                "exact_current_FGA_rows_checked",verified)
+          PY
+      - name: Publish SOURCE-ONLY aggregate readiness to private GitHub release
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=igp-coach-pps-two-season-readiness-20261107
+          REPO=timeedmonds-maker/104
+          if ! gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$REPO" --target research/gamepulse-clock-boundary-integrity-20261025 --title 'Private Full666 and Full123 Coach source readiness' --notes 'SHA-verified source inventory, NOT accepted PPS model'
+          fi
+          gh release upload "$TAG" "$RUNNER_TEMP/coach-source/readiness.json" --repo "$REPO" --clobber
+          echo COACH_PRIVATE_TWO_SEASON_SOURCE_READINESS_PUBLISHED
