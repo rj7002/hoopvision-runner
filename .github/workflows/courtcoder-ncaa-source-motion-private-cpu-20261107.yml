@@ -1,0 +1,135 @@
+# Only SHA-pinned private 104 source, aggregate numeric public logs.
+# No licensed tracking, player-identifying rows, model weights, or footage in public Git.
+name: CourtCoder NCAA-first source-only genuine fivegame CPU training
+on:
+  push:
+    branches: ['research/courtcoder-ncaa-motion-cpu-20261107']
+    paths: ['.github/workflows/courtcoder-ncaa-source-motion-private-cpu-20261107.yml']
+permissions: {contents: read}
+concurrency:
+  group: cc-ncaa-motion-train-20261107
+  cancel-in-progress: false
+jobs:
+  verified-private-training:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 28
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: research/courtcoder-ncaa-transfer-gates-20261107
+      PINNED_PRIVATE_SHA: 0e9e51a04cbf8aea121006e8eeb1830e0c7f666a
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify public guard and authenticate existing private token
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 -b "$PRIVATE_BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PINNED_PRIVATE_SHA"
+          echo PRIVATE_SOURCE_PIN_AND_PUBLIC_GUARD_ACCEPTED
+      - name: Run safe synthetic trainer and NCAA transfer gate regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -m unittest -q tools.diagnostics.test_courtcoder_source_motion_fivegame_train_v1 \
+                                  tools.diagnostics.test_courtcoder_ncaa_transfer_gate_v1 \
+                                  tools.diagnostics.test_courtcoder_competition_neutral_motion_v1
+          echo PRIVATE_SOURCE_FREE_TRAINING_REGRESSION_PASS
+      - name: SHA-check five actual original 10+ball game sources and frozen split
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git fetch -q --no-tags --depth=1 origin \
+            "refs/heads/research/gamepulse-clock-boundary-integrity-20261025:refs/remotes/origin/igp-original"
+          git fetch -q --no-tags --depth=1 origin \
+            "refs/heads/research/courtcoder-wp03-full81-source-split-20261101:refs/remotes/origin/frozen-split"
+          git show refs/remotes/origin/frozen-split:docs/courtcoder_full81_train_val_test_split_v1.json \
+            > "$RUNNER_TEMP/frozen_split.json"
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,subprocess
+          tmp=pathlib.Path(os.environ["RUNNER_TEMP"])
+          split=json.loads((tmp/"frozen_split.json").read_text())
+          expected={"TRAIN":["0022600001","0022600003","0022600009"],
+                    "VAL":["0022600002","0022600005"]}
+          assert split["split_counts"]=={"TRAIN":50,"VAL":15,"TEST":16}
+          payload={"schema":"courtcoder.source-direct-trainval-inputs.v1","games":{}}
+          for role,game_ids in expected.items():
+            for gid in game_ids:
+              src=split["game_rows"][gid]
+              if src["split"]!=role:raise SystemExit("FROZEN_SOURCE_SPLIT_CONFLICT")
+              prefix=f"gamepulse/fusion/materialized/igp_all_original_xyz/{gid}"
+              folder=tmp/"original_source_private"/gid
+              folder.mkdir(parents=True)
+              ref="refs/remotes/origin/igp-original"
+              with (folder/"index.json").open("wb") as fd:
+                subprocess.run(["git","show",f"{ref}:{prefix}/index.json"],check=True,stdout=fd)
+              index_bytes=(folder/"index.json").read_bytes()
+              if hashlib.sha256(index_bytes).hexdigest()!=src["original_manifest_sha256"]:
+                raise SystemExit("ORIGINAL_SOURCE_INDEX_SHA_MISMATCH")
+              index=json.loads(index_bytes)
+              if index["game_id"]!=gid:raise SystemExit("SOURCE_GAME_ID_MISMATCH")
+              for c in index["chunks"]:
+                with (folder/c["path"]).open("wb") as fd:
+                  subprocess.run(["git","show",f"{ref}:{prefix}/{c['path']}"],check=True,stdout=fd)
+                b=(folder/c["path"]).read_bytes()
+                if hashlib.sha256(b).hexdigest()!=c["sha256"] or len(b)!=c["compressed_bytes"]:
+                  raise SystemExit("ORIGINAL_SOURCE_CHUNK_SHA_MISMATCH")
+              payload["games"][gid]={"directory":str(folder),
+                                      "index_sha256":src["original_manifest_sha256"],
+                                      "split":role}
+          (tmp/"five_game_inputs.json").write_text(json.dumps(payload))
+          print("FIVE_GAMES_ORIGINAL_SOURCE_SHA_PASSED_3TRAIN_2VAL")
+          PY
+      - name: Train real basketball-general ridge on source and evaluate unseen source games
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 tools/diagnostics/courtcoder_source_motion_fivegame_train_v1.py \
+            --private-input "$RUNNER_TEMP/five_game_inputs.json" \
+            --private-output "$RUNNER_TEMP/source_motion_trained_result_private.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          d=json.loads((Path(os.environ["RUNNER_TEMP"])/"source_motion_trained_result_private.json").read_text())
+          assert d["schema"]=="courtcoder.source-motion-fivegame-training.v1"
+          assert not d["ncaa_video_evaluated"] and not d["video_model_deployed"]
+          lines=["## CourtCoder competition-general motion: genuine private NBA source-only CPU training",
+                 "",f"Training masked player samples: {d['training_masked_actor_samples']}",
+                 "| Unseen NBA source game | Hidden player samples | Linear p95 ft | Learned p95 ft | Linear p99 ft | Learned p99 ft |",
+                 "|---|---:|---:|---:|---:|---:|"]
+          for gid,q in sorted(d["validation_source_only"].items()):
+              lines.append(f"| {gid} | {q['n']} | {q['baseline_p95_ft']} | {q['learned_p95_ft']} | {q['baseline_p99_ft']} | {q['learned_p99_ft']} |")
+          lines.append("")
+          lines.append("**Research only: these are NBA original SDK masked holdouts. NCAA video tracking JCAR has not been evaluated.**")
+          Path(os.environ["GITHUB_STEP_SUMMARY"]).write_text("\n".join(lines)+"\n")
+          print("SOURCE_VALIDATION_COUNTS_PASS",len(d["validation_source_only"]),
+                "TRAINED_ACTOR_SAMPLES",d["training_masked_actor_samples"],
+                "NCAA_VIDEO_UNTESTED")
+          PY
+      - name: Save weights plus QA in private repository ONLY
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git fetch -q origin "$PRIVATE_BRANCH"
+          test "$(git rev-parse FETCH_HEAD)" = "$PINNED_PRIVATE_SHA"
+          git checkout -q -B source-model-private "$PINNED_PRIVATE_SHA"
+          dir=docs/courtcoder_ncaa_private_training
+          mkdir -p "$dir"
+          cp "$RUNNER_TEMP/source_motion_trained_result_private.json" \
+            "$dir/source_only_fivegame_20261107.json"
+          git add "$dir/source_only_fivegame_20261107.json"
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -q -m "qa: retain real-source CourtCoder NCAA-general movement CPU model (research only)"
+          git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"
+          echo PRIVATE_TRAINED_MODEL_AND_QA_COMMITTED
