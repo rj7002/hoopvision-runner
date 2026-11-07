@@ -248,6 +248,67 @@ jobs:
           print("COACH_PRESSURE_GRADE",receipt["grade"],"NBA_release_time_certified",False,
                 "shot_actions_certified",False)
           PY
+      - name: Fit and game-holdout REAL 15-shard Full666 plus 5-game Full123 event-time PPS research (PRIVATE)
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/coach-source"
+          mkdir -p "$root/full666-private"
+          gh release download igp-2025-26-defender-xyz-proxy-20261105 \
+            --repo timeedmonds-maker/104 \
+            --pattern 'defender-xyz-nba-2025-26-shard-*.jsonl.gz' \
+            --pattern 'defender-xyz-nba-2025-26-shard-*-qa.json' \
+            --dir "$root/full666-private" > "$RUNNER_TEMP/coach-full666-archive.log" 2>&1
+          gh api 'repos/timeedmonds-maker/104/contents/courtcoder/coach/event_time_pps_research_v1.py?ref=feature/courtcoder-coach-web-20261106' \
+            --jq .content | base64 -d > "$root/event_time_pps_research_v1.py"
+          python3 - <<'PY'
+          from collections import Counter
+          import gzip,hashlib,importlib.util,json,os,pathlib
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"coach-source"
+          def load(name,path):
+              spec=importlib.util.spec_from_file_location(name,root/path)
+              module=importlib.util.module_from_spec(spec)
+              spec.loader.exec_module(module)
+              return module
+          source=load("pressure","two_season_native_event_pressure_v1.py")
+          modeler=load("modeler","event_time_pps_research_v1.py")
+          historical=[];input_shas={}
+          shard_dir=root/"full666-private"
+          blobs=sorted(shard_dir.glob("defender-xyz-nba-2025-26-shard-*.jsonl.gz"))
+          assert len(blobs)==15, "HISTORICAL_FIFTEEN_SOURCE_SHARDS_REQUIRED"
+          for f in blobs:
+              name=f.name.removesuffix(".jsonl.gz")
+              qa=(shard_dir/(name+"-qa.json")).read_bytes()
+              raw=f.read_bytes()
+              rows,stats=source.historical_rows(raw,qa)
+              historical.extend(rows)
+              input_shas[name]=hashlib.sha256(raw).hexdigest()
+              print("COACH_FULL666_REAL_SHARD_QUALIFIED",name[-3:],len(rows),
+                    "original_candidates",stats["source_rows"])
+          pilot=[json.loads(x) for x in gzip.decompress((root/"pilot/source-event-pressure-fga.jsonl.gz").read_bytes()).splitlines() if x]
+          current=[r for r in pilot if r["season"]=="2026-27"]
+          assert len(current)>=300, "CURRENT_SEASON_REAL_FGA_TOO_FEW"
+          shas={"full666_15_shard_sha256":input_shas,
+                "full123_5_game_source_sha256":json.loads((root/"pointer.json").read_bytes())["index_sha256"]}
+          full=historical+current
+          cohort=Counter(r["season"] for r in full)
+          research_model,validation=modeler.train_holdout(full,shas)
+          validation["source_fga_by_season"]=dict(cohort)
+          validation["data_is_exactly_five_games_in_current_season"]=True
+          validation["two_season_model_deployment_prohibited_until_release_qa"]=True
+          out=root/"full-history"
+          out.mkdir(parents=True,exist_ok=True)
+          json.dump(validation,(out/"event_time_pps_heldout_qa.json").open("w"),sort_keys=True,indent=2)
+          json.dump(research_model,(out/"event_time_pps_model.json").open("w"),sort_keys=True,separators=(",",":"))
+          assert not validation["promoted_to_preview"]
+          print("COACH_REAL_15SHARD_TWO_SEASON_GAME_DISJOINT_HOLDOUT",
+                "source_FGA",json.dumps(dict(cohort),sort_keys=True),
+                "train_FGA",validation["train_fga"],
+                "heldout_FGA",validation["heldout_fga"],
+                "heldout_games",validation["heldout_games"],
+                "heldout_by_season",json.dumps(validation["heldout_by_season"],sort_keys=True),
+                "candidate_promoted",False)
+          PY
       - name: Publish SOURCE-ONLY aggregate readiness to private GitHub release
         shell: bash
         run: |
@@ -259,4 +320,5 @@ jobs:
           fi
           gh release upload "$TAG" "$RUNNER_TEMP/coach-source/readiness.json" --repo "$REPO" --clobber
           gh release upload "$TAG" "$RUNNER_TEMP/coach-source/pilot/source-event-pressure-fga.jsonl.gz" "$RUNNER_TEMP/coach-source/pilot/source-event-pressure-qa.json" --repo "$REPO" --clobber
+          gh release upload "$TAG" "$RUNNER_TEMP/coach-source/full-history/event_time_pps_heldout_qa.json" "$RUNNER_TEMP/coach-source/full-history/event_time_pps_model.json" --repo "$REPO" --clobber
           echo COACH_PRIVATE_TWO_SEASON_SOURCE_READINESS_PUBLISHED
