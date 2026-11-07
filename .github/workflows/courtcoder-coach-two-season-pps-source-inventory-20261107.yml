@@ -294,6 +294,7 @@ jobs:
           cohort=Counter(r["season"] for r in full)
           research_model,validation=modeler.train_holdout(full,shas)
           validation["source_fga_by_season"]=dict(cohort)
+          validation["historical_revision_dedupe_and_quarantine"]=validation["source_row_qa"]
           validation["data_is_exactly_five_games_in_current_season"]=True
           validation["two_season_model_deployment_prohibited_until_release_qa"]=True
           out=root/"full-history"
