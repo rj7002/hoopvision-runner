@@ -53,10 +53,20 @@ jobs:
                   record=rows[0]
                   print("COACH_CURRENT_FGA_SOURCE_FIELD_NAMES",",".join(sorted(record)))
                   for key in ("official_nba_shot_event","companion_original_shot_metadata",
-                              "blueprint_original_shot","original_native_nearest_release_frame"):
-                      val=record.get(key)
+                              "blueprint_original_shot","original_native_nearest_release_frame",
+                              "original_native_nearest_official_event_frame"):
+                      val=next((row.get(key) for row in rows if isinstance(row.get(key),dict)),None)
                       if isinstance(val,dict):
                           print("COACH_CURRENT_FGA_NESTED_FIELDS",key,",".join(sorted(val)))
+                  from collections import Counter
+                  shottypes=Counter(str(r.get("official_nba_shot_event",{}).get("action_subtype"))
+                                    for r in rows)
+                  print("COACH_CURRENT_FGA_ACTION_SUBTYPE_TOP",
+                        json.dumps(shottypes.most_common(18)))
+                  frames=[r.get("original_native_nearest_official_event_frame")
+                          for r in rows if isinstance(r.get("original_native_nearest_official_event_frame"),dict)]
+                  print("COACH_CURRENT_FGA_EVENT_NATIVE_FRAME_COVERAGE",
+                        len(frames),"of",len(rows))
               verified+=len(rows)
           receipt={"schema":"igp.coach.real-two-season-source-census.v1",
                    "full666_original_games":666,
@@ -133,6 +143,18 @@ jobs:
               shots["defenders_count_ge5"]+=int(isinstance(r.get("defenders"),list) and len(r["defenders"])>=5)
               shots["NBA_shot_record_present"]+=int(isinstance(r.get("source_nba_shot_record"),dict))
           print("COACH_HIST_SOURCE_PRESSURE_GRADE_COUNTS",json.dumps(dict(shots),sort_keys=True))
+          histtypes=collections.Counter(str((r.get("source_nba_shot_record") or {}).get("shotType")) for r in source_rows)
+          events=collections.Counter(str((r.get("source_nba_shot_record") or {}).get("actionType")) for r in source_rows)
+          offsets=collections.Counter("0-100ms" if abs(r.get("event_frame_delta_ms") or 99999)<=100
+                                else "101-250ms" if abs(r.get("event_frame_delta_ms") or 99999)<=250
+                                else "over250ms" for r in source_rows)
+          print("COACH_HIST_SHOT_TYPE_COUNTS_TOP",json.dumps(histtypes.most_common(20)))
+          print("COACH_HIST_ACTION_TYPE_COUNTS_TOP",json.dumps(events.most_common(15)))
+          print("COACH_HIST_EVENT_FRAME_OFFSET_BINS",json.dumps(dict(offsets),sort_keys=True))
+          fields=source_rows[0].get("shooter_xyz_ft")
+          print("COACH_HIST_SHOOTER_POSITION_FIELDS",",".join(sorted(fields)) if isinstance(fields,dict) else type(fields).__name__)
+          defender=next((d for r in source_rows for d in (r.get("defenders") or []) if isinstance(d,dict)),{})
+          print("COACH_HIST_DEFENDER_POSITION_FIELDS",",".join(sorted(defender)))
           for name in ("source_nba_shot_record","release_proxy_evidence","source_shot_quality_xfg"):
               sample=next((r.get(name) for r in source_rows if isinstance(r.get(name),dict)),{})
               print("COACH_HIST_NESTED_FIELD_NAMES",name,",".join(sorted(sample)))
