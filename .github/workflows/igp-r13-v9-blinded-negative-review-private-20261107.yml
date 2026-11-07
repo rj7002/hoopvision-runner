@@ -246,3 +246,5 @@ jobs:
 # Reviewed separate private R13 original source reports; no raw XYZ or licensed video material on public runner.
 
 # Replayed after review of concurrent private-only source workflow in the public content allowlist.
+
+# Replayed after V11 150ms strict-boundary test correction; privately SHA-verified review only.
