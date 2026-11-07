@@ -54,6 +54,7 @@ jobs:
             --repo timeedmonds-maker/104 --dir "$ROOT" \
             --pattern event616-broadcast.mp4
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/status/jabari_616_full_source_tracking_window.json?ref=main' --jq .content | base64 -d > "$ROOT/jabari_616_full_source_tracking_window.json"
+          gh api 'repos/timeedmonds-maker/104/contents/tools/locked_broadcast_screen_v5_rings.py?ref=courtcoder%2Fintegration' --jq .content | base64 -d > "$ROOT/locked_broadcast_screen_v5_rings.py"
           python3 - <<'PY'
           import hashlib,json,os,pathlib,secrets,subprocess,tarfile
           from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -70,6 +71,7 @@ jobs:
           with tarfile.open(bundle,'w') as tf:
               tf.add(src,arcname=src.name)
               tf.add(tracking,arcname=tracking.name)
+              tf.add(root/'locked_broadcast_screen_v5_rings.py',arcname='locked_broadcast_screen_v5_rings.py')
           data=bundle.read_bytes()
           expected=hashlib.sha256(data).hexdigest()
           key=secrets.token_bytes(32)
