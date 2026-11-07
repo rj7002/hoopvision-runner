@@ -214,7 +214,7 @@ jobs:
           idx=json.loads(idxraw)
           native_root="gamepulse/fusion/materialized/igp_all_original_xyz/"
           current=[];game_counts={};verified_chunks=0;input_shas={}
-          for game in sorted(idx["games"])[-5:]:
+          for game in sorted(idx["games"])[-20:]:
               entry=idx["games"][game]
               shots=get(entry["shots_path"])
               assert hashlib.sha256(shots).hexdigest()==entry["shot_sha256"]
@@ -248,7 +248,7 @@ jobs:
           print("COACH_PRESSURE_GRADE",receipt["grade"],"NBA_release_time_certified",False,
                 "shot_actions_certified",False)
           PY
-      - name: Fit and game-holdout REAL 15-shard Full666 plus 5-game Full123 event-time PPS research (PRIVATE)
+      - name: Fit and game-holdout REAL 15-shard Full666 plus 20-game Full123 event-time PPS research (PRIVATE)
         shell: bash
         run: |
           set -euo pipefail
@@ -287,15 +287,15 @@ jobs:
                     "original_candidates",stats["source_rows"])
           pilot=[json.loads(x) for x in gzip.decompress((root/"pilot/source-event-pressure-fga.jsonl.gz").read_bytes()).splitlines() if x]
           current=[r for r in pilot if r["season"]=="2026-27"]
-          assert len(current)>=300, "CURRENT_SEASON_REAL_FGA_TOO_FEW"
+          assert len(current)>=1000, "CURRENT_SEASON_REAL_FGA_TOO_FEW"
           shas={"full666_15_shard_sha256":input_shas,
-                "full123_5_game_source_sha256":json.loads((root/"pointer.json").read_bytes())["index_sha256"]}
+                "full123_20_game_source_sha256":json.loads((root/"pointer.json").read_bytes())["index_sha256"]}
           full=historical+current
           cohort=Counter(r["season"] for r in full)
           research_model,validation=modeler.train_holdout(full,shas)
           validation["source_fga_by_season"]=dict(cohort)
           validation["historical_revision_dedupe_and_quarantine"]=validation["source_row_qa"]
-          validation["data_is_exactly_five_games_in_current_season"]=True
+          validation["current_season_game_source_limit"]=20
           validation["two_season_model_deployment_prohibited_until_release_qa"]=True
           out=root/"full-history"
           out.mkdir(parents=True,exist_ok=True)
