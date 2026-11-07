@@ -187,6 +187,25 @@ jobs:
               print("COACH_HIST_NESTED_FIELD_NAMES",name,",".join(sorted(sample)))
 
           PY
+      - name: Stage immutable original NBA game chunks via authenticated sparse Git checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="$RUNNER_TEMP/coach-source/private-research"
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c "http.extraheader=AUTHORIZATION: basic $auth" \
+            clone -q --depth=1 --filter=blob:none --sparse \
+            -b research/gamepulse-clock-boundary-integrity-20261025 \
+            https://github.com/timeedmonds-maker/104.git "$target"
+          git -C "$target" -c "http.extraheader=AUTHORIZATION: basic $auth" \
+            sparse-checkout set \
+            gamepulse/fusion/materialized/igp_all_original_xyz \
+            gamepulse/fusion/official_pbp_timing/original_nba_20261029 \
+            gamepulse/fusion/qa/igp_fullx
+          test -s "$target/gamepulse/fusion/materialized/igp_all_original_xyz/0022600188/index.json"
+          test -s "$target/gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600188/boxscore.json"
+          git -C "$target" config --local remote.origin.url https://github.com/timeedmonds-maker/104.git
+          echo COACH_ORIGINAL_NBA_SOURCE_SPARSE_PRIVATE_CHECKOUT_OK
       - name: Execute actual two-season native 5v5 event-time pressure pilot (PRIVATE)
         shell: bash
         run: |
@@ -200,10 +219,23 @@ jobs:
           spec=importlib.util.spec_from_file_location("real_coach",root/"two_season_native_event_pressure_v1.py")
           module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
           def get(path,ref="research/gamepulse-clock-boundary-integrity-20261025"):
+              local=(root/"private-research"/path)
+              if local.is_file():
+                  return local.read_bytes()
               resource="repos/timeedmonds-maker/104/contents/"+path+"?ref="+ref
-              obj=json.loads(subprocess.run(["gh","api",resource],capture_output=True,check=True).stdout)
-              assert obj["encoding"]=="base64","PRIVATE_SOURCE_BLOB_NOT_AVAILABLE"
-              return base64.b64decode(obj["content"])
+              last=None
+              for attempt in range(4):
+                  proc=subprocess.run(["gh","api",resource],capture_output=True)
+                  if proc.returncode==0:
+                      obj=json.loads(proc.stdout)
+                      assert obj["encoding"]=="base64","PRIVATE_SOURCE_BLOB_NOT_AVAILABLE"
+                      return base64.b64decode(obj["content"])
+                  last=proc.stderr.decode(errors="replace")
+                  if "HTTP 403" in last or "HTTP 429" in last or "HTTP 502" in last or "HTTP 503" in last:
+                      __import__("time").sleep(2**attempt)
+                      continue
+                  break
+              raise OSError("SOURCE_RETRIEVAL_FAILED_AFTER_SPARSE_STAGE")
           historic=root/"historical-shot-sample"
           blob=(historic/"defender-xyz-nba-2025-26-shard-001.jsonl.gz").read_bytes()
           qa=(historic/"defender-xyz-nba-2025-26-shard-001-qa.json").read_bytes()
