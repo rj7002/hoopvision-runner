@@ -478,6 +478,15 @@ jobs:
           /gamepulse/fusion/evidence/companion_sdk_original_0022600153/**
           /gamepulse/fusion/evidence/companion_sdk_original_0022600167/**
           /gamepulse/fusion/evidence/companion_sdk_original_0022600181/**
+          /gamepulse/fusion/qa/r13_full123_original_boxes_20261107/0022600009.receipt.json
+          /gamepulse/fusion/qa/r13_full123_original_boxes_20261107/0022600021.receipt.json
+          /gamepulse/fusion/qa/r13_full123_original_boxes_20261107/0022600091.receipt.json
+          /gamepulse/fusion/qa/r13_full123_original_boxes_20261107/0022600107.receipt.json
+          /gamepulse/fusion/qa/r13_full123_original_boxes_20261107/0022600125.receipt.json
+          /gamepulse/fusion/qa/r13_full123_original_boxes_20261107/0022600138.receipt.json
+          /gamepulse/fusion/qa/r13_full123_original_boxes_20261107/0022600153.receipt.json
+          /gamepulse/fusion/qa/r13_full123_original_boxes_20261107/0022600167.receipt.json
+          /gamepulse/fusion/qa/r13_full123_original_boxes_20261107/0022600181.receipt.json
           /gamepulse/fusion/qa/r13_full123_original_boxes_20261107/0022600009.json*
           /gamepulse/fusion/qa/r13_full123_original_boxes_20261107/0022600021.json*
           /gamepulse/fusion/qa/r13_full123_original_boxes_20261107/0022600091.json*
