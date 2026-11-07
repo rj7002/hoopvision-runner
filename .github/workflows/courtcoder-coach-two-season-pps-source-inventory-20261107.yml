@@ -2,7 +2,7 @@ name: CourtCoder Coach Full666 plus Full123 original source census
 on:
   push:
     branches: [main]
-    paths: [.github/workflows/courtcoder-coach-two-season-pps-source-inventory-20261107.yml]
+    paths: [.github/workflows/courtcoder-coach-two-season-pps-source-inventory-20261107.yml, tools/public_content_guard.py]
   workflow_dispatch:
 permissions:
   contents: read
