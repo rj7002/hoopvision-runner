@@ -114,6 +114,39 @@ jobs:
           export CPU_ANIMATE_HISTORICAL_REGISTRY_JSON="$PWD/docs/cpu_animate/frozen_reference/adams_jazz_game_camera_registry_v6.json"
           export CPU_ANIMATE_HISTORICAL_CHOOSER_JSON="$PWD/docs/cpu_animate/frozen_reference/event489_camera_options.json"
           echo PRIVATE_OPAQUE_REQUEST_AND_REVIEWED_SOURCE_BLOBS_VERIFIED
+          # Read the original immutable NBA source through authenticated
+          # sparse Git; REST contents endpoint was not accessible to runner.
+          python3 - "$PWD/docs/cpu_animate/opaque_private_cpu_request.json" > "$ROOT/native-source-input.txt" <<'PY'
+          import json,re,sys
+          item=json.load(open(sys.argv[1]))
+          ref=item['original_source_branch']
+          p1=item['original_pbp_path']
+          p2=item['original_xyz_index_path']
+          if not re.fullmatch(r'research/[A-Za-z0-9._/-]{1,120}',ref):raise SystemExit(4)
+          if (p1!='gamepulse/fusion/official_pbp_timing/games/0022600181.json'
+              or p2!='gamepulse/fusion/materialized/igp_all_original_xyz/0022600181/index.json'):
+              raise SystemExit(4)
+          print(ref)
+          print(p1)
+          print(p2)
+          PY
+          mapfile -t NATIVE < "$ROOT/native-source-input.txt"
+          test "${#NATIVE[@]}" = 3 || { echo PRIVATE_ORIGINAL_BRANCH_SOURCE_INVALID; exit 4; }
+          if ! git clone -q --depth=1 --filter=blob:none --sparse \
+               --branch "${NATIVE[0]}" \
+               https://github.com/timeedmonds-maker/104.git "$ROOT/original" \
+               > "$ROOT/native-clone.log" 2>&1; then
+               echo PRIVATE_ORIGINAL_GIT_SOURCE_CHECKOUT_UNAVAILABLE
+               exit 4
+          fi
+          if ! git -C "$ROOT/original" sparse-checkout set --no-cone \
+               "${NATIVE[1]}" "${NATIVE[2]}" \
+               > "$ROOT/native-sparse.log" 2>&1; then
+               echo PRIVATE_ORIGINAL_GIT_SOURCE_SPARSE_CHECKOUT_FAILED
+               exit 4
+          fi
+          export CPU_ANIMATE_SOURCE_GIT_ROOT="$ROOT/original"
+          echo PRIVATE_ORIGINAL_GIT_SPARSE_SOURCE_READY
           if ! python3 -m unittest discover -s tests -p test_cpu_animate_minnesota_ato_0181.py \
              > "$ROOT/tests.log" 2>&1; then
              echo PRIVATE_SOURCE_REGRESSION_TEST_FAILED
