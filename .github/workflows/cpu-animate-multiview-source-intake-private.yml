@@ -84,9 +84,9 @@ jobs:
           mkdir -p "$ROOT/historical"
           # These two original historical source artifacts are SHA-pinned in
           # the private engine, preventing re-discovery or guessed labels.
-          gh api 'repos/timeedmonds-maker/44/contents/freeze_spin/adams_jazz_game_camera_registry_v6.json?ref=codex%2Fmulti-angle-freeze-spin-poc' \
+          gh api "repos/timeedmonds-maker/104/contents/docs/cpu_animate/source_snapshots/freeze_spin_camera_registry_v6.json?ref=$BRANCH" \
             --jq .content | base64 -d > "$ROOT/historical/camera_registry_v6.json"
-          gh api 'repos/timeedmonds-maker/44/contents/freeze_spin/frame_c_camera_chooser/options.json?ref=codex%2Fmulti-angle-freeze-spin-poc' \
+          gh api "repos/timeedmonds-maker/104/contents/docs/cpu_animate/source_snapshots/freeze_spin_event489_12camera_options.json?ref=$BRANCH" \
             --jq .content | base64 -d > "$ROOT/historical/options.json"
           export CPU_ANIMATE_HISTORICAL_REGISTRY_JSON="$ROOT/historical/camera_registry_v6.json"
           export CPU_ANIMATE_HISTORICAL_CHOOSER_JSON="$ROOT/historical/options.json"
