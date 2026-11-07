@@ -214,7 +214,12 @@ jobs:
           idx=json.loads(idxraw)
           native_root="gamepulse/fusion/materialized/igp_all_original_xyz/"
           current=[];game_counts={};verified_chunks=0;input_shas={}
-          for game in sorted(idx["games"])[-20:]:
+          box_directory="repos/timeedmonds-maker/104/contents/gamepulse/fusion/official_pbp_timing/original_nba_20261029?ref=research/gamepulse-clock-boundary-integrity-20261025"
+          listing=json.loads(subprocess.run(["gh","api",box_directory],capture_output=True,check=True).stdout)
+          source_box_games={e["name"] for e in listing if e.get("type")=="dir"}
+          selected=sorted(set(idx["games"])&source_box_games)
+          assert len(selected)>=80,"CURRENT_SOURCE_GRADE_BOX_INVENTORY_TOO_SMALL"
+          for game in selected:
               entry=idx["games"][game]
               shots=get(entry["shots_path"])
               assert hashlib.sha256(shots).hexdigest()==entry["shot_sha256"]
@@ -244,11 +249,13 @@ jobs:
               "Full123_original_chunks_SHA",verified_chunks,
               "Full123_games",len(game_counts),
               "Full666_source_rejections",json.dumps(oldcounts,sort_keys=True),
-              "Full123_source_rejections_by_game",json.dumps(game_counts,sort_keys=True))
+              "Full123_source_rejection_totals",json.dumps(dict(__import__("collections").Counter(
+                 {k:sum(x["counts"].get(k,0) for x in game_counts.values())
+                  for k in {y for x in game_counts.values() for y in x["counts"]}})),sort_keys=True))
           print("COACH_PRESSURE_GRADE",receipt["grade"],"NBA_release_time_certified",False,
                 "shot_actions_certified",False)
           PY
-      - name: Fit and game-holdout REAL 15-shard Full666 plus 20-game Full123 event-time PPS research (PRIVATE)
+      - name: Fit and game-holdout REAL 15-shard Full666 plus source-covered Full123 event-time PPS research (PRIVATE)
         shell: bash
         run: |
           set -euo pipefail
@@ -287,15 +294,15 @@ jobs:
                     "original_candidates",stats["source_rows"])
           pilot=[json.loads(x) for x in gzip.decompress((root/"pilot/source-event-pressure-fga.jsonl.gz").read_bytes()).splitlines() if x]
           current=[r for r in pilot if r["season"]=="2026-27"]
-          assert len(current)>=1000, "CURRENT_SEASON_REAL_FGA_TOO_FEW"
+          assert len(current)>=5000, "CURRENT_SEASON_REAL_FGA_TOO_FEW"
           shas={"full666_15_shard_sha256":input_shas,
-                "full123_20_game_source_sha256":json.loads((root/"pointer.json").read_bytes())["index_sha256"]}
+                "full123_original_boxscore_eligible_source_sha256":json.loads((root/"pointer.json").read_bytes())["index_sha256"]}
           full=historical+current
           cohort=Counter(r["season"] for r in full)
           research_model,validation=modeler.train_holdout(full,shas)
           validation["source_fga_by_season"]=dict(cohort)
           validation["historical_revision_dedupe_and_quarantine"]=validation["source_row_qa"]
-          validation["current_season_game_source_limit"]=20
+          validation["current_season_source_verified_games"]=len(json.loads((root/"pilot/source-event-pressure-qa.json").read_bytes())["counts"]["current"])
           validation["two_season_model_deployment_prohibited_until_release_qa"]=True
           out=root/"full-history"
           out.mkdir(parents=True,exist_ok=True)
