@@ -19,7 +19,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: feature/courtcoder-coach-web-20261106
-      PRIVATE_SHA: bdc886002d174e5ae4efc4a9fc1f731fbb11c0a8
+      PRIVATE_SHA: 4c8c8d70ab79ec19947bfaedea72abff5d4904b4
       PRIVATE_REPO: timeedmonds-maker/104
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +45,7 @@ jobs:
           git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PRIVATE_SHA"
           git -C "$RUNNER_TEMP/private" checkout -q --detach "$PRIVATE_SHA"
           git -C "$RUNNER_TEMP/private" sparse-checkout set \
-            courtcoder config contracts hoopvision/scouting gamepulse/coach_pilot_release_20261107_v2 gamepulse/coach_event_proxy_release_20261107 gamepulse/coach_event_proxy_release_20261107
+            courtcoder config contracts hoopvision/scouting gamepulse/coach_pilot_release_20261107_v2 gamepulse/coach_event_proxy_release_20261107 gamepulse/coach_contest_release_20261107
           test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PRIVATE_SHA"
           test -f "$RUNNER_TEMP/private/courtcoder/coach/index.html"
           test -f "$RUNNER_TEMP/private/courtcoder/qa/coach_ui_visual_contract.test.cjs"
