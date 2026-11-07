@@ -121,6 +121,15 @@ jobs:
           fi
           if ! python3 -m cpu_animate.min_ato_0181_source_gate \
              > "$ROOT/verified-source.log" 2>&1; then
+             python3 - "$ROOT/verified-source.log" <<'PY'
+          import re,sys
+          contents=open(sys.argv[1]).read()
+          failures=re.findall(r'(?m)^([A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception)):',contents)
+          print('PRIVATE_SOURCE_GATE_EXCEPTION_CLASS',failures[-1] if failures else 'UNKNOWN')
+          if 'private_json' in contents:print('PRIVATE_GATE_STAGE_SOURCE_FETCH')
+          elif 'verify_source' in contents:print('PRIVATE_GATE_STAGE_SOURCE_VALIDATION')
+          else:print('PRIVATE_GATE_STAGE_UNKNOWN')
+          PY
              echo PRIVATE_ORIGINAL_SOURCE_GATE_FAILED
              exit 4
           fi
