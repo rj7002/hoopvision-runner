@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/courtcoder-ncaa-risk-triage-private-cpu-20261107.yml",  # strict private original NCAA worker hash + source model risk training, private weights only
     ".github/workflows/courtcoder-ncaa-source-motion-private-cpu-20261107.yml",  # reviewed SHA-pinned private original 10+ball source training; private-only model, aggregate public QA
     ".github/workflows/courtcoder-coach-event-proxy-pps-train-20261107.yml",  # pinned private Full666/Full123 original source FGA training; private-only model artifacts and aggregate public logs
     ".github/workflows/courtcoder-coach-contest-field-audit-20261107.yml",  # SHA-verified historical original shot metadata audit; aggregate field availability and coarse bins only, no original rows
