@@ -534,6 +534,8 @@ jobs:
             exit 59
           fi
           echo R13_V15_NINE_GAME_SHA_NATIVE_PLAYER_BALL_AND_SDK_REPRODUCED_PRIVATELY
+          test -s gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/houston9_r13_v15_compact_owner_continuity_comparison_20261107.json
+          echo R13_V15_SHA_LINKED_SMALL_COMPARISON_STORED_PRIVATELY
           echo R13_V15_CHALLENGER_DEVELOPMENT_ONLY_ORIGINAL_R13_UNCHANGED
 
 
