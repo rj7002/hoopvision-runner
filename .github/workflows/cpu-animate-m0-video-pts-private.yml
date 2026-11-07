@@ -65,6 +65,7 @@ jobs:
           BRANCH='cpu-animate%2Fm0-m1-validation-core-20261107'
           gh api "repos/timeedmonds-maker/104/contents/cpu_animate/core.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/cpu_animate/core.py"
           gh api "repos/timeedmonds-maker/104/contents/cpu_animate/video_probe.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/cpu_animate/video_probe.py"
+          gh api "repos/timeedmonds-maker/104/contents/cpu_animate/m1_single_frame.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/cpu_animate/m1_single_frame.py"
           gh api "repos/timeedmonds-maker/104/contents/tests/test_cpu_animate_core.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/tests/test_cpu_animate_core.py"
           gh api "repos/timeedmonds-maker/104/contents/tests/test_cpu_animate_video_probe.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/tests/test_cpu_animate_video_probe.py"
           gh api "repos/timeedmonds-maker/104/contents/tools/locked_broadcast_screen_v5_rings.py?ref=courtcoder%2Fintegration" --jq .content | base64 -d > "$ROOT/tools/locked_broadcast_screen_v5_rings.py"
@@ -72,6 +73,18 @@ jobs:
             cd "$ROOT"
             python3 -m unittest discover -s tests -p 'test_cpu_animate_core.py' -v
             python3 -m unittest discover -s tests -p 'test_cpu_animate_video_probe.py' -v
+            python3 -m py_compile cpu_animate/m1_single_frame.py
+            python3 - <<'PY'
+          from cpu_animate.m1_single_frame import validate_camera_game_match
+          try:
+              validate_camera_game_match(video_game_id='0022600091',
+                                         calibration_game_id='0022500301',
+                                         tracking_game_id='0022600091')
+          except ValueError:
+              print('HISTORICAL_CAMERA_CROSS_GAME_TRANSFER_REJECTED')
+          else:
+              raise RuntimeError('Historical camera incorrectly accepted')
+          PY
           )
           gh release download 'clip-lab-hls-0022600091-616' \
             --repo timeedmonds-maker/104 --dir "$ROOT/private_media" \
@@ -92,6 +105,7 @@ jobs:
           print(json.dumps({
               'video_sha256_matched_private_release': True,
               'native_frame_count': result['source_frame_count'],
+              'source_clip_pts_span_seconds': round(result['source_pts_seconds'][-1] - result['source_pts_seconds'][0], 6),
               'width': result['native_width'],
               'height': result['native_height'],
               'source_time_base': result['source_time_base'],
@@ -138,6 +152,14 @@ jobs:
               'nearest_native_timestamp_delta_ms': nearest_delta_ms,
               'native_timestamp_rows_within_pbp_utc_1s': within_1s,
               'native_timestamp_rows_within_pbp_utc_5s': within_5s,
+              'original_player_records_at_pbp_utc_1s': sum(
+                  1 for row in rows if abs(row['source_frame_utc_ms'] - official_pbp_utc_ms) <= 1000
+                  and isinstance(row.get('positions_native_units'), dict) and len(row['positions_native_units']) > 0
+              ),
+              'shooter_source_id_present_in_1s': sum(
+                  1 for row in rows if abs(row['source_frame_utc_ms'] - official_pbp_utc_ms) <= 1000
+                  and '1631095' in (row.get('positions_native_units') or {})
+              ),
               'player_identity_and_video_foot_alignment_certified': False,
               'pts_to_utc_certified': False
           }, sort_keys=True))
