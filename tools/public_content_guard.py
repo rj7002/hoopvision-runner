@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-full132-hou-backcourt5-prior-context-20261108.yml",  # official PBP prior-action segmentation; original rows and detailed results private-only
     ".github/workflows/gamepulse-full132-hou-backcourt5-outcomes-20261108.yml",  # reviewed original SHA source; private results only, public aggregate counts
     ".github/workflows/igp-full132-hou-kick-ahead-20261108.yml",  # SHA-pinned private Full132 Rockets native XYZ tactical analysis, private-only possession case ledger
     ".github/workflows/cpu-animate-encrypted-chat-transfer.yml",  # AES-256-GCM ciphertext only; key stored in private repo release; no public NBA video
