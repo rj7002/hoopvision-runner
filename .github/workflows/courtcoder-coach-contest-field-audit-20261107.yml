@@ -15,7 +15,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PRIVATE_SHA: ff2a9f236f8f7957463666c450cbdb026fe4e859
+      PRIVATE_SHA: 774b47f9879a15ede1e12d1b92262892bc517c9a
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
