@@ -101,3 +101,44 @@ jobs:
               'm1_accepted': False
           }, sort_keys=True))
           PY
+          # Original 2026-27 NBA SDK tracking in the SAME game, independently
+          # SHA-pinned. Do not emit source position arrays to public logs.
+          SRC='gamepulse/fusion/materialized/igp_all_original_xyz/0022600091'
+          REF='research%2Fgamepulse-clock-boundary-integrity-20261025'
+          gh api "repos/timeedmonds-maker/104/contents/$SRC/index.json?ref=$REF" --jq .content | base64 -d > "$ROOT/private_media/xyz-index.json"
+          gh api "repos/timeedmonds-maker/104/contents/$SRC/original-native-00013.jsonl.gz?ref=$REF" --jq .content | base64 -d > "$ROOT/private_media/xyz-chunk13.jsonl.gz"
+          python3 - <<'PY'
+          import gzip, hashlib, json, os
+          from pathlib import Path
+          root = Path(os.environ['CPU_ANIMATE_ROOT']) / 'private_media'
+          b = (root/'xyz-index.json').read_bytes()
+          assert hashlib.sha256(b).hexdigest() == '3ce8100796631b4078293bce4f12a2aa0d6faef92502610b7daacd560f9e8b22'
+          index = json.loads(b)
+          assert index['game_id'] == '0022600091'
+          chunk = next(x for x in index['chunks'] if x['path']=='original-native-00013.jsonl.gz')
+          source = (root/'xyz-chunk13.jsonl.gz').read_bytes()
+          assert hashlib.sha256(source).hexdigest() == chunk['sha256']
+          rows = [json.loads(x) for x in gzip.decompress(source).splitlines() if x]
+          ts = [int(row['source_frame_utc_ms']) for row in rows]
+          assert len(rows) == chunk['original_native_timestamps'] == 2000
+          assert all(a<b for a,b in zip(ts,ts[1:]))
+          assert (ts[0],ts[-1]) == (chunk['first_source_frame_utc_ms'],
+                                   chunk['last_source_frame_utc_ms'])
+          official_pbp_utc_ms = 1792636866101
+          nearest_delta_ms = min(abs(t-official_pbp_utc_ms) for t in ts)
+          within_1s = sum(abs(t-official_pbp_utc_ms) <= 1000 for t in ts)
+          within_5s = sum(abs(t-official_pbp_utc_ms) <= 5000 for t in ts)
+          print('MATCHING_0091_ORIGINAL_NATIVE_SOURCE_SHA_AND_TIME_WINDOW_OK')
+          print(json.dumps({
+              'game_id': '0022600091',
+              'source_game_manifest_sha256_matched': True,
+              'source_chunk13_sha256_matched': True,
+              'chunk13_native_timestamps': len(rows),
+              'official_pbp_utc_inside_chunk': ts[0] <= official_pbp_utc_ms <= ts[-1],
+              'nearest_native_timestamp_delta_ms': nearest_delta_ms,
+              'native_timestamp_rows_within_pbp_utc_1s': within_1s,
+              'native_timestamp_rows_within_pbp_utc_5s': within_5s,
+              'player_identity_and_video_foot_alignment_certified': False,
+              'pts_to_utc_certified': False
+          }, sort_keys=True))
+          PY
