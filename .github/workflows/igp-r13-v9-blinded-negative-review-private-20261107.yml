@@ -302,3 +302,5 @@ jobs:
 # Replayed after review of concurrent private-only source workflow in the public content allowlist.
 
 # Replayed after V11 150ms strict-boundary test correction; privately SHA-verified review only.
+
+# Re-run V12 after sparse zero-bounce player record fix, original source QA only.
