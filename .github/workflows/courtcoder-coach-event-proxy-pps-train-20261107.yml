@@ -15,7 +15,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PRIVATE_SHA: 91e9cf7aaaeda49f31190c8e5e4b5683cbfc4d99
+      PRIVATE_SHA: b2c9c61e52f9ce2499538bb3c3179fe0eed9cdd1
       SAMPLE_GAMES: '25'
       HIST_SHARDS: '15'
     steps:
@@ -64,7 +64,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG="igp-coach-event-proxy-20261107-91e9cf7a-25game-pilot"
+          TAG="igp-coach-event-proxy-20261107-b2c9c61e-25game-pilot"
           if ! gh release view "$TAG" --repo "$PRIVATE_REPO" >/dev/null 2>&1; then
             gh release create "$TAG" --repo "$PRIVATE_REPO" \
               --target "$PRIVATE_SHA" --title 'Coach original-event-time source proxy PPS pilot' \
