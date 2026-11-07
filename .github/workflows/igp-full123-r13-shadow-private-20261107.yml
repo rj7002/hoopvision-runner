@@ -351,6 +351,54 @@ jobs:
           echo R13_V6_BOTH_OLD_AND_NEW_EVENT_COLLISIONS_AUDITED_PRIVATE
           echo R13_V6_FULL123_AND_R13_PRODUCTION_UNCHANGED
 
+      - name: V7 source-free same-handler ball return vs bounce pass negative controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m unittest discover -s gamepulse/fusion/analysis \
+                  -p test_igp_r13_ballxyz_postbounce_custody_v7.py -v \
+                  > "$RUNNER_TEMP/r13-v7-unit.log" 2>&1; then
+            python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          rel='gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/houston9_ballxyz_v7_unit_private_failure_20261107.json'
+          ep=f"repos/{os.environ['PRIVATE_REPO']}/contents/{rel}"
+          body={'branch':os.environ['PRIVATE_BRANCH'],'message':'qa(private): V7 unit failure [skip ci]',
+          'content':base64.b64encode(json.dumps({'trace':Path(os.environ['RUNNER_TEMP'],'r13-v7-unit.log').read_text()[-15000:]}).encode()).decode()}
+          p=subprocess.run(['gh','api',ep+'?ref='+body['branch']],capture_output=True,text=True)
+          if p.returncode==0:body['sha']=json.loads(p.stdout)['sha']
+          subprocess.run(['gh','api','-X','PUT',ep,'--input','-'],input=json.dumps(body),text=True,check=True,capture_output=True)
+          PY
+            echo R13_V7_POSTFLOOR_CONTROL_REGRESSIONS_FAILED_PRIVATE_TRACE
+            exit 36
+          fi
+          echo R13_V7_POSTFLOOR_CONTROL_NEGATIVE_REGRESSIONS_PASSED
+      - name: V7 validate original NBA post-impact same-handler return versus bounce-pass movement
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m gamepulse.fusion.analysis.igp_r13_ballxyz_postbounce_custody_v7 \
+                  --root . --private-persist \
+                  > "$RUNNER_TEMP/r13-v7-replay.log" 2>&1; then
+            python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          rel='gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/houston9_ballxyz_v7_private_failure_20261107.json'
+          ep=f"repos/{os.environ['PRIVATE_REPO']}/contents/{rel}"
+          body={'branch':os.environ['PRIVATE_BRANCH'],'message':'qa(private): V7 real source replay failure [skip ci]',
+          'content':base64.b64encode(json.dumps({'trace':Path(os.environ['RUNNER_TEMP'],'r13-v7-replay.log').read_text()[-18000:]}).encode()).decode()}
+          p=subprocess.run(['gh','api',ep+'?ref='+body['branch']],capture_output=True,text=True)
+          if p.returncode==0:body['sha']=json.loads(p.stdout)['sha']
+          subprocess.run(['gh','api','-X','PUT',ep,'--input','-'],input=json.dumps(body),text=True,check=True,capture_output=True)
+          PY
+            echo R13_V7_ORIGINAL_SDK_NINE_GAME_CUSTODY_REPLAY_FAILED_PRIVATE_TRACE
+            exit 37
+          fi
+          echo R13_V7_ORIGINAL_NBA_NINE_GAME_POSTFLOOR_CUSTODY_VALIDATION_SUCCEEDED
+          echo R13_V7_ORIGINAL_NBA_SOURCE_AND_R13_COUNTS_UNCHANGED
+
 # Reviewed confidentiality allowlist activation 2026-11-07; private output only.
 
 # Second private original source replay: frozen rejected-brief/geometry-only frontcourt uncertainty census.
