@@ -75,14 +75,24 @@ jobs:
           BRANCH='cpu-animate%2Fm0-m1-validation-core-20261107'
           for spec in \
               cpu_animate/angle_registry.py \
+              cpu_animate/camera_feed_taxonomy.py \
               cpu_animate/multi_angle_cpu_ingest.py \
               tests/test_cpu_animate_angle_taxonomy.py; do
             gh api "repos/timeedmonds-maker/104/contents/$spec?ref=$BRANCH" \
               --jq .content | base64 -d > "$ROOT/$spec"
           done
+          mkdir -p "$ROOT/historical"
+          # These two original historical source artifacts are SHA-pinned in
+          # the private engine, preventing re-discovery or guessed labels.
+          gh api 'repos/timeedmonds-maker/44/contents/freeze_spin/adams_jazz_game_camera_registry_v6.json?ref=codex%2Fmulti-angle-freeze-spin-poc' \
+            --jq .content | base64 -d > "$ROOT/historical/camera_registry_v6.json"
+          gh api 'repos/timeedmonds-maker/44/contents/freeze_spin/frame_c_camera_chooser/options.json?ref=codex%2Fmulti-angle-freeze-spin-poc' \
+            --jq .content | base64 -d > "$ROOT/historical/options.json"
+          export CPU_ANIMATE_HISTORICAL_REGISTRY_JSON="$ROOT/historical/camera_registry_v6.json"
+          export CPU_ANIMATE_HISTORICAL_CHOOSER_JSON="$ROOT/historical/options.json"
           cd "$ROOT"
           python3 -m unittest discover -s tests -p test_cpu_animate_angle_taxonomy.py -v
-          python3 -m py_compile cpu_animate/angle_registry.py cpu_animate/multi_angle_cpu_ingest.py
+          python3 -m py_compile cpu_animate/angle_registry.py cpu_animate/camera_feed_taxonomy.py cpu_animate/multi_angle_cpu_ingest.py
           python3 -m cpu_animate.multi_angle_cpu_ingest
       - name: Record privacy-preserving completion
         run: |
