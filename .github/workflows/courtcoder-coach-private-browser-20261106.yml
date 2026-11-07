@@ -45,11 +45,39 @@ jobs:
           git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$PRIVATE_SHA"
           git -C "$RUNNER_TEMP/private" checkout -q --detach "$PRIVATE_SHA"
           git -C "$RUNNER_TEMP/private" sparse-checkout set \
-            courtcoder config contracts hoopvision/scouting gamepulse/coach_pilot_release_20261107_v2
+            courtcoder config contracts hoopvision/scouting gamepulse/coach_pilot_release_20261107_v2 gamepulse/coach_event_proxy_release_20261107
           test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PRIVATE_SHA"
           test -f "$RUNNER_TEMP/private/courtcoder/coach/index.html"
           test -f "$RUNNER_TEMP/private/courtcoder/qa/coach_ui_visual_contract.test.cjs"
           test -f "$RUNNER_TEMP/private/courtcoder/qa/coach_ui_browser_acceptance.cjs"
+          python3 - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          root=Path("gamepulse/coach_event_proxy_release_20261107")
+          model_path=root/"event-proxy-model.json"
+          heldout_path=root/"event-proxy-heldout.json"
+          source_path=root/"source-event-pressure-qa.json"
+          assert all(p.is_file() for p in (model_path,heldout_path,source_path)), "PRIVATE_MODEL_RELEASE_MISSING"
+          model=json.loads(model_path.read_bytes())
+          held=json.loads(heldout_path.read_bytes())
+          src=json.loads(source_path.read_bytes())
+          digest=lambda path:hashlib.sha256(path.read_bytes()).hexdigest()
+          assert model["schema"]=="igp.coach.event-time-proxy-pps.v1"
+          assert model["model_status"]=="INDEPENDENT_EVENT_TIME_GAME_HOLDOUT_ACCEPTED"
+          assert held["status"]=="PASS" and held["game_overlap"]==0
+          assert held["heldout_games"]>=10 and held["heldout_predictions"]>=200
+          assert min(held["heldout_by_season"].values())>=40
+          assert held["player_ECE"]<=.08
+          assert held["player_brier"]<=held["league_brier"]+.015
+          assert held["player_brier"]<=held["shot_type_only_brier"]+.01
+          assert model["heldout_receipt_sha256"]==digest(heldout_path)
+          assert model["source"]["fga_ledger_sha256"]==src["fga_ledger_sha256"]
+          assert model["not_action_specific"] is True
+          assert model["not_release_time_certified"] is True
+          assert src["release_time_certified"] is False
+          assert src["shot_action_classification_certified"] is False
+          print("COACH_PRIVATE_SHA_PINNED_TWO_SEASON_MODEL_RELEASE_ACCEPTANCE_PASS")
+          PY
           echo COACH_PINNED_PRIVATE_SOURCE_READY
           cd "$RUNNER_TEMP/private"
           mkdir -p "$RUNNER_TEMP/coach-private-qa"
