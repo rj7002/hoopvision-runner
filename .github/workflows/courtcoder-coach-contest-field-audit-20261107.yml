@@ -15,7 +15,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PRIVATE_SHA: fa03b91e9991c934c52b3902528a7666ec8c5871
+      PRIVATE_SHA: 8996a957c8e2d7b2744869e8d18c87982654ca11
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -45,4 +45,37 @@ jobs:
           a=json.load(open(sys.argv[1]))
           assert a["source_sha_verified_shards"]==15
           print("COACH_ORIGINAL_CONTEST_AGGREGATE",json.dumps(a,sort_keys=True))
+          PY
+      - name: Compare published current contest to original event centre
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/coach-current-contest"
+          mkdir -p "$root"
+          gh api "repos/$PRIVATE_REPO/contents/courtcoder/coach/qa/audit_current_contest_join_v1.py?ref=$PRIVATE_SHA" \
+            --jq .content | base64 -d > "$root/audit.py"
+          gh api "repos/$PRIVATE_REPO/contents/gamepulse/coach_event_proxy_release_20261107/source-event-pressure-qa.json?ref=$PRIVATE_SHA" \
+            --jq .content | base64 -d > "$root/source-qa.json"
+          gh release download igp-coach-pps-two-season-readiness-20261107 \
+            --repo "$PRIVATE_REPO" --dir "$root" \
+            --pattern source-event-pressure-fga.jsonl.gz \
+            > "$root/release-download.log" 2>&1
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse \
+            -b research/gamepulse-clock-boundary-integrity-20261025 \
+            "https://github.com/$PRIVATE_REPO.git" "$root/private-canonical"
+          git -C "$root/private-canonical" sparse-checkout set --no-cone \
+            /gamepulse/fusion/materialized/igp_full107_client_shot_defense_v1/full107_shots.sqlite \
+            /gamepulse/fusion/materialized/igp_full107_client_shot_defense_v1/full107_shots.qa.json
+          dbroot="$root/private-canonical/gamepulse/fusion/materialized/igp_full107_client_shot_defense_v1"
+          test -s "$dbroot/full107_shots.sqlite"
+          python3 "$root/audit.py" --db "$dbroot/full107_shots.sqlite" \
+            --qa "$dbroot/full107_shots.qa.json" \
+            --ledger "$root/source-event-pressure-fga.jsonl.gz" \
+            --ledger-qa "$root/source-qa.json" > "$root/current-aggregate.json"
+          python3 - "$root/current-aggregate.json" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1]))
+          assert a["source_sha_verified"] and a["client_shots"]>=15000
+          print("COACH_CURRENT_CONTEST_PAIRED_AGGREGATE",json.dumps(a,sort_keys=True))
           PY
