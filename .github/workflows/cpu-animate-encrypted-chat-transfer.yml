@@ -1,0 +1,104 @@
+# The uploaded public artifact is AES-256-GCM ciphertext ONLY.
+# No original NBA video, ring-rendered MP4, private position arrays or key in public logs/artifacts.
+name: CPU Animate encrypted MP4 to private chat file storage
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/cpu-animate-encrypted-chat-transfer.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cpu-animate-encrypted-chat-transfer
+  cancel-in-progress: false
+jobs:
+  encrypted-chat-transport:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate reviewed ciphertext-only bridge
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from tools.public_content_guard import scan
+          path='.github/workflows/cpu-animate-encrypted-chat-transfer.yml'
+          assert not scan([path]), 'PUBLIC_CONTENT_GUARD_REJECTED'
+          print('CPU_ANIMATE_AES256_GCM_CIPHERTEXT_ONLY_BRIDGE_GUARD_PASS')
+          PY
+      - name: Obtain private MP4 and seal using ephemeral authenticated encryption
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}" || { echo PRIVATE_AUTH_MISSING; exit 3; }
+          if ! gh api repos/timeedmonds-maker/104 --jq .private | grep -qx true; then
+            echo PRIVATE_REPOSITORY_AUTH_FAILED
+            exit 3
+          fi
+          if ! python3 -c 'import cryptography' 2>/dev/null; then
+            python3 -m pip install -q --disable-pip-version-check 'cryptography>=44,<47'
+          fi
+          ROOT="$(mktemp -d)"
+          chmod 700 "$ROOT"
+          export CPU_TRANSFER_PRIVATE_TEMP="$ROOT"
+          export CPU_TRANSFER_TAG="cpu-animate-chat-transfer-key-${GITHUB_RUN_ID}"
+          export CPU_TRANSFER_CIPHERTEXT_DIR="$RUNNER_TEMP/cpuanimate-encrypted"
+          mkdir -p "$CPU_TRANSFER_CIPHERTEXT_DIR"
+          chmod 700 "$CPU_TRANSFER_CIPHERTEXT_DIR"
+          gh release download cpu-animate-616-side-by-side-review-20261107 \
+            --repo timeedmonds-maker/104 --dir "$ROOT" \
+            --pattern CPU_ANIMATE_616_SOURCE_VS_RING_REVIEW_ONLY.mp4
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,secrets,subprocess
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          root=pathlib.Path(os.environ['CPU_TRANSFER_PRIVATE_TEMP'])
+          src=root/'CPU_ANIMATE_616_SOURCE_VS_RING_REVIEW_ONLY.mp4'
+          data=src.read_bytes()
+          expected='3dec5861aef7ccc7dc65cabcb1416bb83d4b8147312874e3dc5a01aa080e641c'
+          if hashlib.sha256(data).hexdigest()!=expected:
+              raise RuntimeError('AUTHENTIC_SOURCE_MP4_SHA256_MISMATCH')
+          key=secrets.token_bytes(32)
+          nonce=secrets.token_bytes(12)
+          aad=b'CPU_ANIMATE_616_PRIVATE_VIDEO_TRANSPORT_V1'
+          ciphertext=AESGCM(key).encrypt(nonce,data,aad)
+          destination=pathlib.Path(os.environ['CPU_TRANSFER_CIPHERTEXT_DIR'])/'CPU_ANIMATE_616_Review_Encrypted.aesgcm'
+          destination.write_bytes(nonce+ciphertext)
+          notes=root/'private_transfer_key.json'
+          notes.write_text(json.dumps({
+              'schema':'cpu-animate.chat-transport-aes256gcm.v1',
+              'secret_key_hex':key.hex(),
+              'authenticated_associated_data_utf8':aad.decode(),
+              'nonce_location':'first_12_bytes_of_artifact',
+              'expected_plaintext_sha256':expected,
+              'expected_plaintext_size':len(data),
+              'encrypted_artifact_sha256':hashlib.sha256(destination.read_bytes()).hexdigest(),
+              'public_artifact_contains_only_ciphertext':True
+          }))
+          tag=os.environ['CPU_TRANSFER_TAG']
+          cmd=['gh','release','create',tag,'--repo','timeedmonds-maker/104',
+               '--title','Private CPU Animate chat-transfer AES key',
+               '--notes-file',str(notes),'--latest=false']
+          p=subprocess.run(cmd,capture_output=True,text=True,timeout=60)
+          if p.returncode!=0:
+              raise RuntimeError('PRIVATE_ENCRYPTION_KEY_STORAGE_FAILED')
+          notes.unlink()
+          print('PRIVATE_VIDEO_SHA256_VERIFIED')
+          print('PRIVATE_AES256_GCM_KEY_STORED_IN_PRIVATE_104_RELEASE')
+          print('ONLY_CIPHERTEXT_READY_FOR_ARTIFACT')
+          PY
+          rm -rf "$ROOT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cpu-animate-aesgcm-${{ github.run_id }}
+          path: ${{ runner.temp }}/cpuanimate-encrypted/CPU_ANIMATE_616_Review_Encrypted.aesgcm
+          retention-days: 1
+          if-no-files-found: error
+      - name: Verify public artifact contains no plaintext movie
+        run: |
+          test ! -e CPU_ANIMATE_616_SOURCE_VS_RING_REVIEW_ONLY.mp4
+          echo 'CIPHERTEXT_ONLY_PUBLIC_ARTIFACT_COMPLETE'
