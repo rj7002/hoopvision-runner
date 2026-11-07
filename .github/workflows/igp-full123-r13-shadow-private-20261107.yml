@@ -451,6 +451,48 @@ jobs:
           echo R13_V8_SOURCE_STRATIFIED_PRIVATE_BLINDED_REVIEW_CASES_GENERATED
           echo R13_V8_NO_INDEPENDENT_EVENT_LABELS_OR_PLAYABLE_VIDEO_CLAIMED
 
+      - name: V8b verify 12-event bounded NBA replay page probe tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m unittest discover -s gamepulse/fusion/analysis \
+                  -p test_igp_r13_dribble_video_page_probe_v8b.py -v \
+                  > "$RUNNER_TEMP/r13-v8b-tests.log" 2>&1; then
+            echo R13_V8B_BOUNDED_PROBE_TESTS_FAILED
+            exit 40
+          fi
+          echo R13_V8B_SOURCE_FREE_URL_SAFETY_TESTS_PASSED
+      - name: Probe at most 12 exact original NBA action camera listing pages (no HLS download)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          gh api 'repos/timeedmonds-maker/104/contents/courtcoder/nba_event_angle_discovery.py?ref=courtcoder%2Fintegration' \
+                 --jq .content | base64 --decode > nba_event_angle_discovery.py
+          test -s nba_event_angle_discovery.py
+          if ! python3 -m gamepulse.fusion.analysis.igp_r13_dribble_video_page_probe_v8b \
+                  --root . --private-persist \
+                  > "$RUNNER_TEMP/r13-v8b-sourcepage.log" 2>&1; then
+            python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          rel='gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/houston9_v8b_sourcepage_failure_20261107.json'
+          ep=f"repos/{os.environ['PRIVATE_REPO']}/contents/{rel}"
+          data={'branch':os.environ['PRIVATE_BRANCH'],'message':'qa(private): V8b NBA source probe trace [skip ci]',
+                'content':base64.b64encode(json.dumps({'trace':
+                 Path(os.environ['RUNNER_TEMP'],'r13-v8b-sourcepage.log').read_text()[-17000:]}).encode()).decode()}
+          p=subprocess.run(['gh','api',ep+'?ref='+data['branch']],capture_output=True,text=True)
+          if p.returncode==0:data['sha']=json.loads(p.stdout)['sha']
+          subprocess.run(['gh','api','-X','PUT',ep,'--input','-'],
+                         input=json.dumps(data),text=True,capture_output=True,check=True)
+          PY
+            echo R13_V8B_BOUNDED_NBA_SOURCE_PAGE_PROBE_FAILED_PRIVATE_DIAGNOSTIC
+            exit 41
+          fi
+          echo R13_V8B_BOUNDED_NBA_SOURCE_PAGE_CAMERA_LISTINGS_SAVED_PRIVATELY
+          echo R13_V8B_NO_SIGNED_MEDIA_URL_NO_HLS_DOWNLOAD_NO_INDEPENDENT_BOUNCE_LABEL
+
 # Reviewed confidentiality allowlist activation 2026-11-07; private output only.
 
 # Second private original source replay: frozen rejected-brief/geometry-only frontcourt uncertainty census.
