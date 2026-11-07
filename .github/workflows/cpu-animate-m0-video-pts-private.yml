@@ -75,6 +75,8 @@ jobs:
           gh api "repos/timeedmonds-maker/104/contents/tests/test_cpu_animate_camera_segment_scan.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/tests/test_cpu_animate_camera_segment_scan.py"
           gh api "repos/timeedmonds-maker/104/contents/cpu_animate/static_court_registration.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/cpu_animate/static_court_registration.py"
           gh api "repos/timeedmonds-maker/104/contents/tests/test_cpu_animate_static_court.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/tests/test_cpu_animate_static_court.py"
+          gh api "repos/timeedmonds-maker/104/contents/cpu_animate/shot_semantics.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/cpu_animate/shot_semantics.py"
+          gh api "repos/timeedmonds-maker/104/contents/tests/test_cpu_animate_shot_semantics.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/tests/test_cpu_animate_shot_semantics.py"
           gh api "repos/timeedmonds-maker/104/contents/tools/locked_broadcast_screen_v5_rings.py?ref=courtcoder%2Fintegration" --jq .content | base64 -d > "$ROOT/tools/locked_broadcast_screen_v5_rings.py"
           (
             cd "$ROOT"
@@ -97,6 +99,7 @@ jobs:
           gh release download 'clip-lab-hls-0022600091-616' \
             --repo timeedmonds-maker/104 --dir "$ROOT/private_media" \
             --pattern 'event616-broadcast.mp4'
+          gh api "repos/timeedmonds-maker/104/contents/data/extensions/nba_blueprint_2026_27/games/0022600091/blueprint_report_raw.json?ref=main" --jq .content | base64 -d > "$ROOT/private_media/0022600091_blueprint_original.json"
           # CPU camera-shot candidate segmentation, including a flash rejector.
           if ! python3 -c 'import cv2,numpy,scipy' >/dev/null 2>&1; then
             python3 -m pip install -q --disable-pip-version-check opencv-python-headless numpy scipy
@@ -107,6 +110,8 @@ jobs:
               python3 -m unittest discover -s tests -p 'test_cpu_animate_camera_segment_scan.py' -v
             CPU_ANIMATE_ORIGINAL_VIDEO_PATH="$ROOT/private_media/event616-broadcast.mp4" \
               python3 -m unittest discover -s tests -p 'test_cpu_animate_static_court.py' -v
+            CPU_ANIMATE_ORIGINAL_BLUEPRINT_PATH="$ROOT/private_media/0022600091_blueprint_original.json" \
+              python3 -m unittest discover -s tests -p 'test_cpu_animate_shot_semantics.py' -v
             python3 -m cpu_animate.camera_segment_scan \
               --video "$ROOT/private_media/event616-broadcast.mp4" \
               --sha256 '9df90d9f76b3bf2f9698ac3d1c25016eb8adfab27dc65b12c3202e7b661e8aba' \
