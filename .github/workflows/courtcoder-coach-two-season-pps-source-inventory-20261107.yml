@@ -79,13 +79,13 @@ jobs:
                         type(frames[0].get("native_chunk")).__name__,
                         "chunk_id_or_path_form",str(frames[0].get("native_chunk")).split("/")[-1][:38])
                   for fld in ("x","y"):
-                      vals=[r.get("blueprint_original_shot",{}).get(fld) for r in rows]
+                      vals=[(r.get("blueprint_original_shot") or {}).get(fld) for r in rows]
                       vals=[v for v in vals if isinstance(v,(int,float))]
                       print("COACH_CURRENT_BLUEPRINT_POSITION_RANGE",fld,len(vals),
                             round(min(vals),2) if vals else None,round(max(vals),2) if vals else None)
                   src=rows[0].get("blueprint_original_shot")
                   print("COACH_CURRENT_BLUEPRINT_SUCCESS_TYPES",
-                        json.dumps(dict(Counter(type(r.get("blueprint_original_shot",{}).get("success")).__name__ for r in rows))))
+                        json.dumps(dict(Counter(type((r.get("blueprint_original_shot") or {}).get("success")).__name__ for r in rows))))
               verified+=len(rows)
           receipt={"schema":"igp.coach.real-two-season-source-census.v1",
                    "full666_original_games":666,
