@@ -64,7 +64,7 @@ jobs:
           echo "CPU_ANIMATE_ROOT=$TEMP" >> "$GITHUB_ENV"
           mkdir -p "$TEMP/cpu_animate" "$TEMP/tests" "$TEMP/private"
           BRANCH='cpu-animate%2Fm0-m1-validation-core-20261107'
-          for item in camera_feed_taxonomy.py multi_angle_cpu_ingest.py; do
+          for item in camera_feed_taxonomy.py angle_registry.py multi_angle_cpu_ingest.py; do
             gh api "repos/timeedmonds-maker/104/contents/cpu_animate/$item?ref=$BRANCH" --jq .content | base64 -d > "$TEMP/cpu_animate/$item"
           done
           gh api "repos/timeedmonds-maker/104/contents/tests/test_cpu_animate_camera_feed_taxonomy.py?ref=$BRANCH" --jq .content | base64 -d > "$TEMP/tests/test_cpu_animate_camera_feed_taxonomy.py"
