@@ -1,0 +1,105 @@
+name: Full132 Houston early kick-ahead source-first analysis
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/igp-full132-hou-kick-ahead-20261108.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: igp-full132-hou-kick-ahead-20261108
+  cancel-in-progress: false
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: analysis/full132-hou-kick-ahead-20261108
+      PIN: 9a460c6e37e0fd5b338e0628f1b4ccff8f02693e
+      PRIVATE_REPO: timeedmonds-maker/104
+      DEST: gamepulse/fusion/qa/analysis/igp_full132_houston_kick_ahead_20261108.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Public workflow source-safety and private-token preflight
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Fetch exactly pinned Full132 source, nine Houston games only
+        run: |
+          set -euo pipefail
+          git clone --quiet --filter=blob:none --depth=1 --sparse -b "$BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
+            gamepulse/fusion/analysis/igp_full132_hou_kick_ahead_20261108.py \
+            gamepulse/fusion/qa/igp_fullx/FULL132_20261031_source_graded.json \
+            gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json \
+            gamepulse/fusion/official_pbp_timing/games/0022600009.json \
+            gamepulse/fusion/official_pbp_timing/games/0022600091.json \
+            gamepulse/fusion/official_pbp_timing/games/0022600107.json \
+            gamepulse/fusion/official_pbp_timing/games/0022600125.json \
+            gamepulse/fusion/official_pbp_timing/games/0022600021.json \
+            gamepulse/fusion/official_pbp_timing/games/0022600138.json \
+            gamepulse/fusion/official_pbp_timing/games/0022600153.json \
+            gamepulse/fusion/official_pbp_timing/games/0022600167.json \
+            gamepulse/fusion/official_pbp_timing/games/0022600181.json \
+            gamepulse/fusion/materialized/igp_all_original_xyz/0022600009/ \
+            gamepulse/fusion/materialized/igp_all_original_xyz/0022600091/ \
+            gamepulse/fusion/materialized/igp_all_original_xyz/0022600107/ \
+            gamepulse/fusion/materialized/igp_all_original_xyz/0022600125/ \
+            gamepulse/fusion/materialized/igp_all_original_xyz/0022600021/ \
+            gamepulse/fusion/materialized/igp_all_original_xyz/0022600138/ \
+            gamepulse/fusion/materialized/igp_all_original_xyz/0022600153/ \
+            gamepulse/fusion/materialized/igp_all_original_xyz/0022600167/ \
+            gamepulse/fusion/materialized/igp_all_original_xyz/0022600181/
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PIN"
+          echo FULL132_SOURCE_COMMIT_AND_NINE_GAME_SPARSE_SELECT_PASS
+      - name: Execute original XYZ and official event tactical analysis
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -B -m py_compile gamepulse/fusion/analysis/igp_full132_hou_kick_ahead_20261108.py
+          python3 -B gamepulse/fusion/analysis/igp_full132_hou_kick_ahead_20261108.py \
+            --root . --out "$RUNNER_TEMP/result.json" \
+            > "$RUNNER_TEMP/PRIVATE_RESULTS_DO_NOT_LOG.txt"
+          python3 - <<'PY'
+          import json,os,pathlib
+          p=pathlib.Path(os.environ['RUNNER_TEMP'])/'result.json'
+          d=json.loads(p.read_text())
+          assert d['cohort_games']==132 and d['houston_games_examined']==9
+          assert len(d['qa_by_game'])==9
+          assert set(d['by_player'])=={'Kevin Durant','Jabari Smith Jr.','Tari Eason'}
+          assert all(x['source_manifest_sha256'] for x in d['qa_by_game'].values())
+          print('FULL132_HOU_ANALYSIS_SOURCE_READ_PASS', 'games',len(d['qa_by_game']),
+                'review_grade','TRACKING_CANDIDATE')
+          PY
+      - name: Retain private source-safe case ledger and summary
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,json,os,subprocess,time
+          from pathlib import Path
+          repo=os.environ["PRIVATE_REPO"]
+          branch=os.environ["BRANCH"]
+          dest=os.environ["DEST"]
+          raw=(Path(os.environ["RUNNER_TEMP"])/"result.json").read_bytes()
+          assert 0<len(raw)<3000000
+          endpoint=f"repos/{repo}/contents/{dest}"
+          for retry in range(10):
+              old=subprocess.run(["gh","api",endpoint+"?ref="+branch],capture_output=True,text=True)
+              content={"branch":branch,"message":"qa(private): Full132 HOU kick-ahead original XYZ tactical census [skip ci]",
+                       "content":base64.b64encode(raw).decode()}
+              if old.returncode==0:content["sha"]=json.loads(old.stdout)["sha"]
+              res=subprocess.run(["gh","api","-X","PUT",endpoint,"--input","-"],
+                                 input=json.dumps(content),capture_output=True,text=True)
+              if res.returncode==0:
+                  print("FULL132_HOU_KICK_AHEAD_PRIVATE_RESULTS_PERSISTED")
+                  break
+              time.sleep(2+retry)
+          else: raise RuntimeError("PRIVATE_CENSUS_RESULT_PERSISTENCE_FAILED")
+          PY
