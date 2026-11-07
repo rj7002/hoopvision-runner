@@ -1,6 +1,6 @@
 # The uploaded public artifact is AES-256-GCM ciphertext ONLY.
 # No original NBA video, ring-rendered MP4, private position arrays or key in public logs/artifacts.
-name: CPU Animate encrypted MP4 to private chat file storage
+name: CPU Animate encrypted source bundle for new CPU render
 on:
   push:
     branches: [main]
@@ -50,23 +50,33 @@ jobs:
           export CPU_TRANSFER_CIPHERTEXT_DIR="$RUNNER_TEMP/cpuanimate-encrypted"
           mkdir -p "$CPU_TRANSFER_CIPHERTEXT_DIR"
           chmod 700 "$CPU_TRANSFER_CIPHERTEXT_DIR"
-          gh release download cpu-animate-616-side-by-side-review-20261107 \
+          gh release download clip-lab-hls-0022600091-616 \
             --repo timeedmonds-maker/104 --dir "$ROOT" \
-            --pattern CPU_ANIMATE_616_SOURCE_VS_RING_REVIEW_ONLY.mp4
+            --pattern event616-broadcast.mp4
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/status/jabari_616_full_source_tracking_window.json?ref=main' --jq .content | base64 -d > "$ROOT/jabari_616_full_source_tracking_window.json"
           python3 - <<'PY'
-          import hashlib,json,os,pathlib,secrets,subprocess
+          import hashlib,json,os,pathlib,secrets,subprocess,tarfile
           from cryptography.hazmat.primitives.ciphers.aead import AESGCM
           root=pathlib.Path(os.environ['CPU_TRANSFER_PRIVATE_TEMP'])
-          src=root/'CPU_ANIMATE_616_SOURCE_VS_RING_REVIEW_ONLY.mp4'
-          data=src.read_bytes()
-          expected='3dec5861aef7ccc7dc65cabcb1416bb83d4b8147312874e3dc5a01aa080e641c'
-          if hashlib.sha256(data).hexdigest()!=expected:
-              raise RuntimeError('AUTHENTIC_SOURCE_MP4_SHA256_MISMATCH')
+          src=root/'event616-broadcast.mp4'
+          tracking=root/'jabari_616_full_source_tracking_window.json'
+          source_digest='9df90d9f76b3bf2f9698ac3d1c25016eb8adfab27dc65b12c3202e7b661e8aba'
+          if hashlib.sha256(src.read_bytes()).hexdigest()!=source_digest:
+              raise RuntimeError('ORIGINAL_SOURCE_VIDEO_SHA256_MISMATCH')
+          tracked=json.loads(tracking.read_bytes())
+          assert tracked['game_id']=='0022600091' and tracked['nba_event']==616
+          assert tracked['observed_frames']>=100
+          bundle=root/'CPU_ANIMATE_Original_Source_And_Native_Pulse.tar'
+          with tarfile.open(bundle,'w') as tf:
+              tf.add(src,arcname=src.name)
+              tf.add(tracking,arcname=tracking.name)
+          data=bundle.read_bytes()
+          expected=hashlib.sha256(data).hexdigest()
           key=secrets.token_bytes(32)
           nonce=secrets.token_bytes(12)
-          aad=b'CPU_ANIMATE_616_PRIVATE_VIDEO_TRANSPORT_V1'
+          aad=b'CPU_ANIMATE_616_NEW_ENGINE_SOURCE_BUNDLE_V1'
           ciphertext=AESGCM(key).encrypt(nonce,data,aad)
-          destination=pathlib.Path(os.environ['CPU_TRANSFER_CIPHERTEXT_DIR'])/'CPU_ANIMATE_616_Review_Encrypted.aesgcm'
+          destination=pathlib.Path(os.environ['CPU_TRANSFER_CIPHERTEXT_DIR'])/'CPU_ANIMATE_616_Source_Bundle_Encrypted.aesgcm'
           destination.write_bytes(nonce+ciphertext)
           notes=root/'private_transfer_key.json'
           notes.write_text(json.dumps({
@@ -76,6 +86,9 @@ jobs:
               'nonce_location':'first_12_bytes_of_artifact',
               'expected_plaintext_sha256':expected,
               'expected_plaintext_size':len(data),
+              'verified_original_video_sha256':source_digest,
+              'original_tracking_game':'0022600091',
+              'transport_payload_kind':'original_media_and_source_tracking_tar',
               'encrypted_artifact_sha256':hashlib.sha256(destination.read_bytes()).hexdigest(),
               'public_artifact_contains_only_ciphertext':True
           }))
@@ -94,8 +107,8 @@ jobs:
           rm -rf "$ROOT"
       - uses: actions/upload-artifact@v4
         with:
-          name: cpu-animate-aesgcm-${{ github.run_id }}
-          path: ${{ runner.temp }}/cpuanimate-encrypted/CPU_ANIMATE_616_Review_Encrypted.aesgcm
+          name: cpu-animate-inputs-aesgcm-${{ github.run_id }}
+          path: ${{ runner.temp }}/cpuanimate-encrypted/CPU_ANIMATE_616_Source_Bundle_Encrypted.aesgcm
           retention-days: 1
           if-no-files-found: error
       - name: Verify public artifact contains no plaintext movie
