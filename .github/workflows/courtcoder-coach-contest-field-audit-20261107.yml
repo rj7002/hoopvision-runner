@@ -110,12 +110,12 @@ jobs:
           source_history_sha=__import__("hashlib").sha256((root.parent/"coach-original-contest/source-qa.json").read_bytes()).hexdigest()
           model["source_current_sha256"]=source_current_sha
           model["source_historical_receipt_sha256"]=source_history_sha
-          model_raw=(json.dumps(model,sort_keys=True,separators=(",",":"))+"\\n").encode()
+          model_raw=(json.dumps(model,sort_keys=True,separators=(",",":"))+"\n").encode()
           (root/"contest-model.json").write_bytes(model_raw)
           qa["source_current_sha256"]=source_current_sha
           qa["source_historical_receipt_sha256"]=source_history_sha
           qa["model_sha256"]=__import__("hashlib").sha256(model_raw).hexdigest()
-          (root/"contest-heldout.json").write_text(json.dumps(qa,sort_keys=True,separators=(",",":"))+"\\n")
+          (root/"contest-heldout.json").write_text(json.dumps(qa,sort_keys=True,separators=(",",":"))+"\n")
           PY
       - name: Commit accepted model and receipt only to the private feature branch
         shell: bash
