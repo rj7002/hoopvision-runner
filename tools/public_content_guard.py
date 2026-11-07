@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/courtcoder-coach-event-proxy-pps-train-20261107.yml",  # pinned private Full666/Full123 original source FGA training; private-only model artifacts and aggregate public logs
     ".github/workflows/courtcoder-coach-two-season-pps-source-inventory-20261107.yml",  # source SHA-verified Full666/Full123 aggregate FGA readiness; private release only; no original positions public
     ".github/workflows/courtcoder-coach-cloudbuild-readonly-diagnostic-20261107.yml",  # read-only Google Cloud build status; no credentials, private data or log payloads
     ".github/workflows/igp-r13-v9-blinded-negative-review-private-20261107.yml",  # SHA-verified private R13 original game reports: 54 sampled detector negatives, blinded reviewer cases; private-only report, public aggregate status
