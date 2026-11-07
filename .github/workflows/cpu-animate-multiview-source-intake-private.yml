@@ -1,4 +1,4 @@
-# CPU-only ingest: original NBA 616 newly missing independent-looking source views.
+# CPU-only ingest: resumable batch 2 of NBA event616 source views; previously SHA archived angles are skipped.
 # Exact replay angle discovery uses the established 12-feed taxonomy;
 # existing Broadcast / Other Broadcast / In Arena / Play by Play are reused.
 # Never publish signed URLs, licensed frames, native NBA tracking or private assets.
