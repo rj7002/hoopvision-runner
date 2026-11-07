@@ -339,7 +339,7 @@ jobs:
                 'content':base64.b64encode(json.dumps({'private_error_log':
                    Path(os.environ['RUNNER_TEMP'],'r13-v6-replay.log').read_text()[-18000:],
                    'source_tracking_data_excluded':True},sort_keys=True).encode()).decode()}
-          p=subprocess.run(['gh','api',api+'?ref='+body['branch'],capture_output=True,text=True)
+          p=subprocess.run(['gh','api',api+'?ref='+body['branch']],capture_output=True,text=True)
           if p.returncode==0:body['sha']=json.loads(p.stdout)['sha']
           subprocess.run(['gh','api','-X','PUT',api,'--input','-'],
                          input=json.dumps(body),check=True)
