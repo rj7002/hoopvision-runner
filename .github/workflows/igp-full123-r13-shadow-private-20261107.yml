@@ -342,7 +342,7 @@ jobs:
           p=subprocess.run(['gh','api',api+'?ref='+body['branch']],capture_output=True,text=True)
           if p.returncode==0:body['sha']=json.loads(p.stdout)['sha']
           subprocess.run(['gh','api','-X','PUT',api,'--input','-'],
-                         input=json.dumps(body),check=True)
+                         input=json.dumps(body),text=True,capture_output=True,check=True)
           PY
             echo R13_V6_SYMMETRIC_ORIGINAL_SOURCE_REPLAY_FAILED_PRIVATE_TRACE
             exit 35
