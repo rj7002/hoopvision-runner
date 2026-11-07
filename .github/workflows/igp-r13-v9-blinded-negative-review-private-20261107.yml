@@ -94,3 +94,5 @@ jobs:
           echo R13_V9_ALL_NINE_ORIGINAL_SOURCE_SHA_GAMES_REVIEWED
           echo R13_V9_243_BLINDED_POSITIVE_AND_NEGATIVE_CASES_PRIVATE
           echo R13_V9_NO_NBA_DRIBBLE_LABELS_OR_RECALL_FABRICATED
+
+# Reviewed separate private R13 original source reports; no raw XYZ or licensed video material on public runner.
