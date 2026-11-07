@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/cpu-animate-amen732-git-native-source-probe.yml",  # immutable original SDK game0009 sparse git CPU-only source schema and event732 coverage, aggregate logs
     ".github/workflows/cpu-animate-amen732-all12-cpu-source-ingest.yml",  # private-authorized event732 12-camera original HLS/PTS CPU only; no raw media/logs public
     ".github/workflows/cpu-animate-amen732-full131-sixangle-cpu-sync.yml",  # original Amen/Wemby 732+734, Full131 game-native CPU sixview same-source audio/PTS, private QA only
     ".github/workflows/cpu-animate-all12-census-private.yml",  # private readback of 12 SHA-verified original NBA angles, CPU decode, no public footage
