@@ -63,12 +63,15 @@ jobs:
               echo PRIVATE_OPAQUE_SOURCE_CHECKOUT_UNAVAILABLE
               exit 4
           fi
-          if ! git -C "$ROOT/private" sparse-checkout set cpu_animate tests docs/cpu_animate \
+          if ! git -C "$ROOT/private" sparse-checkout set --no-cone \
+               '/cpu_animate/' '/tests/' '/docs/cpu_animate/' \
+               '/courtcoder/nba_event_angle_discovery.py' \
              > "$ROOT/sparse.log" 2>&1; then
               echo PRIVATE_SOURCE_SPARSE_CHECKOUT_FAILED
               exit 4
           fi
           cd "$ROOT/private"
+          export CPU_ANIMATE_PRIVATE_SOURCE_GIT_ROOT="$PWD"
           python3 - "$REQUEST_ID" > "$ROOT/private-selection.txt" <<'PY'
           import json,re,subprocess,sys
           from pathlib import Path
