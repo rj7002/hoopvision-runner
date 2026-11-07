@@ -80,6 +80,8 @@ jobs:
           gh api "repos/timeedmonds-maker/104/contents/cpu_animate/moving_camera_gate.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/cpu_animate/moving_camera_gate.py"
           gh api "repos/timeedmonds-maker/104/contents/tests/test_cpu_animate_moving_camera_gate.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/tests/test_cpu_animate_moving_camera_gate.py"
           gh api "repos/timeedmonds-maker/104/contents/cpu_animate/native_video_association.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/cpu_animate/native_video_association.py"
+          gh api "repos/timeedmonds-maker/104/contents/cpu_animate/m1_player_binding.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/cpu_animate/m1_player_binding.py"
+          gh api "repos/timeedmonds-maker/104/contents/tests/test_cpu_animate_m1_player_binding.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/tests/test_cpu_animate_m1_player_binding.py"
           gh api "repos/timeedmonds-maker/104/contents/tests/test_cpu_animate_native_video_association.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/tests/test_cpu_animate_native_video_association.py"
           gh api "repos/timeedmonds-maker/104/contents/tools/locked_broadcast_screen_v5_rings.py?ref=courtcoder%2Fintegration" --jq .content | base64 -d > "$ROOT/tools/locked_broadcast_screen_v5_rings.py"
           (
@@ -87,6 +89,7 @@ jobs:
             python3 -m unittest discover -s tests -p 'test_cpu_animate_core.py' -v
             python3 -m unittest discover -s tests -p 'test_cpu_animate_video_probe.py' -v
             python3 -m unittest discover -s tests -p 'test_cpu_animate_production_ring.py' -v
+            python3 -m unittest discover -s tests -p 'test_cpu_animate_m1_player_binding.py' -v
             python3 -m py_compile cpu_animate/m1_single_frame.py
             python3 - <<'PY'
           from cpu_animate.m1_single_frame import validate_camera_game_match
