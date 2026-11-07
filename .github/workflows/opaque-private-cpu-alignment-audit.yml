@@ -62,7 +62,7 @@ jobs:
               or m.get('storage')!='private_release_only'):
               raise SystemExit(4)
           pins=m.get('approved_source_git_blob_sha1') or {}
-          if len(pins)!=5 or m.get('detail_gallery_required') is not True:raise SystemExit(4)
+          if len(pins)!=6 or m.get('detail_gallery_required') is not True or m.get('review_video_requested') is not True:raise SystemExit(4)
           for path,hash_value in pins.items():
               if not path.startswith(('cpu_animate/','tests/','docs/cpu_animate/')):raise SystemExit(4)
               if not re.fullmatch(r'[0-9a-f]{40}',hash_value):raise SystemExit(4)
@@ -175,6 +175,15 @@ jobs:
             exit 5
           }
           echo THREE_CAMERA_ORIGINAL_FRAME_DETAIL_QA_READY
+          python3 -m cpu_animate.min_ato_0181_synced_review \
+            --media "$ROOT/media" \
+            --audit "$ROOT/output/min_ato_0181_multiview_alignment_audit.json" \
+            --original "$ROOT/output/original_source_window_private.json" \
+            --out "$ROOT/output" > "$ROOT/synced-review.log" 2>&1 || {
+              echo PRIVATE_THREEVIEW_AUDIO_SYNCHRONIZED_RENDER_FAILED
+              exit 5
+            }
+          echo PRIVATE_ORIGINAL_THREEVIEW_VIDEO_AUDIO_ALIGNED_REVIEW_READY
           base64 -w0 "$ROOT/output/min_ato_0181_threeview_storyboard.jpg" \
             > "$ROOT/output/min_ato_0181_threeview_storyboard.b64.txt"
           if ! gh release view "$output_tag" --repo timeedmonds-maker/104 >/dev/null 2>&1; then
@@ -190,7 +199,10 @@ jobs:
                       source_frame_detail_qa.json \
                       detail-broadcast.jpg \
                       detail-left-above-rim.jpg \
-                      detail-right-above-rim.jpg; do
+                      detail-right-above-rim.jpg \
+                      min_ato_0181_threeview_audio_aligned_REVIEW_ONLY.mp4 \
+                      min_ato_0181_original_measurements.png \
+                      min_ato_0181_synced_review_receipt.json; do
               gh release upload "$output_tag" "$ROOT/output/$name" \
                 --repo timeedmonds-maker/104 --clobber \
                 >/dev/null 2>&1 || { echo PRIVATE_OUTPUT_UPLOAD_FAILED; exit 5; }
@@ -206,13 +218,19 @@ jobs:
           targets={
               'min_ato_0181_multiview_alignment_audit.json':'private_min_ato_multiview_audit.json',
               'source_frame_detail_qa.json':'private_min_ato_camera_detail_qa.json',
+              'original_source_window_private.json':'private_min_ato_original_source_window.json',
+              'min_ato_0181_synced_review_receipt.json':'private_min_ato_synced_review_receipt.json',
           }
           for filename,target in targets.items():
               payload={'message':'qa(cpu-animate): private original source video timing and geometry candidate audit',
                        'content':base64.b64encode((source/filename).read_bytes()).decode(),
                        'branch':'req-a7e6bb2f4c19d80ae55f3cb142096d8e'}
-              proc=subprocess.run(['gh','api','-X','PUT','repos/timeedmonds-maker/104/contents/docs/cpu_animate/'+target,
-                '--input','-'],input=json.dumps(payload),capture_output=True,text=True)
+              url='repos/timeedmonds-maker/104/contents/docs/cpu_animate/'+target
+              prior=subprocess.run(['gh','api',url+'?ref=req-a7e6bb2f4c19d80ae55f3cb142096d8e'],
+                capture_output=True,text=True)
+              if prior.returncode==0:payload['sha']=json.loads(prior.stdout)['sha']
+              proc=subprocess.run(['gh','api','-X','PUT',url,'--input','-'],
+                input=json.dumps(payload),capture_output=True,text=True)
               if proc.returncode:raise RuntimeError('PRIVATE_AUDIT_GIT_REPORT_STORAGE_FAILED')
           PY
           python3 - "$ROOT/output" <<'PY'
@@ -225,9 +243,12 @@ jobs:
               payload={'message':'qa(cpu-animate): authenticated original-frame source detail for human review',
                        'content':base64.b64encode(as_text).decode(),
                        'branch':'req-a7e6bb2f4c19d80ae55f3cb142096d8e'}
-              proc=subprocess.run(['gh','api','-X','PUT',
-                'repos/timeedmonds-maker/104/contents/docs/cpu_animate/private_min_ato_'+label+'_detail.b64.txt',
-                '--input','-'],input=json.dumps(payload),capture_output=True,text=True)
+              url='repos/timeedmonds-maker/104/contents/docs/cpu_animate/private_min_ato_'+label+'_detail.b64.txt'
+              prior=subprocess.run(['gh','api',url+'?ref=req-a7e6bb2f4c19d80ae55f3cb142096d8e'],
+                capture_output=True,text=True)
+              if prior.returncode==0:payload['sha']=json.loads(prior.stdout)['sha']
+              proc=subprocess.run(['gh','api','-X','PUT',url,'--input','-'],
+                input=json.dumps(payload),capture_output=True,text=True)
               if proc.returncode:raise RuntimeError('PRIVATE_CAMERA_DETAIL_GIT_COPY_FAILED')
           PY
           python3 - "$ROOT/output/min_ato_0181_threeview_storyboard.b64.txt" \
@@ -248,7 +269,10 @@ jobs:
           files=['min_ato_0181_multiview_alignment_audit.json','original_source_window_private.json',
                  'min_ato_0181_threeview_storyboard.jpg','min_ato_0181_threeview_storyboard.b64.txt',
                  'source_frame_detail_qa.json','detail-broadcast.jpg',
-                 'detail-left-above-rim.jpg','detail-right-above-rim.jpg']
+                 'detail-left-above-rim.jpg','detail-right-above-rim.jpg',
+                 'min_ato_0181_threeview_audio_aligned_REVIEW_ONLY.mp4',
+                 'min_ato_0181_original_measurements.png',
+                 'min_ato_0181_synced_review_receipt.json']
           expected={name:'sha256:'+hashlib.sha256((root/name).read_bytes()).hexdigest() for name in files}
           for _ in range(12):
               q=subprocess.run(['gh','api','repos/timeedmonds-maker/104/releases/tags/'+sys.argv[2]],
@@ -256,7 +280,7 @@ jobs:
               if q.returncode==0:
                   assets={a['name']:a.get('digest') for a in json.loads(q.stdout)['assets']}
                   if all(assets.get(name)==value for name,value in expected.items()):
-                      print('PRIVATE_THREEVIEW_AUDIT_EIGHT_ASSETS_SHA256_READBACK_PASS')
+                      print('PRIVATE_THREEVIEW_AUDIT_ELEVEN_ASSETS_SHA256_READBACK_PASS')
                       break
               time.sleep(3)
           else:raise SystemExit(5)
