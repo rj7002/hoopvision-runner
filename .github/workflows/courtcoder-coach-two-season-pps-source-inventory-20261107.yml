@@ -317,6 +317,34 @@ jobs:
                 "heldout_by_season",json.dumps(validation["heldout_by_season"],sort_keys=True),
                 "candidate_promoted",False)
           PY
+      - name: Verify any already-published private Coach event-time model source receipts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/existing-coach-model"
+          if gh release download igp-coach-pps-two-season-readiness-20261107 \
+              --repo timeedmonds-maker/104 \
+              --pattern 'event_time_pps_heldout_qa.json' \
+              --pattern 'event_time_pps_model.json' \
+              --dir "$RUNNER_TEMP/existing-coach-model" > "$RUNNER_TEMP/existing-model-download.log" 2>&1; then
+            python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"existing-coach-model"
+          qa=json.loads((root/"event_time_pps_heldout_qa.json").read_bytes())
+          model=json.loads((root/"event_time_pps_model.json").read_bytes())
+          print("COACH_EXISTING_PRIVATE_PROXY_QA_FIELDS",",".join(sorted(qa)))
+          print("COACH_EXISTING_PRIVATE_PROXY_MODEL_FIELDS",",".join(sorted(model)))
+          print("COACH_EXISTING_PRIVATE_PROXY_STATUS",
+                str(qa.get("status")),str(model.get("model_status")),
+                "game_holdout",str(qa.get("heldout_games")),
+                "heldout_brier",str(qa.get("player_brier")),
+                "heldout_ece",str(qa.get("player_ECE")),
+                "model_sha256",hashlib.sha256((root/"event_time_pps_model.json").read_bytes()).hexdigest(),
+                "receipt_sha256",hashlib.sha256((root/"event_time_pps_heldout_qa.json").read_bytes()).hexdigest())
+          PY
+          else
+            echo COACH_EXISTING_PRIVATE_MODEL_RELEASE_NOT_ACCESSIBLE
+          fi
       - name: Publish SOURCE-ONLY aggregate readiness to private GitHub release
         shell: bash
         run: |
