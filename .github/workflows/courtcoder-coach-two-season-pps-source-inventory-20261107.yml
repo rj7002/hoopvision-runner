@@ -114,6 +114,21 @@ jobs:
           summary=json.loads((root/"defender-summary-nba-2025-26-shard-001.json").read_bytes())
           print("COACH_HIST_DEFENDER_AGGREGATE_SUMMARY_FIELDS",
                 ",".join(sorted(summary.keys())[:25]))
+          import collections
+          source_rows=[json.loads(l) for l in gzip.decompress((root/"defender-xyz-nba-2025-26-shard-001.jsonl.gz").read_bytes()).splitlines() if l]
+          print("COACH_HIST_DEFENDER_ROW_FIELD_NAMES",",".join(sorted(source_rows[0].keys())))
+          shots=collections.Counter()
+          for r in source_rows:
+              for field in ("release_time_source_grade","primary_contest_confidence","primary_contest_is_blueprint_label"):
+                  shots[str(field)+"="+str(r.get(field))]+=1
+              shots["shooter_xyz_present"]+=int(r.get("shooter_xyz_ft") is not None)
+              shots["defenders_count_ge5"]+=int(isinstance(r.get("defenders"),list) and len(r["defenders"])>=5)
+              shots["NBA_shot_record_present"]+=int(isinstance(r.get("source_nba_shot_record"),dict))
+          print("COACH_HIST_SOURCE_PRESSURE_GRADE_COUNTS",json.dumps(dict(shots),sort_keys=True))
+          for name in ("source_nba_shot_record","release_proxy_evidence","source_shot_quality_xfg"):
+              sample=next((r.get(name) for r in source_rows if isinstance(r.get(name),dict)),{})
+              print("COACH_HIST_NESTED_FIELD_NAMES",name,",".join(sorted(sample)))
+
           PY
       - name: Publish SOURCE-ONLY aggregate readiness to private GitHub release
         shell: bash
