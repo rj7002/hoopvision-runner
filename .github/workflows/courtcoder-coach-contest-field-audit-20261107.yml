@@ -15,7 +15,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PRIVATE_SHA: 30b06ae04f866ae33b75204378c86e678d863183
+      PRIVATE_SHA: e51cb8b3842097503918758e15c2b2459f2a1d92
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -127,10 +127,18 @@ jobs:
           import base64,json,sys
           from pathlib import Path
           data=Path(sys.argv[1]).read_bytes()
-          Path(sys.argv[2]).write_text(json.dumps({
+          import subprocess
+          path="gamepulse/coach_contest_release_20261107/"+Path(sys.argv[1]).name
+          result=subprocess.run(["gh","api","repos/timeedmonds-maker/104/contents/"+path,
+                                 "-f","ref=feature/courtcoder-coach-web-20261106",
+                                 "--jq",".sha"],capture_output=True,text=True)
+          existing=result.stdout.strip() if result.returncode==0 else None
+          body={
             "message":"Stage accepted two-season Coach contest model and source receipt",
             "content":base64.b64encode(data).decode(),
-            "branch":"feature/courtcoder-coach-web-20261106"}))
+            "branch":"feature/courtcoder-coach-web-20261106"}
+          if existing: body["sha"]=existing
+          Path(sys.argv[2]).write_text(json.dumps(body))
           PY
             gh api --method PUT "repos/$PRIVATE_REPO/contents/gamepulse/coach_contest_release_20261107/$name" \
               --input "$root/private-body.json" --silent
