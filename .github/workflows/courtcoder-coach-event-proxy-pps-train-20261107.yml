@@ -1,0 +1,75 @@
+name: CourtCoder Coach real Full666 Full123 event-time PPS build
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/courtcoder-coach-event-proxy-pps-train-20261107.yml]
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: coach-two-season-original-event-proxy-training
+  cancel-in-progress: false
+jobs:
+  original-source-train:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 95
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_SHA: 91e9cf7aaaeda49f31190c8e5e4b5683cbfc4d99
+      SAMPLE_GAMES: '24'
+      HIST_SHARDS: '15'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Enforce public confidentiality and verified ephemeral private code
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          mkdir -p "$RUNNER_TEMP/coach-private" "$RUNNER_TEMP/coach-history" "$RUNNER_TEMP/coach-release"
+          for name in two_season_native_event_pressure_v1.py run_event_proxy_source_release_v1.py; do
+            gh api "repos/$PRIVATE_REPO/contents/courtcoder/coach/qa/$name?ref=$PRIVATE_SHA" \
+              --jq .content | base64 -d > "$RUNNER_TEMP/coach-private/$name"
+          done
+          gh api "repos/$PRIVATE_REPO/contents/courtcoder/coach/event_proxy_pps_v1.py?ref=$PRIVATE_SHA" \
+            --jq .content | base64 -d > "$RUNNER_TEMP/coach-private/event_proxy_pps_v1.py"
+          python3 -m py_compile "$RUNNER_TEMP/coach-private/"*.py
+          echo COACH_PRIVATE_SOURCE_CODE_SHA_PINNED_AND_COMPILED
+      - name: Recover original historical 15-shard NBA defender positions
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release download igp-2025-26-defender-xyz-proxy-20261105 \
+            --repo "$PRIVATE_REPO" --dir "$RUNNER_TEMP/coach-history" \
+            --pattern 'defender-xyz-nba-2025-26-shard-*.jsonl.gz' \
+            --pattern 'defender-xyz-nba-2025-26-shard-*-qa.json'
+          test "$(find "$RUNNER_TEMP/coach-history" -name 'defender-xyz-*.jsonl.gz' | wc -l)" -eq 15
+          test "$(find "$RUNNER_TEMP/coach-history" -name 'defender-xyz-*-qa.json' | wc -l)" -eq 15
+          echo COACH_PRIVATE_HIST_15_ORIGINAL_SHARDS_READY
+      - name: Train and evaluate REAL source-backed two-season event-pressure model
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$RUNNER_TEMP/coach-private" python3 \
+            "$RUNNER_TEMP/coach-private/run_event_proxy_source_release_v1.py" \
+            --historical "$RUNNER_TEMP/coach-history" \
+            --out "$RUNNER_TEMP/coach-release" \
+            --max-current-games "$SAMPLE_GAMES" \
+            --max-hist-shards "$HIST_SHARDS" \
+            --workers 5
+          test -s "$RUNNER_TEMP/coach-release/source-event-pressure-qa.json"
+          test -s "$RUNNER_TEMP/coach-release/event-proxy-heldout.json"
+      - name: Publish trained evidence and any accepted model to PRIVATE release only
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="igp-coach-event-proxy-20261107-91e9cf7a-24game-pilot"
+          if ! gh release view "$TAG" --repo "$PRIVATE_REPO" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$PRIVATE_REPO" \
+              --target "$PRIVATE_SHA" --title 'Coach original-event-time source proxy PPS pilot' \
+              --notes 'Original source-verified historical/current pilot; NOT exact shot-release pressure, NOT verified seven-action classification. Model can only be promoted if independent game-holdout QA passes.'
+          fi
+          gh release upload "$TAG" "$RUNNER_TEMP/coach-release/"* \
+            --repo "$PRIVATE_REPO" --clobber
+          echo COACH_REAL_DATA_EVALUATION_RECEIPTS_RELEASED_PRIVATE_ONLY
