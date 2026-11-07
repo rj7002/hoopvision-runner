@@ -1,0 +1,185 @@
+name: Opaque source-private CPU three-view alignment audit
+on:
+  push:
+    branches: ['cpu-animate-opaque-private-cpu-20261108']
+    paths: ['.github/workflows/opaque-private-cpu-alignment-audit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: opaque-private-cpu-alignment-a7e6bb2f
+  cancel-in-progress: false
+jobs:
+  original-cpu-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      REQUEST_ID: req-a7e6bb2f4c19d80ae55f3cb142096d8e
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate public boundary
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN" && test ! -e /dev/nvidia0 && test ! -e /dev/kfd
+          echo OPAQUE_CPU_GUARD_PASS
+      - name: Privately authenticate, verify source, decode media and archive alignment QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(mktemp -d)"
+          chmod 700 "$ROOT"
+          trap 'rm -rf "$ROOT"' EXIT
+          gh auth setup-git >/dev/null 2>&1
+          git clone -q --depth=1 --filter=blob:none --sparse \
+            --branch "$REQUEST_ID" \
+            https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
+            > "$ROOT/private-clone.log" 2>&1 || { echo PRIVATE_CPU_CHECKOUT_FAILED; exit 4; }
+          git -C "$ROOT/private" sparse-checkout set --no-cone \
+            '/cpu_animate/' '/tests/' '/docs/cpu_animate/' \
+            > "$ROOT/private-sparse.log" 2>&1 || { echo PRIVATE_CPU_SOURCE_SPARSE_FAILED; exit 4; }
+          cd "$ROOT/private"
+          python3 - "$REQUEST_ID" > "$ROOT/control.json" <<'PY'
+          import json,re,subprocess,sys
+          from pathlib import Path
+          m=json.loads(Path('docs/cpu_animate/opaque_private_cpu_request.json').read_text())
+          if (m.get('schema')!='cpu-animate.private-opaque-execution.v1'
+              or m.get('request_id')!=sys.argv[1]
+              or m.get('owner_approved') is not True
+              or m.get('operation')!='private_minnesota_ato_threeview_native_pts_audio_qa'
+              or m.get('gpu_allowed') is not False
+              or m.get('gcp_allowed') is not False
+              or m.get('public_video_release_allowed') is not False
+              or m.get('max_cpu_minutes')!=25
+              or m.get('angle_limit')!=3
+              or m.get('storage')!='private_release_only'):
+              raise SystemExit(4)
+          pins=m.get('approved_source_git_blob_sha1') or {}
+          if len(pins)!=4:raise SystemExit(4)
+          for path,hash_value in pins.items():
+              if not path.startswith(('cpu_animate/','tests/','docs/cpu_animate/')):raise SystemExit(4)
+              if not re.fullmatch(r'[0-9a-f]{40}',hash_value):raise SystemExit(4)
+              actual=subprocess.check_output(['git','hash-object',path],text=True).strip()
+              if actual!=hash_value:raise SystemExit(4)
+          for k in ('original_source_branch','original_pbp_path','original_xyz_index_path',
+                    'original_chunk_path','original_blueprint_path','source_release_tag',
+                    'output_release_tag','expected_original_blueprint_git_blob_sha1'):
+              if not m.get(k):raise SystemExit(4)
+          print(json.dumps({k:m[k] for k in (
+           'original_source_branch','original_pbp_path','original_xyz_index_path',
+           'original_chunk_path','original_blueprint_path','source_release_tag',
+           'output_release_tag','expected_original_blueprint_git_blob_sha1')},sort_keys=True))
+          PY
+          echo PRIVATE_REVIEWED_CODE_BLOBS_PASS
+          native_ref="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["original_source_branch"])' "$ROOT/control.json")"
+          test "$native_ref" != "$REQUEST_ID"
+          git clone -q --depth=1 --filter=blob:none --sparse \
+            --branch "$native_ref" \
+            https://github.com/timeedmonds-maker/104.git "$ROOT/original" \
+            > "$ROOT/native-clone.log" 2>&1 || { echo PRIVATE_ORIGINAL_GIT_CLONE_FAILED; exit 4; }
+          readarray -t files < <(python3 - "$ROOT/control.json" <<'PY'
+          import json,sys
+          m=json.load(open(sys.argv[1]))
+          for k in ('original_pbp_path','original_xyz_index_path','original_chunk_path',
+                    'original_blueprint_path'):
+              s=m[k]
+              if not s.startswith(('gamepulse/fusion/','data/extensions/')):
+                  raise SystemExit(4)
+              print(s)
+          PY
+          )
+          git -C "$ROOT/original" sparse-checkout set --no-cone \
+              "${files[0]}" "${files[1]}" \
+              "${files[2]}" "${files[3]}" \
+              > "$ROOT/native-sparse.log" 2>&1 || { echo PRIVATE_ORIGINAL_SPARSE_FAILED; exit 4; }
+          blueprint_sha="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["expected_original_blueprint_git_blob_sha1"])' "$ROOT/control.json")"
+          test "$(git -C "$ROOT/original" hash-object "${files[3]}")" = "$blueprint_sha" || {
+              echo PRIVATE_BLUEPRINT_SHA_CHANGED; exit 4;
+          }
+          export CPU_ANIMATE_SOURCE_GIT_ROOT="$ROOT/original"
+          python3 -m cpu_animate.min_ato_0181_source_gate \
+              > "$ROOT/source-gate.log" 2>&1 || { echo PRIVATE_ORIGINAL_SOURCE_GATE_FAIL; exit 4; }
+          echo PRIVATE_ORIGINAL_SHOT_AND_NATIVE_SOURCE_GATE_PASS
+          mkdir -p "$ROOT/media" "$ROOT/output"
+          input_tag="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["source_release_tag"])' "$ROOT/control.json")"
+          output_tag="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["output_release_tag"])' "$ROOT/control.json")"
+          [[ "$input_tag" == cpu-animate-* && "$output_tag" == cpu-animate-* ]] || exit 4
+          gh release download "$input_tag" --repo timeedmonds-maker/104 \
+              --dir "$ROOT/media" --pattern 'angle-*.mp4' --pattern 'angle-*.json' \
+              > "$ROOT/media-download.log" 2>&1 || { echo PRIVATE_THREE_VIDEO_FETCH_FAIL; exit 4; }
+          python3 -m pip install -q --disable-pip-version-check numpy scipy opencv-python-headless \
+              > "$ROOT/dependencies.log" 2>&1 || { echo CPU_DEPENDENCIES_FAILED; exit 4; }
+          python3 -m unittest discover -s tests \
+            -p 'test_cpu_animate_min_ato_0181_multiview_audit.py' \
+            > "$ROOT/synthetic-tests.log" 2>&1 || { echo MULTIVIEW_SYNTHETIC_TESTS_FAILED; exit 4; }
+          echo MULTIVIEW_CPU_UNIT_TESTS_PASS
+          if ! python3 -m cpu_animate.min_ato_0181_multiview_audit \
+              --private "$ROOT/private" --original "$ROOT/original" \
+              --media "$ROOT/media" --out "$ROOT/output" \
+              > "$ROOT/original-video-alignment.log" 2>&1; then
+            python3 - "$ROOT/original-video-alignment.log" <<'PY'
+          import re,sys
+          lines=open(sys.argv[1]).read()
+          c=re.findall(r'(?m)^([\w.]+(?:Error|Exception)):',lines)
+          print('PRIVATE_ALIGNMENT_ERROR_CLASS',c[-1] if c else 'UNKNOWN')
+          PY
+            echo PRIVATE_THREEVIEW_ALIGNMENT_AUDIT_FAILED
+            exit 5
+          fi
+          echo ORIGINAL_VIDEO_PTS_AUDIO_AND_NATIVE_3D_AUDIT_PASS
+          base64 -w0 "$ROOT/output/min_ato_0181_threeview_storyboard.jpg" \
+            > "$ROOT/output/min_ato_0181_threeview_storyboard.b64.txt"
+          if ! gh release view "$output_tag" --repo timeedmonds-maker/104 >/dev/null 2>&1; then
+              gh release create "$output_tag" --repo timeedmonds-maker/104 \
+                --title 'CPU Animate private original-source three-view alignment QA' \
+                --notes 'Unverified absolute video/UTC and camera geometry; research QA only, no public footage.' \
+                --latest=false >/dev/null 2>&1 || { echo PRIVATE_OUTPUT_RELEASE_FAILED; exit 5; }
+          fi
+          for name in min_ato_0181_multiview_alignment_audit.json \
+                      original_source_window_private.json \
+                      min_ato_0181_threeview_storyboard.jpg \
+                      min_ato_0181_threeview_storyboard.b64.txt; do
+              gh release upload "$output_tag" "$ROOT/output/$name" \
+                --repo timeedmonds-maker/104 --clobber \
+                >/dev/null 2>&1 || { echo PRIVATE_OUTPUT_UPLOAD_FAILED; exit 5; }
+          done
+          # Source-derived gallery stays private; this is only a convenience
+          # copy for owner review via the connected private GitHub repository.
+          python3 - "$ROOT/output/min_ato_0181_threeview_storyboard.b64.txt" \
+              > "$ROOT/gallery-put.json" <<'PY'
+          import base64,json,sys
+          value=open(sys.argv[1],'rb').read()
+          print(json.dumps({'message':'qa(cpu-animate): retain private threeview original-frame storyboard',
+              'content':base64.b64encode(value).decode(),
+              'branch':'req-a7e6bb2f4c19d80ae55f3cb142096d8e'}))
+          PY
+          gh api -X PUT 'repos/timeedmonds-maker/104/contents/docs/cpu_animate/private_ato_threeview_storyboard.b64.txt' \
+            --input "$ROOT/gallery-put.json" > "$ROOT/gallery-upload.log" 2>&1 || \
+            echo PRIVATE_GALLERY_REVIEW_COPY_UNAVAILABLE_RELEASE_VERIFIED
+          python3 - "$ROOT/output" "$output_tag" <<'PY'
+          import hashlib,json,subprocess,sys,time
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          files=['min_ato_0181_multiview_alignment_audit.json','original_source_window_private.json',
+                 'min_ato_0181_threeview_storyboard.jpg','min_ato_0181_threeview_storyboard.b64.txt']
+          expected={name:'sha256:'+hashlib.sha256((root/name).read_bytes()).hexdigest() for name in files}
+          for _ in range(12):
+              q=subprocess.run(['gh','api','repos/timeedmonds-maker/104/releases/tags/'+sys.argv[2]],
+                 capture_output=True,text=True)
+              if q.returncode==0:
+                  assets={a['name']:a.get('digest') for a in json.loads(q.stdout)['assets']}
+                  if all(assets.get(name)==value for name,value in expected.items()):
+                      print('PRIVATE_THREEVIEW_AUDIT_FOUR_ASSETS_SHA256_READBACK_PASS')
+                      break
+              time.sleep(3)
+          else:raise SystemExit(5)
+          PY
+          echo PRIVATE_THREEVIEW_NATIVE_VIDEO_AUDIT_COMPLETED
+          echo ABSOLUTE_VIDEO_TRACKING_UTC_AND_RING_PROJECTION_NOT_YET_CERTIFIED
