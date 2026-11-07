@@ -57,14 +57,14 @@ jobs:
           if test "$(git rev-parse HEAD)" != 'e457df5aa4c421a2cf61afa6f1c1624939d377d2'; then
             echo 'PINNED_ORIGINAL_SDK_SOURCE_COMMIT_CHANGED';exit 3
           fi
-          git sparse-checkout set \
-            gamepulse/fusion/materialized/igp_all_original_xyz/0022600009 \
-            gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/companion_app_packages_all56_v1/0022600009 \
-            gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all56_v2/0022600009.jsonl.gz \
-            gamepulse/fusion/evidence/companion_0022600009 \
-            gamepulse/fusion/event_tracking/games/0022600009.json \
-            gamepulse/fusion/official_pbp_timing/games/0022600009.json \
-            data/extensions/nba_blueprint_2026_27/games/0022600009/blueprint_report_raw.json
+          git sparse-checkout set --no-cone \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600009/ \
+            /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/companion_app_packages_all56_v1/0022600009/ \
+            /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all56_v2/0022600009.jsonl.gz \
+            /gamepulse/fusion/evidence/companion_0022600009/ \
+            /gamepulse/fusion/event_tracking/games/0022600009.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600009.json \
+            /data/extensions/nba_blueprint_2026_27/games/0022600009/blueprint_report_raw.json
           python3 - <<'PY'
           import gzip,hashlib,json,pathlib
           root=pathlib.Path('.')
