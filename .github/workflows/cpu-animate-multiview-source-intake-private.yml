@@ -83,7 +83,7 @@ jobs:
           cd "$ROOT"
           python3 -m unittest discover -s tests -p test_cpu_animate_angle_taxonomy.py -v
           python3 -m py_compile cpu_animate/angle_registry.py cpu_animate/multi_angle_cpu_ingest.py
-          python3 cpu_animate/multi_angle_cpu_ingest.py
+          python3 -m cpu_animate.multi_angle_cpu_ingest
       - name: Record privacy-preserving completion
         run: |
           echo 'Only aggregate camera counts are written to public logs.'
