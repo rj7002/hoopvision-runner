@@ -212,32 +212,39 @@ jobs:
           idxraw=get(ptr["index_path"])
           assert hashlib.sha256(idxraw).hexdigest()==ptr["index_sha256"]
           idx=json.loads(idxraw)
-          game="0022600188"
-          row=idx["games"][game]
-          source=get(row["shots_path"])
-          assert hashlib.sha256(source).hexdigest()==row["shot_sha256"]
-          native_base="gamepulse/fusion/materialized/igp_all_original_xyz/"+game+"/"
-          native=get(native_base+"index.json")
-          official_box=get("gamepulse/fusion/official_pbp_timing/original_nba_20261029/"+game+"/boxscore.json")
-          imported=[]
-          def read_chunk(name):
-              assert name.startswith("original-native-") and name.endswith(".jsonl.gz") and "/" not in name
-              imported.append(name)
-              return get(native_base+name)
-          now,newcounts,chunks=module.current_rows(source,native,official_box,read_chunk)
-          assert len(old)>0 and len(now)>0,"NO_REAL_CROSS_SEASON_FGA_SOURCE_SCENES"
-          receipt=module.qa_result(old,now,oldcounts,newcounts,
+          native_root="gamepulse/fusion/materialized/igp_all_original_xyz/"
+          current=[];game_counts={};verified_chunks=0;input_shas={}
+          for game in sorted(idx["games"])[-5:]:
+              entry=idx["games"][game]
+              shots=get(entry["shots_path"])
+              assert hashlib.sha256(shots).hexdigest()==entry["shot_sha256"]
+              prefix=native_root+game+"/"
+              native=get(prefix+"index.json")
+              original=json.loads(native)
+              assert original["game_id"]==game
+              box=get("gamepulse/fusion/official_pbp_timing/original_nba_20261029/"+game+"/boxscore.json")
+              def read_chunk(name):
+                  assert name.startswith("original-native-") and name.endswith(".jsonl.gz") and "/" not in name
+                  return get(prefix+name)
+              accepted,rejections,chunks=module.current_rows(shots,native,box,read_chunk)
+              current.extend(accepted)
+              game_counts[game]={"accepted":len(accepted),"counts":rejections,"original_chunks_sha_read":chunks}
+              verified_chunks+=chunks
+              input_shas[game]=entry["shot_sha256"]
+          assert len(old)>0 and len(current)>0,"NO_REAL_CROSS_SEASON_FGA_SOURCE_SCENES"
+          receipt=module.qa_result(old,current,oldcounts,game_counts,
               {"Full666_historical_shard_sha256":hashlib.sha256(blob).hexdigest(),
-               "Full123_shot_sha256":row["shot_sha256"],
-               "Full123_original_native_manifest_sha256":hashlib.sha256(native).hexdigest()})
+               "Full123_index_sha256":ptr["index_sha256"],
+               "Full123_original_shot_shards":input_shas})
           output=root/"pilot"
-          module.write(output,old+now,receipt)
+          module.write(output,old+current,receipt)
           assert receipt["promoted_to_live_coach"] is False
           print("COACH_REAL_ORIGINAL_XY_PRESSURE_PILOT_PASS",
-              "Full666_qualified_FGA",len(old),"Full123_qualified_FGA",len(now),
-              "Full123_original_chunks_SHA",chunks,
+              "Full666_qualified_FGA",len(old),"Full123_qualified_FGA",len(current),
+              "Full123_original_chunks_SHA",verified_chunks,
+              "Full123_games",len(game_counts),
               "Full666_source_rejections",json.dumps(oldcounts,sort_keys=True),
-              "Full123_source_rejections",json.dumps(newcounts,sort_keys=True))
+              "Full123_source_rejections_by_game",json.dumps(game_counts,sort_keys=True))
           print("COACH_PRESSURE_GRADE",receipt["grade"],"NBA_release_time_certified",False,
                 "shot_actions_certified",False)
           PY
