@@ -95,6 +95,60 @@ jobs:
           echo R13_V9_243_BLINDED_POSITIVE_AND_NEGATIVE_CASES_PRIVATE
           echo R13_V9_NO_NBA_DRIBBLE_LABELS_OR_RECALL_FABRICATED
 
+      - name: V8c deterministic two-event nonretaining decoder regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m unittest discover -s gamepulse/fusion/analysis \
+                  -p test_igp_r13_dribble_ephemeral_video_probe_v8c.py -v \
+                  > "$RUNNER_TEMP/r13-v8c-unit.log" 2>&1; then
+            echo R13_V8C_EPHEMERAL_MEDIA_QA_SOURCE_FREE_TESTS_FAILED
+            exit 46
+          fi
+          echo R13_V8C_NO_SOURCE_MEDIA_PERSISTENCE_TESTS_PASSED
+      - name: Provision reviewed CPU video decoder and exact NBA camera source helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          gh api 'repos/timeedmonds-maker/104/contents/courtcoder/nba_event_angle_discovery.py?ref=courtcoder%2Fintegration' \
+               --jq .content | base64 --decode > nba_event_angle_discovery.py
+          test -s nba_event_angle_discovery.py
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update -qq >/dev/null 2>&1
+            sudo apt-get install -y -qq ffmpeg >/dev/null 2>&1
+          fi
+          command -v ffmpeg >/dev/null
+          echo R13_V8C_EPHEMERAL_VIDEO_DECODER_READY
+      - name: Decode at most two original NBA HLS event streams ephemerally and privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m gamepulse.fusion.analysis.igp_r13_dribble_ephemeral_video_probe_v8c \
+               --root . --private-persist \
+               > "$RUNNER_TEMP/r13-v8c-decode.log" 2>&1; then
+            python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          rel='gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/houston9_r13_v8c_private_failure_20261107.json'
+          ep=f"repos/{os.environ['PRIVATE_REPO']}/contents/{rel}"
+          data={'branch':os.environ['PRIVATE_BRANCH'],
+             'message':'qa(private): R13 V8c ephemeral decode diagnostic [skip ci]',
+             'content':base64.b64encode(json.dumps({'private_trace':
+             Path(os.environ['RUNNER_TEMP'],'r13-v8c-decode.log').read_text()[-17000:]}).encode()).decode()}
+          p=subprocess.run(['gh','api',ep+'?ref='+data['branch']],capture_output=True,text=True)
+          if p.returncode==0:data['sha']=json.loads(p.stdout)['sha']
+          subprocess.run(['gh','api','-X','PUT',ep,'--input','-'],input=json.dumps(data),
+                         text=True,capture_output=True,check=True)
+          PY
+            echo R13_V8C_PRIVATE_DECODER_EXCEPTION_SAVED
+            exit 47
+          fi
+          echo R13_V8C_TWO_NBA_EVENT_SOURCE_STREAM_QA_PRIVATE_COMPLETE
+          echo R13_V8C_NO_SIGNED_HLS_OR_VIDEO_SAVED_AND_NO_INDEPENDENT_BOUNCE_LABEL
+
 # Reviewed separate private R13 original source reports; no raw XYZ or licensed video material on public runner.
 
 # Replayed after review of concurrent private-only source workflow in the public content allowlist.
