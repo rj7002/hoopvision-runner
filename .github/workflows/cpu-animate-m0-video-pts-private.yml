@@ -77,6 +77,8 @@ jobs:
           gh api "repos/timeedmonds-maker/104/contents/tests/test_cpu_animate_static_court.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/tests/test_cpu_animate_static_court.py"
           gh api "repos/timeedmonds-maker/104/contents/cpu_animate/shot_semantics.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/cpu_animate/shot_semantics.py"
           gh api "repos/timeedmonds-maker/104/contents/tests/test_cpu_animate_shot_semantics.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/tests/test_cpu_animate_shot_semantics.py"
+          gh api "repos/timeedmonds-maker/104/contents/cpu_animate/moving_camera_gate.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/cpu_animate/moving_camera_gate.py"
+          gh api "repos/timeedmonds-maker/104/contents/tests/test_cpu_animate_moving_camera_gate.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/tests/test_cpu_animate_moving_camera_gate.py"
           gh api "repos/timeedmonds-maker/104/contents/tools/locked_broadcast_screen_v5_rings.py?ref=courtcoder%2Fintegration" --jq .content | base64 -d > "$ROOT/tools/locked_broadcast_screen_v5_rings.py"
           (
             cd "$ROOT"
@@ -112,6 +114,7 @@ jobs:
               python3 -m unittest discover -s tests -p 'test_cpu_animate_static_court.py' -v
             CPU_ANIMATE_ORIGINAL_BLUEPRINT_PATH="$ROOT/private_media/0022600091_blueprint_original.json" \
               python3 -m unittest discover -s tests -p 'test_cpu_animate_shot_semantics.py' -v
+            python3 -m unittest discover -s tests -p 'test_cpu_animate_moving_camera_gate.py' -v
             python3 -m cpu_animate.camera_segment_scan \
               --video "$ROOT/private_media/event616-broadcast.mp4" \
               --sha256 '9df90d9f76b3bf2f9698ac3d1c25016eb8adfab27dc65b12c3202e7b661e8aba' \
