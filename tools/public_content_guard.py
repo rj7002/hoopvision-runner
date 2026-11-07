@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/cpu-animate-transfer-probe.yml",  # synthetic bytes only; tests connector artifact handoff to ChatGPT
     ".github/workflows/cpu-animate-m1-private-side-by-side-review.yml",  # private 104-only original-video versus frozen ring review MP4; no public video/log arrays
     ".github/workflows/cpu-animate-m0-video-pts-private.yml",  # SHA-pin private v1 CPU Animate M0 video PTS, synthetic QA, no licensed positions or public assets
     ".github/workflows/courtcoder-coach-event-proxy-pps-train-20261107.yml",  # pinned private Full666/Full123 original source FGA training; private-only model artifacts and aggregate public logs
@@ -843,6 +844,7 @@ REVIEWED_MEDIA_SOURCE_WORKFLOWS = {
     ".github/workflows/rockets-remaining-sengun-double-clips.yml",
 }
 REVIEWED_PUBLIC_MP4_EXPORT_WORKFLOWS = {
+    ".github/workflows/cpu-animate-transfer-probe.yml",  # benign synthetic text artifact only; no source media
     ".github/workflows/freeview-amen732-direct-sixvideo-render.yml",  # public NBA stream source only; no native media artifacts
     ".github/workflows/clip-lab-event80-direct-native-frozen.yml",  # one final QA-approved annotated MP4, never private source/tracking
     ".github/workflows/clip-lab-rockets-event80-frozen-render.yml",  # ONLY QA-approved ringed MP4 artifact
