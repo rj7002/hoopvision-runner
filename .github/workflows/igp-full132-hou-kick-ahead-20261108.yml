@@ -18,7 +18,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: analysis/full132-hou-kick-ahead-20261108
-      PIN: 13ab641a540a984d6d5caef1fad791cda00e89ac
+      PIN: 902f26be1a7462632f6c425fabf9bf3578ab118b
       PRIVATE_REPO: timeedmonds-maker/104
       DEST: gamepulse/fusion/qa/analysis/igp_full132_houston_kick_ahead_20261108.json
     steps:
