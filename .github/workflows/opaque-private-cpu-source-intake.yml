@@ -196,6 +196,27 @@ jobs:
           print("PRIVATE_NBA_INGEST_EXCEPTION_CLASS", kinds[-1] if kinds else "UNKNOWN")
           print("PRIVATE_NBA_INGEST_METHOD_CHAIN", ",".join(methods[-4:]) if methods else "UNKNOWN")
           print("PRIVATE_NBA_ANGLE_DISCOVERY_STAGE", "YES" if "private_source_discovery" in trace else "NO")
+          safe_codes={
+            'NBA event cameras unavailable at provider':'NBA_HLS_PROVIDER_UNAVAILABLE',
+            'ARCHIVED_FREEZE_SPIN_CAMERA_TAXONOMY_NOT_MOUNTED':'CAMERA_TAXONOMY_NOT_MOUNTED',
+            'HISTORICAL_CAMERA_REGISTRY_BYTES_CHANGED':'CAMERA_REGISTRY_SHA_MISMATCH',
+            'HISTORICAL_CAMERA_OPTIONS_BYTES_CHANGED':'CAMERA_OPTIONS_SHA_MISMATCH',
+            'PRIVATE_AUTHORIZED_SOURCE_CHECKOUT_REQUIRED':'PRIVATE_SOURCE_CHECKOUT_MISSING',
+            'PRIVATE_NBA_ANGLE_PARSER_GIT_FILE_ABSENT':'LOCAL_ANGLE_PARSER_MISSING',
+            'PRIVATE_NBA_ANGLE_PARSER_GIT_SHA_CHANGED':'LOCAL_ANGLE_PARSER_SHA_MISMATCH',
+            'PRIVATE_EXISTING_ANGLE_INVENTORY_UNAVAILABLE':'PRIVATE_RELEASE_INVENTORY_UNAVAILABLE',
+            'No new physical-view-family camera feed could be ingested':'NO_USABLE_SOURCE_HLS',
+            'Private GitHub release authentication missing':'PRIVATE_RELEASE_AUTH_MISSING',
+            'Source media repository is not private':'PRIVATE_SOURCE_REPO_AUTH_FAIL'
+          }
+          lines=[x.strip() for x in trace.splitlines() if x.strip()]
+          tail=lines[-1] if lines else ''
+          detail=tail.split(': ',1)[-1]
+          code=safe_codes.get(detail)
+          if code is None and detail.startswith('PRIVATE_CPU_TOOL_FAILED_'):code='PRIVATE_GITHUB_OR_CPU_TOOL_FAILED'
+          if code is None and detail.startswith('PRIVATE_SOURCE_RELEASE_DIGEST_READBACK_NOT_SETTLED_'):code='PRIVATE_RELEASE_SHA_NOT_SETTLED'
+          print('PRIVATE_NBA_INGEST_SAFE_CAUSE',code or 'UNKNOWN')
+
           PY
              echo PRIVATE_VIDEO_INGEST_DID_NOT_COMPLETE
              exit 5
