@@ -1,0 +1,146 @@
+name: CPU Animate Amen-Wemby event732 Full131 original six-angle CPU sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/cpu-animate-amen732-full131-sixangle-cpu-sync.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cpu-animate-amen732-full131-sixangle-cpu-sync
+  cancel-in-progress: false
+
+jobs:
+  original-source-tracking-and-video-join:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: 'none'
+      OPENCV_OPENCL_RUNTIME: disabled
+      OMP_NUM_THREADS: '3'
+      OPENBLAS_NUM_THREADS: '3'
+      MKL_NUM_THREADS: '3'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Verify public-workflow security boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from tools.public_content_guard import scan
+          target='.github/workflows/cpu-animate-amen732-full131-sixangle-cpu-sync.yml'
+          if scan([target]):
+              print('CPU_AMEN732_PUBLIC_BOUNDARY_REJECTED')
+              raise SystemExit(3)
+          print('CPU_AMEN732_PUBLIC_BOUNDARY_PASS')
+          PY
+
+      - name: Run private-source CPU-only six-video and original-tracking reconciliation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}" || { echo 'PRIVATE_RELEASE_AUTH_NOT_AVAILABLE'; exit 3; }
+          if ! gh api repos/timeedmonds-maker/104 --jq .private | grep -qx true; then
+            echo 'ORIGINAL_SOURCE_REPOSITORY_NOT_PRIVATE'
+            exit 3
+          fi
+          if compgen -G '/dev/nvidia*' > /dev/null; then
+            echo 'STRICT_GPU_DISABLED_HARDWARE_GATE_FAIL'; exit 3
+          fi
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg >/dev/null
+          fi
+          python3 -m pip install -q --disable-pip-version-check numpy scipy
+          ROOT="$(mktemp -d)"
+          chmod 700 "$ROOT"
+          trap 'rm -rf "$ROOT"' EXIT
+          mkdir -p "$ROOT/cpu_animate" "$ROOT/tests" "$ROOT/source" "$ROOT/native" "$ROOT/official" "$ROOT/private_qa"
+          REF='cpu-animate%2Fm0-m1-validation-core-20261107'
+          gh api "repos/timeedmonds-maker/104/contents/cpu_animate/amen732_full131_source_join_cpu.py?ref=$REF" --jq .content | base64 -d > "$ROOT/cpu_animate/amen732_full131_source_join_cpu.py"
+          gh api "repos/timeedmonds-maker/104/contents/tests/test_cpu_animate_amen732_full131_join.py?ref=$REF" --jq .content | base64 -d > "$ROOT/tests/test_cpu_animate_amen732_full131_join.py"
+          (
+            cd "$ROOT"
+            python3 -m unittest discover -s tests -p 'test_cpu_animate_amen732_full131_join.py' -v
+            python3 "$GITHUB_WORKSPACE/tools/amen732_sixview_audio_alignment_v2.py" --selftest
+          )
+          gh release download freeview-native-0022600009-732 \
+            --repo timeedmonds-maker/104 --dir "$ROOT/source" \
+            -p '0022600009-e732-*.mp4' -p 'source_manifest.json' \
+            -p 'native_presentation_timestamps.json'
+          gh release download freeview-gamepulse-0022600009-e732-recovery \
+            --repo timeedmonds-maker/104 --dir "$ROOT/native"
+          for name in official_pbp_timing/games/0022600009.json; do
+            gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/$name?ref=main" --jq .content | base64 -d > "$ROOT/official/official_pbp.json"
+          done
+          gh api "repos/timeedmonds-maker/104/contents/data/extensions/nba_blueprint_2026_27/games/0022600009/blueprint_report_raw.json?ref=main" --jq .content | base64 -d > "$ROOT/official/original_blueprint.json"
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/games/0022600009.json?ref=main" --jq .content | base64 -d > "$ROOT/official/full_game_index.json"
+          for vid in "$ROOT/source"/*.mp4; do
+            ffmpeg -nostdin -hide_banner -v error -threads 3 -hwaccel none \
+              -i "$vid" -map 0:v:0 -an -sn -f null -
+          done
+          python3 "$GITHUB_WORKSPACE/tools/amen732_sixview_audio_alignment_v2.py" \
+             --source "$ROOT/source" --out "$ROOT/private_qa/amen732_same_6_source_audio_cpu.json" \
+             --ffmpeg ffmpeg --broadcast-seed 9.4
+          (
+            cd "$ROOT"
+            python3 -m cpu_animate.amen732_full131_source_join_cpu \
+              --source-dir "$ROOT/source" --native-dir "$ROOT/native" \
+              --official-pbp "$ROOT/official/official_pbp.json" \
+              --blueprint "$ROOT/official/original_blueprint.json" \
+              --game-index "$ROOT/official/full_game_index.json" \
+              --audio-qa "$ROOT/private_qa/amen732_same_6_source_audio_cpu.json" \
+              --out "$ROOT/private_qa/amen732_full131_original_sixview_source_join.json"
+          )
+          # Upload ONLY the QA reports to PRIVATE repo 104. Full original
+          # NBA frames and player/ball XYZ never enter runner repository or logs.
+          TAG='cpu-animate-amen732-full131-sixview-cpu-sync-20261108'
+          if ! gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1; then
+            gh release create "$TAG" --repo timeedmonds-maker/104 \
+              --title 'CPU Animate Amen732 six-angle original NBA video + tracking CPU source join' \
+              --notes 'Original source reviewed on CPU, audio offset candidate only. This is NOT independently accepted physical video-to-UTC tracking or player overlay alignment.' \
+              --latest=false >/dev/null
+          fi
+          gh release upload "$TAG" "$ROOT/private_qa/amen732_same_6_source_audio_cpu.json" \
+             "$ROOT/private_qa/amen732_full131_original_sixview_source_join.json" \
+             --repo timeedmonds-maker/104 --clobber >/dev/null
+          (
+            cd "$ROOT"
+            python3 - <<'PY'
+          import hashlib,json,subprocess,time
+          paths=['private_qa/amen732_same_6_source_audio_cpu.json',
+                 'private_qa/amen732_full131_original_sixview_source_join.json']
+          expected={}
+          for path in paths:
+              raw=open(path,'rb').read()
+              expected[path.split('/')[-1]]='sha256:'+hashlib.sha256(raw).hexdigest()
+          for attempt in range(15):
+              data=json.loads(subprocess.check_output([
+                  'gh','api','repos/timeedmonds-maker/104/releases/tags/cpu-animate-amen732-full131-sixview-cpu-sync-20261108']))
+              got={a['name']:a.get('digest') for a in data['assets']}
+              if all(got.get(k)==v for k,v in expected.items()):
+                  print('AMEN732_CPU_SYNC_PRIVATE_RELEASE_BOTH_SHA256_ACCEPTED',len(expected))
+                  break
+              time.sleep(3)
+          else: raise RuntimeError('AMEN732_CPU_SYNC_PRIVATE_RELEASE_SHA256_NOT_VERIFIED')
+          PY
+          )
+          echo 'AMEN732_SOURCE_ORIGINAL_6_ANGLE_CPU_EVENT_JOIN_FINISHED'
+
+      - name: Public source privacy declaration
+        if: always()
+        shell: bash
+        run: |
+          echo 'Every CPU-only source video, audio and original native NBA XYZ is private.'
+          echo 'Original score event UTC is never treated as certified video exposure/contact UTC.'
+          echo 'No reconstructed or accepted M1 camera geometry is asserted.'
