@@ -129,8 +129,7 @@ jobs:
           data=Path(sys.argv[1]).read_bytes()
           import subprocess
           path="gamepulse/coach_contest_release_20261107/"+Path(sys.argv[1]).name
-          result=subprocess.run(["gh","api","repos/timeedmonds-maker/104/contents/"+path,
-                                 "-f","ref=feature/courtcoder-coach-web-20261106",
+          result=subprocess.run(["gh","api","repos/timeedmonds-maker/104/contents/"+path+"?ref=feature/courtcoder-coach-web-20261106",
                                  "--jq",".sha"],capture_output=True,text=True)
           existing=result.stdout.strip() if result.returncode==0 else None
           body={
