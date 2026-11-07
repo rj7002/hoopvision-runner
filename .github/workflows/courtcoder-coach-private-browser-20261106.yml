@@ -19,7 +19,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: feature/courtcoder-coach-web-20261106
-      PRIVATE_SHA: fa76ca5663c56c1c89e0dcb42fe929224e046e5d
+      PRIVATE_SHA: 5aaa6f3b9a3e47fc2b03aacccd168801df3f40a2
       PRIVATE_REPO: timeedmonds-maker/104
     steps:
       - uses: actions/checkout@v4
@@ -117,6 +117,7 @@ jobs:
               courtcoder.coach.test_official_clips_v1
             check python_original_routes python3 -c "import sys;sys.path.insert(0,'courtcoder');from app import app;c=app.test_client();assert c.get('/api/health').status_code==200;assert c.get('/api/bootstrap').status_code==200;assert c.get('/').status_code==200;assert c.get('/coach/').status_code==404"
             check python_private_real_nba_pilot python3 -m unittest -v courtcoder.coach.qa.test_real_nba_pilot_release_v1
+            check python_event_time_pps_sourcegrade python3 -m unittest -v courtcoder.coach.qa.test_event_time_pps_research_v1
             check python_yaml_emulator_dependency python3 -m pip install --quiet PyYAML==6.0.2
             check python_cloudbuild_native_publish_emulation python3 -m unittest -v courtcoder.coach.qa.test_cloudbuild_original_release_emulation
           fi
