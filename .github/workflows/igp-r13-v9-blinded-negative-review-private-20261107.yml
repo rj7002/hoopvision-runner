@@ -596,6 +596,62 @@ jobs:
           echo R13_V16_ALL_178_SAMPLE_EPISODE_LABEL_GATE_PRIVATE_REPORT_READY
           echo R13_V16_MISSING_HUMAN_LABELS_NOT_FALSE_ZERO_BOUNCE_EVENTS
 
+      - name: V17 source-free four-observation ballistic hidden floor impact regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m unittest discover -s gamepulse/fusion/analysis \
+              -p test_igp_r13_fourpoint_interframe_ballistics_v17.py -v \
+              > "$RUNNER_TEMP/r13-v17-unit.log" 2>&1; then
+            python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          rel='gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/houston9_r13_v17_unit_private_failure_20261107.json'
+          ep=f"repos/{os.environ['PRIVATE_REPO']}/contents/{rel}"
+          data={'branch':os.environ['PRIVATE_BRANCH'],
+            'message':'qa(private): R13 V17 source-free failure [skip ci]',
+            'content':base64.b64encode(json.dumps({'private_trace':
+            Path(os.environ['RUNNER_TEMP'],'r13-v17-unit.log').read_text()[-18000:]}).encode()).decode()}
+          p=subprocess.run(['gh','api',ep+'?ref='+data['branch']],capture_output=True,text=True)
+          if p.returncode==0:data['sha']=json.loads(p.stdout)['sha']
+          subprocess.run(['gh','api','-X','PUT',ep,'--input','-'],input=json.dumps(data),
+                         text=True,capture_output=True,check=True)
+          PY
+            echo R13_V17_SOURCE_FREE_BALLISTICS_TESTS_FAILED_PRIVATE
+            exit 62
+          fi
+          echo R13_V17_ORIGINAL_FOUR_POINT_PHYSICS_TESTS_PASSED
+
+      - name: V17 original nine-game NBA native XYZ hidden interframe floor impact shadow
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m gamepulse.fusion.analysis.igp_r13_fourpoint_interframe_ballistics_v17 \
+              --root . --private-persist \
+              > "$RUNNER_TEMP/r13-v17-source.log" 2>&1; then
+            python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          rel='gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/houston9_r13_v17_source_private_failure_20261107.json'
+          ep=f"repos/{os.environ['PRIVATE_REPO']}/contents/{rel}"
+          data={'branch':os.environ['PRIVATE_BRANCH'],
+            'message':'qa(private): R13 V17 original source failure [skip ci]',
+            'content':base64.b64encode(json.dumps({'private_trace':
+            Path(os.environ['RUNNER_TEMP'],'r13-v17-source.log').read_text()[-18000:]}).encode()).decode()}
+          p=subprocess.run(['gh','api',ep+'?ref='+data['branch']],capture_output=True,text=True)
+          if p.returncode==0:data['sha']=json.loads(p.stdout)['sha']
+          subprocess.run(['gh','api','-X','PUT',ep,'--input','-'],input=json.dumps(data),
+                         text=True,capture_output=True,check=True)
+          PY
+            echo R13_V17_PRIVATE_SOURCE_FAILURE_DIAGNOSTIC
+            exit 63
+          fi
+          test -s gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/houston9_r13_v17_compact_interframe_ballistics_20261107.json
+          echo R13_V17_ORIGINAL_NBA_SHA_NINE_GAME_BALLISTIC_CANDIDATE_SHADOW_PERSISTED
+          echo R13_V17_UNOBSERVED_FLOOR_IMPACT_IS_NOT_INDEPENDENT_NBA_DRIBBLE_TRUTH
+
 # Reviewed separate private R13 original source reports; no raw XYZ or licensed video material on public runner.
 
 # Replayed after review of concurrent private-only source workflow in the public content allowlist.
