@@ -351,6 +351,60 @@ jobs:
           echo R13_V13_PRIVATE_LONG_TOUCH_AND_PRIORITY_CASES_SAVED
           echo R13_V13_NO_EVENT_TRUTH_OR_PRODUCTION_PROMOTION
 
+      - name: V14 full episode coverage and long-bounce sampling source-free regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m unittest discover -s gamepulse/fusion/analysis \
+              -p test_igp_r13_all_episode_majority_bounce_review_v14.py -v \
+              > "$RUNNER_TEMP/r13-v14-unit.log" 2>&1; then
+            python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          rel='gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/houston9_r13_v14_unit_private_failure_20261107.json'
+          ep=f"repos/{os.environ['PRIVATE_REPO']}/contents/{rel}"
+          data={'branch':os.environ['PRIVATE_BRANCH'],
+            'message':'qa(private): R13 V14 source-free test failure [skip ci]',
+            'content':base64.b64encode(json.dumps({'private_trace':
+            Path(os.environ['RUNNER_TEMP'],'r13-v14-unit.log').read_text()[-13000:]}).encode()).decode()}
+          p=subprocess.run(['gh','api',ep+'?ref='+data['branch']],capture_output=True,text=True)
+          if p.returncode==0:data['sha']=json.loads(p.stdout)['sha']
+          subprocess.run(['gh','api','-X','PUT',ep,'--input','-'],input=json.dumps(data),
+                         text=True,capture_output=True,check=True)
+          PY
+            echo R13_V14_PRIVATE_UNIT_FAILURE
+            exit 56
+          fi
+          echo R13_V14_SOURCE_FREE_ALL_DURATION_TESTS_PASSED
+      - name: V14 original nine-game 6550 full-episode duration and bounce-weighted validation census
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m gamepulse.fusion.analysis.igp_r13_all_episode_majority_bounce_review_v14 \
+              --root . --private-persist \
+              > "$RUNNER_TEMP/r13-v14-source.log" 2>&1; then
+            python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          rel='gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/houston9_r13_v14_source_private_failure_20261107.json'
+          ep=f"repos/{os.environ['PRIVATE_REPO']}/contents/{rel}"
+          data={'branch':os.environ['PRIVATE_BRANCH'],
+            'message':'qa(private): R13 V14 source failure [skip ci]',
+            'content':base64.b64encode(json.dumps({'private_trace':
+            Path(os.environ['RUNNER_TEMP'],'r13-v14-source.log').read_text()[-15000:]}).encode()).decode()}
+          p=subprocess.run(['gh','api',ep+'?ref='+data['branch']],capture_output=True,text=True)
+          if p.returncode==0:data['sha']=json.loads(p.stdout)['sha']
+          subprocess.run(['gh','api','-X','PUT',ep,'--input','-'],input=json.dumps(data),
+                         text=True,capture_output=True,check=True)
+          PY
+            echo R13_V14_PRIVATE_SOURCE_DIAGNOSTIC_PERSISTED
+            exit 57
+          fi
+          echo R13_V14_NINE_GAME_ALL_EPISODE_SOURCE_SHA_AND_BLIND_REVIEW_COMPLETE_PRIVATELY
+          echo R13_V14_INDEPENDENT_VIDEO_DRIBBLE_TRUTH_STILL_UNLABELLED
+
 # Reviewed separate private R13 original source reports; no raw XYZ or licensed video material on public runner.
 
 # Replayed after review of concurrent private-only source workflow in the public content allowlist.
