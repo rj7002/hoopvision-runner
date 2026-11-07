@@ -49,6 +49,14 @@ jobs:
               assert hashlib.sha256(blob).hexdigest()==item["shot_sha256"]
               rows=[json.loads(x) for x in gzip.decompress(blob).splitlines() if x]
               assert len(rows)==item["counts"]["official_fga"]
+              if game==sorted(idx["games"])[-1]:
+                  record=rows[0]
+                  print("COACH_CURRENT_FGA_SOURCE_FIELD_NAMES",",".join(sorted(record)))
+                  for key in ("official_nba_shot_event","companion_original_shot_metadata",
+                              "blueprint_original_shot","original_native_nearest_release_frame"):
+                      val=record.get(key)
+                      if isinstance(val,dict):
+                          print("COACH_CURRENT_FGA_NESTED_FIELDS",key,",".join(sorted(val)))
               verified+=len(rows)
           receipt={"schema":"igp.coach.real-two-season-source-census.v1",
                    "full666_original_games":666,
