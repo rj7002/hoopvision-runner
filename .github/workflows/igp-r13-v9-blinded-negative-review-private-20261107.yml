@@ -1,0 +1,96 @@
+# Public CPU-only orchestration. Original NBA data and review packets stay private.
+name: IGP R13 V9 blinded detector-negative holdout (private)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-r13-v9-blinded-negative-review-private-20261107.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: igp-r13-v9-blinded-negative-review-private
+  cancel-in-progress: false
+jobs:
+  sha-verified-private-review-manifest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: feature/igp-full123-r13-touch-integration-20261107
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Authenticate reviewed private GitHub bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          gh auth setup-git
+      - name: Materialize only source SHA-proven original R13 games and PBP plus prior private V6 V8 receipts
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth 1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          git sparse-checkout set --no-cone \
+            '/gamepulse/fusion/*.py' \
+            '/gamepulse/fusion/analysis/*.py' \
+            '/gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/*.json' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600009.json' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600021.json' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600091.json' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600107.json' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600125.json' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600138.json' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600153.json' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600167.json' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600181.json'
+          test -s gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600167.json
+          test -s gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/houston9_original_sdk_symmetric_dribble_adjudication_20261107_v6.json
+          test -s gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/houston9_r13_v8_original_sdk_stratified_blinded_video_review_20261107.json
+          echo R13_V9_PRIVATE_REVIEW_SOURCE_SHA_RECEIPTS_READY
+      - name: Test reproducible V9 original-source detector-negative selection and blinding
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m unittest discover -s gamepulse/fusion/analysis \
+              -p test_igp_r13_dribble_negative_review_v9.py -v \
+              > "$RUNNER_TEMP/r13-v9-unit.log" 2>&1; then
+            echo R13_V9_POSITIVE_NEGATIVE_BLIND_TEST_FAILED
+            exit 44
+          fi
+          echo R13_V9_POSITIVE_NEGATIVE_BLIND_TESTS_PASSED
+      - name: Create 54 sampled detector-negative episodes plus 189 prior positives under private SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          if ! python3 -m gamepulse.fusion.analysis.igp_r13_dribble_negative_review_v9 \
+                --root . --private-persist \
+                > "$RUNNER_TEMP/r13-v9-run.log" 2>&1; then
+            python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          rel='gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/houston9_r13_v9_private_failure_20261107.json'
+          ep=f"repos/{os.environ['PRIVATE_REPO']}/contents/{rel}"
+          data={'branch':os.environ['PRIVATE_BRANCH'],
+             'message':'qa(private): R13 V9 detector-negative review source failure [skip ci]',
+             'content':base64.b64encode(json.dumps({'private_trace':
+             Path(os.environ['RUNNER_TEMP'],'r13-v9-run.log').read_text()[-19000:]}).encode()).decode()}
+          p=subprocess.run(['gh','api',ep+'?ref='+data['branch']],capture_output=True,text=True)
+          if p.returncode==0:data['sha']=json.loads(p.stdout)['sha']
+          subprocess.run(['gh','api','-X','PUT',ep,'--input','-'],input=json.dumps(data),
+                         text=True,capture_output=True,check=True)
+          PY
+            echo R13_V9_ORIGINAL_NBA_SOURCE_NEGATIVE_REVIEW_FAILED_PRIVATE_TRACE
+            exit 45
+          fi
+          echo R13_V9_ALL_NINE_ORIGINAL_SOURCE_SHA_GAMES_REVIEWED
+          echo R13_V9_243_BLINDED_POSITIVE_AND_NEGATIVE_CASES_PRIVATE
+          echo R13_V9_NO_NBA_DRIBBLE_LABELS_OR_RECALL_FABRICATED
