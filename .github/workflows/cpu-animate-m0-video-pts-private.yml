@@ -84,6 +84,9 @@ jobs:
           gh api "repos/timeedmonds-maker/104/contents/tests/test_cpu_animate_m1_player_binding.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/tests/test_cpu_animate_m1_player_binding.py"
           gh api "repos/timeedmonds-maker/104/contents/tests/test_cpu_animate_native_video_association.py?ref=$BRANCH" --jq .content | base64 -d > "$ROOT/tests/test_cpu_animate_native_video_association.py"
           gh api "repos/timeedmonds-maker/104/contents/tools/locked_broadcast_screen_v5_rings.py?ref=courtcoder%2Fintegration" --jq .content | base64 -d > "$ROOT/tools/locked_broadcast_screen_v5_rings.py"
+          # Production ring imports the native-3D association model;
+          # install CPU-only numeric dependencies before the FIRST test.
+          python3 -m pip install -q --disable-pip-version-check numpy scipy
           (
             cd "$ROOT"
             python3 -m unittest discover -s tests -p 'test_cpu_animate_core.py' -v
