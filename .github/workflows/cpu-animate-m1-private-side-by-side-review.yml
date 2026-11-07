@@ -1,0 +1,59 @@
+# Existing licensed NBA footage and generated MP4 remain in private 104 releases.
+name: CPU Animate M1 source vs frozen rings private review MP4
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/cpu-animate-m1-private-side-by-side-review.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cpu-animate-m1-private-review-20261107
+  cancel-in-progress: false
+
+jobs:
+  cpu-native-review-mp4:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      OMP_NUM_THREADS: '4'
+      OPENBLAS_NUM_THREADS: '4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify exact public-to-private review bridge scope
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from tools.public_content_guard import scan
+          name='.github/workflows/cpu-animate-m1-private-side-by-side-review.yml'
+          problems=scan([name])
+          if problems:
+              print('CPU_ANIMATE_PUBLIC_BRIDGE_REJECTED')
+              raise SystemExit(3)
+          print('CPU_ANIMATE_PRIVATE_ONLY_BRIDGE_APPROVED')
+          PY
+      - name: CPU render authentic source vs original frozen ring pilot privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}" || { echo PRIVATE_RELEASE_AUTH_MISSING; exit 3; }
+          if ! gh api repos/timeedmonds-maker/104 --jq .private | grep -qx true; then
+            echo PRIVATE_RELEASE_ACCESS_REJECTED
+            exit 3
+          fi
+          if ! command -v ffmpeg >/dev/null || ! ffmpeg -hide_banner -filters 2>/dev/null | grep -q drawtext; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg >/dev/null
+          fi
+          ROOT="$(mktemp -d)"
+          trap 'rm -rf "$ROOT"' EXIT
+          REF='cpu-animate%2Fm0-m1-validation-core-20261107'
+          gh api "repos/timeedmonds-maker/104/contents/cpu_animate/m1_visual_comparison.py?ref=$REF" --jq .content | base64 -d > "$ROOT/review.py"
+          python3 "$ROOT/review.py"
