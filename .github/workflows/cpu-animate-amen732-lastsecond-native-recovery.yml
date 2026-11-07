@@ -64,14 +64,19 @@ jobs:
             "$URL" "$ROOT/engine"
           git -C "$ROOT/engine" sparse-checkout set --no-cone \
             /cpu_animate/amen732_lategame_source_gap_cpu.py \
+            /cpu_animate/amen732_original_shot_crosswalk_cpu.py \
             /docs/cpu_animate/qa/
           python3 "$ROOT/engine/cpu_animate/amen732_lategame_source_gap_cpu.py" \
             --root "$ROOT/private" \
             --out "$ROOT/engine/docs/cpu_animate/qa/amen732_original_source_gap_forensic.json"
+          python3 "$ROOT/engine/cpu_animate/amen732_original_shot_crosswalk_cpu.py" \
+            --source-root "$ROOT/private" \
+            --output "$ROOT/engine/docs/cpu_animate/qa/amen732_shot_companion_biomechanics_crosswalk.json"
           cd "$ROOT/engine"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add --sparse -f docs/cpu_animate/qa/amen732_original_source_gap_forensic.json
+          git add --sparse -f docs/cpu_animate/qa/amen732_original_source_gap_forensic.json \
+            docs/cpu_animate/qa/amen732_shot_companion_biomechanics_crosswalk.json
           git diff --cached --check
           git commit -qm 'evidence(cpu-animate): Amen/Wemby last-second original 3D source-gap and alternate companion inspection'
           for retry in 1 2 3 4 5 6; do
