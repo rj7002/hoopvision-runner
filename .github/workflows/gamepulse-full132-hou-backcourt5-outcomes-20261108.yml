@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - .github/workflows/gamepulse-full132-hou-backcourt5-outcomes-20261108.yml
+      - tools/public_content_guard.py
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
