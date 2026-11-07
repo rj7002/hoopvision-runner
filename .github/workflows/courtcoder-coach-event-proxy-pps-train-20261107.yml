@@ -60,6 +60,51 @@ jobs:
             --workers 5
           test -s "$RUNNER_TEMP/coach-release/source-event-pressure-qa.json"
           test -s "$RUNNER_TEMP/coach-release/event-proxy-heldout.json"
+      - name: Stage only accepted SHA-receipted model in PRIVATE feature branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/coach-release"
+          test -s "$root/event-proxy-heldout.json"
+          accepted="$(python3 - "$root/event-proxy-heldout.json" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1]))
+          print(d.get("status","RESEARCH_NOT_ACCEPTED"))
+          PY
+          )"
+          if [[ "$accepted" != PASS ]]; then
+            echo COACH_PROXY_UNACCEPTED_NO_PRIVATE_BRANCH_STAGING
+            exit 0
+          fi
+          gh auth setup-git
+          if ! git clone -q --depth=1 --filter=blob:none --sparse \
+               --branch feature/courtcoder-coach-web-20261106 \
+               "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private-stage" \
+               >"$RUNNER_TEMP/private-stage-clone.log" 2>&1; then
+            echo COACH_ACCEPTED_MODEL_PRIVATE_GIT_STAGE_CLONE_DENIED
+            exit 0
+          fi
+          cd "$RUNNER_TEMP/private-stage"
+          git sparse-checkout set gamepulse/coach_event_proxy_release_20261107
+          mkdir -p gamepulse/coach_event_proxy_release_20261107
+          for name in event-proxy-model.json event-proxy-heldout.json source-event-pressure-qa.json; do
+            cp "$root/$name" "gamepulse/coach_event_proxy_release_20261107/$name"
+          done
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gamepulse/coach_event_proxy_release_20261107
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo COACH_PRIVATE_ACCEPTED_PROXY_SOURCE_ALREADY_STAGED
+            exit 0
+          fi
+          git commit -q -m "release(coach): original-NBA event-time proxy PPS with game-holdout QA"
+          if git push -q origin HEAD:refs/heads/feature/courtcoder-coach-web-20261106 \
+               >"$RUNNER_TEMP/coach-private-push.log" 2>&1; then
+            echo COACH_PRIVATE_SOURCE_BOUND_PROXY_MODEL_STAGED
+          else
+            echo COACH_ACCEPTED_MODEL_PRIVATE_GIT_PUSH_NOT_AUTHORISED
+          fi
       - name: Publish trained evidence and any accepted model to PRIVATE release only
         shell: bash
         run: |
