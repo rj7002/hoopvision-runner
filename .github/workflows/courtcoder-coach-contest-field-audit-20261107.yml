@@ -15,7 +15,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PRIVATE_SHA: 0b1c8d3352f27d77ce6d63e87109425cccf17a9e
+      PRIVATE_SHA: 30b06ae04f866ae33b75204378c86e678d863183
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -96,8 +96,10 @@ jobs:
           mod=importlib.util.module_from_spec(spec);spec.loader.exec_module(mod)
           dbroot=root/"private-canonical/gamepulse/fusion/materialized/igp_full107_client_shot_defense_v1"
           rows=list(mod.source_rows(dbroot/"full107_shots.sqlite",dbroot/"full107_shots.qa.json"))
-          qa=mod.evaluate(rows)
-          model=mod.fit(rows)
+          hist=list(mod.historical_rows(root.parent/'coach-original-contest/history',root.parent/'coach-original-contest/source-qa.json'))
+          qa=mod.evaluate(rows,hist)
+          model=mod.fit(rows,hist)
+          assert model['historical_shots_with_xfg']>100000
           assert len(rows)>17000 and model["source_games"]==107
           print("COACH_PUBLISHED_CONTEST_MODEL_QA",json.dumps(qa,sort_keys=True))
           print("COACH_PUBLISHED_CONTEST_RESPONSE",json.dumps({
