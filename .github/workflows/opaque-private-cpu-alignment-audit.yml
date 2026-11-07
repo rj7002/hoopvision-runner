@@ -120,6 +120,23 @@ jobs:
             -p 'test_cpu_animate_min_ato_0181_multiview_audit.py' \
             > "$ROOT/synthetic-tests.log" 2>&1 || { echo MULTIVIEW_SYNTHETIC_TESTS_FAILED; exit 4; }
           echo MULTIVIEW_CPU_UNIT_TESTS_PASS
+          python3 - "$ROOT" <<'PY'
+          from pathlib import Path
+          import sys
+          root=Path(sys.argv[1])
+          media=root/'media'
+          native=root/'original'
+          code=root/'private'
+          checks={
+              'source_video_count':len(list(media.glob('angle-*.mp4'))),
+              'source_sidecar_count':len(list(media.glob('angle-*.json'))),
+              'native_chunk_ready':any(native.rglob('original-native-00014.jsonl.gz')),
+              'native_index_ready':any(native.rglob('index.json')),
+              'shot_blueprint_ready':any(native.rglob('blueprint_report_raw.json')),
+              'source_selection_ready':any(code.rglob('rockets_minnesota_0022600181_ato_manifest.json')),
+          }
+          print('PRIVATE_STAGING_COUNTS_AND_FLAGS',checks)
+          PY
           if ! python3 -m cpu_animate.min_ato_0181_multiview_audit \
               --private "$ROOT/private" --original "$ROOT/original" \
               --media "$ROOT/media" --out "$ROOT/output" \
@@ -129,6 +146,16 @@ jobs:
           lines=open(sys.argv[1]).read()
           c=re.findall(r'(?m)^([\w.]+(?:Error|Exception)):',lines)
           print('PRIVATE_ALIGNMENT_ERROR_CLASS',c[-1] if c else 'UNKNOWN')
+          found=re.findall(r"FileNotFoundError:[^\n]+",lines)
+          kind='UNKNOWN'
+          if found:
+              last=found[-1]
+              if 'angle-' in last:kind='ORIGINAL_VIDEO_OR_PTS_FILE'
+              elif 'original-native' in last:kind='ORIGINAL_NATIVE_TRACKING_CHUNK'
+              elif 'blueprint_report' in last:kind='BLUEPRINT_ORIGINAL_REPORT'
+              elif 'index.json' in last:kind='ORIGINAL_NATIVE_INDEX'
+              elif 'rockets_minnesota' in last:kind='ORIGINAL_SOURCE_SELECTION_MANIFEST'
+          print('PRIVATE_INPUT_FILE_MISSING_CLASS',kind)
           PY
             echo PRIVATE_THREEVIEW_ALIGNMENT_AUDIT_FAILED
             exit 5
