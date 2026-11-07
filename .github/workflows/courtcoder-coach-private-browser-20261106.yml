@@ -50,6 +50,19 @@ jobs:
           test -f "$RUNNER_TEMP/private/courtcoder/coach/index.html"
           test -f "$RUNNER_TEMP/private/courtcoder/qa/coach_ui_visual_contract.test.cjs"
           test -f "$RUNNER_TEMP/private/courtcoder/qa/coach_ui_browser_acceptance.cjs"
+          # The private workflow performs a detached shallow sparse checkout.
+          # Some sparse histories omit newly staged model files; obtain the
+          # exact pinned 104 commit blobs through authenticated private GitHub.
+          # Never print, upload, or expose the licensed model payload publicly.
+          for name in event-proxy-model.json event-proxy-heldout.json source-event-pressure-qa.json; do
+            root=gamepulse/coach_event_proxy_release_20261107
+            if [[ ! -s "$root/$name" ]]; then
+              mkdir -p "$root"
+              gh api "repos/$PRIVATE_REPO/contents/$root/$name?ref=$PRIVATE_SHA" \
+                --jq '.content' | base64 -d > "$root/$name"
+              test -s "$root/$name"
+            fi
+          done
           python3 - <<'PY'
           import json,hashlib
           from pathlib import Path
