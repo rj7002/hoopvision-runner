@@ -46,9 +46,18 @@ jobs:
         run: |
           set -euo pipefail
           test -n "${GH_TOKEN:-}" || { echo PRIVATE_RELEASE_TOKEN_MISSING; exit 3; }
-          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
-          command -v ffmpeg
-          command -v ffprobe
+          echo PRIVATE_TOKEN_PRESENT
+          if ! gh api repos/timeedmonds-maker/104 --jq .private | grep -qx true; then
+            echo PRIVATE_SOURCE_AUTH_REJECTED
+            exit 3
+          fi
+          echo PRIVATE_SOURCE_AUTH_OK
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            echo INSTALL_CPU_FFMPEG
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg >/dev/null
+          fi
+          echo FFMPEG_CPU_READY
           ROOT="$(mktemp -d)"
           trap 'rm -rf "$ROOT"' EXIT
           export CPU_ANIMATE_ROOT="$ROOT"
