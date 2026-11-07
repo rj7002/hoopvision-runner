@@ -1,0 +1,98 @@
+name: CPU Animate 12-source-label multi-angle CPU private ingest
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/cpu-animate-multicamera-cpu-private.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cpu-animate-616-multiangle-private
+  cancel-in-progress: false
+
+jobs:
+  validate-and-ingest-private-angle-feeds:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: 'none'
+      OPENBLAS_NUM_THREADS: '2'
+      OMP_NUM_THREADS: '2'
+      OPENCV_OPENCL_RUNTIME: 'disabled'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check public security boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from tools.public_content_guard import scan
+          p='.github/workflows/cpu-animate-multicamera-cpu-private.yml'
+          violations=scan([p])
+          if violations:
+              print('PUBLIC_TO_PRIVATE_CPU_INGEST_SECURITY_REJECTED')
+              raise SystemExit(3)
+          print('PUBLIC_TO_PRIVATE_CPU_INGEST_SECURITY_OK')
+          PY
+
+      - name: Fetch immutable private source only inside temporary CPU runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}" || { echo PRIVATE_SOURCE_CREDENTIAL_MISSING; exit 3; }
+          if ! gh api repos/timeedmonds-maker/104 --jq .private | grep -qx true; then
+            echo PRIVATE_REPOSITORY_NOT_ACCESSIBLE
+            exit 3
+          fi
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg >/dev/null
+          fi
+          python3 -m pip install -q --disable-pip-version-check numpy opencv-python-headless
+          TEMP="$(mktemp -d)"
+          chmod 700 "$TEMP"
+          echo "CPU_ANIMATE_ROOT=$TEMP" >> "$GITHUB_ENV"
+          mkdir -p "$TEMP/cpu_animate" "$TEMP/tests" "$TEMP/private"
+          BRANCH='cpu-animate%2Fm0-m1-validation-core-20261107'
+          for item in camera_feed_taxonomy.py multi_angle_cpu_ingest.py; do
+            gh api "repos/timeedmonds-maker/104/contents/cpu_animate/$item?ref=$BRANCH" --jq .content | base64 -d > "$TEMP/cpu_animate/$item"
+          done
+          gh api "repos/timeedmonds-maker/104/contents/tests/test_cpu_animate_camera_feed_taxonomy.py?ref=$BRANCH" --jq .content | base64 -d > "$TEMP/tests/test_cpu_animate_camera_feed_taxonomy.py"
+          gh api "repos/timeedmonds-maker/104/contents/docs/cpu_animate/frozen_reference/adams_jazz_game_camera_registry_v6.json?ref=$BRANCH" --jq .content | base64 -d > "$TEMP/private/historical-registry-v6.json"
+          gh api "repos/timeedmonds-maker/104/contents/docs/cpu_animate/frozen_reference/event489_camera_options.json?ref=$BRANCH" --jq .content | base64 -d > "$TEMP/private/event489-options.json"
+          echo "CPU_ANIMATE_HISTORICAL_REGISTRY_JSON=$TEMP/private/historical-registry-v6.json" >> "$GITHUB_ENV"
+          echo "CPU_ANIMATE_HISTORICAL_CHOOSER_JSON=$TEMP/private/event489-options.json" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import hashlib,os,pathlib
+          root=pathlib.Path(os.environ['CPU_ANIMATE_ROOT']) if 'CPU_ANIMATE_ROOT' in os.environ else None
+          # GITHUB_ENV takes effect in the next step. Source fixture SHA is checked
+          # again by the actual ingest engine on every CPU invocation.
+          print('VERBATIM_HISTORICAL_FIXTURES_STAGED_TO_PRIVATE_CPU_RUNNER')
+          PY
+
+      - name: Run 12-label vs three-camera regression and private CPU-only ingestion
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'rm -rf "$CPU_ANIMATE_ROOT"' EXIT
+          cd "$CPU_ANIMATE_ROOT"
+          python3 -m unittest discover -s tests -p 'test_cpu_animate_camera_feed_taxonomy.py' -v
+          python3 -m cpu_animate.multi_angle_cpu_ingest
+          echo 'CPU_ANIMATE_EVENT616_MULTIANGLE_CPU_PRIVATE_RUN_COMPLETED'
+
+      - name: Declare scope without source media leakage
+        if: always()
+        run: |
+          echo 'Licensed NBA HLS source media and native PTS only in private 104 release.'
+          echo 'No GPU, no raw NBA tracking, no signed media URLs or footage in public artifacts.'
+          echo 'A source camera label is not proof of distinct optical camera or synchronized video.'
