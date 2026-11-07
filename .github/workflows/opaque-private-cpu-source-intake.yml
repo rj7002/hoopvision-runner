@@ -1,0 +1,168 @@
+name: Opaque private-authorized CPU-only source intake
+on:
+  push:
+    branches: ['cpu-animate-opaque-private-cpu-20261108']
+    paths:
+      - '.github/workflows/opaque-private-cpu-source-intake.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opaque-private-cpu-source-intake-f48f7c6d
+  cancel-in-progress: false
+
+jobs:
+  private-authorized-cpu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      REQUEST_ID: 'req-f48f7c6d5e103b9aa80f6d2147b3c9e2'
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: 'none'
+      OPENCV_OPENCL_RUNTIME: disabled
+      OMP_NUM_THREADS: '2'
+      PYTHONUNBUFFERED: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Verify public runner has no private material
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}" || { echo PRIVATE_AUTH_NOT_AVAILABLE; exit 4; }
+          test ! -e /dev/nvidia0
+          test ! -e /dev/kfd
+          echo PUBLIC_OPAQUE_CPU_SECURITY_GATE_PASS
+
+      - name: Resolve one private authorization, pin code, test and ingest on CPU
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(mktemp -d)"
+          chmod 700 "$ROOT"
+          trap 'rm -rf "$ROOT"' EXIT
+
+          # The ONLY public request input is opaque. Experiment selection,
+          # exact private branch, SHA, source game and event are private issue data.
+          if ! gh api search/issues -X GET \
+             -f "q=repo:timeedmonds-maker/104 is:issue in:title ${REQUEST_ID}" \
+             --jq '.items' > "$ROOT/private-issue-list.json" 2>"$ROOT/query-error"; then
+             echo PRIVATE_REGISTRATION_LOOKUP_FAILED
+             exit 4
+          fi
+          ISSUE_NUMBER="$(python3 - "$ROOT/private-issue-list.json" <<'PY'
+          import json,sys
+          rows=json.load(open(sys.argv[1]))
+          if len(rows)!=1:raise SystemExit(4)
+          print(rows[0]['number'])
+          PY
+          )"
+          test -n "$ISSUE_NUMBER" || { echo PRIVATE_REGISTRATION_NOT_UNIQUE; exit 4; }
+          if ! gh api "repos/timeedmonds-maker/104/issues/$ISSUE_NUMBER" --jq '.body' \
+             > "$ROOT/private-registration.txt" 2>"$ROOT/issue-error"; then
+             echo PRIVATE_REGISTRATION_UNREADABLE
+             exit 4
+          fi
+          python3 - "$ROOT/private-registration.txt" "$REQUEST_ID" > "$ROOT/private-selection.txt" <<'PY'
+          import json,re,sys
+          body=open(sys.argv[1]).read()
+          m=re.search(r'```json\s*(.*?)\s*```',body,re.S)
+          if m is None:raise SystemExit(4)
+          item=json.loads(m.group(1))
+          if (item.get('schema')!='cpu-animate.private-cpu-registration.v1'
+              or item.get('request_id')!=sys.argv[2]
+              or item.get('private_repository')!='timeedmonds-maker/104'
+              or item.get('status')!='AUTHORIZED_NOT_YET_RUN'
+              or item.get('authorize_this_exact_request_once') is not True
+              or item.get('gpu_allowed') is not False
+              or item.get('gcp_allowed') is not False
+              or item.get('max_camera_views')!=3
+              or item.get('max_github_cpu_runtime_minutes')!=22
+              or item.get('purpose')!='source_gate_then_private_original_NBA_event_HLS_ingest'):
+              raise SystemExit(4)
+          ref=item.get('private_branch','')
+          sha=item.get('private_head_sha','')
+          gid=item.get('game_id','')
+          event=item.get('source_shot_event')
+          if not re.fullmatch(r'cpu-animate/[A-Za-z0-9._/-]{1,100}',ref):raise SystemExit(4)
+          if not re.fullmatch(r'[0-9a-f]{40}',sha):raise SystemExit(4)
+          if not re.fullmatch(r'00226[0-9]{5}',gid):raise SystemExit(4)
+          if not isinstance(event,int) or event<1 or event>999999:raise SystemExit(4)
+          print(ref)
+          print(sha)
+          print(gid)
+          print(event)
+          print(item['max_camera_views'])
+          PY
+          mapfile -t CONTROL < "$ROOT/private-selection.txt"
+          test "${#CONTROL[@]}" = 5 || { echo PRIVATE_AUTHORIZATION_INVALID; exit 4; }
+
+          # Authorization is recorded PRIVATE; exact SHA must match, never
+          # run attacker-selected or branch-drifted source.
+          if ! gh auth setup-git > "$ROOT/auth.log" 2>&1; then
+              echo PRIVATE_GIT_AUTH_HELPER_UNAVAILABLE
+              exit 4
+          fi
+          if ! git clone -q --depth=1 --filter=blob:none --sparse \
+               --branch "${CONTROL[0]}" \
+               https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
+               > "$ROOT/clone.log" 2>&1; then
+              echo PRIVATE_SOURCE_CHECKOUT_UNAVAILABLE
+              exit 4
+          fi
+          test "$(git -C "$ROOT/private" rev-parse HEAD)" = "${CONTROL[1]}" || {
+              echo PRIVATE_SOURCE_SHA_CHANGED
+              exit 4
+          }
+          if ! git -C "$ROOT/private" sparse-checkout set cpu_animate tests docs/cpu_animate \
+             > "$ROOT/sparse.log" 2>&1; then
+              echo PRIVATE_SOURCE_SPARSE_CHECKOUT_FAILED
+              exit 4
+          fi
+          cd "$ROOT/private"
+          export CPU_ANIMATE_SOURCE_GAME_ID="${CONTROL[2]}"
+          export CPU_ANIMATE_SOURCE_EVENT_NUM="${CONTROL[3]}"
+          export CPU_ANIMATE_ANGLE_LIMIT="${CONTROL[4]}"
+          export CPU_ANIMATE_HISTORICAL_REGISTRY_JSON="$PWD/docs/cpu_animate/frozen_reference/adams_jazz_game_camera_registry_v6.json"
+          export CPU_ANIMATE_HISTORICAL_CHOOSER_JSON="$PWD/docs/cpu_animate/frozen_reference/event489_camera_options.json"
+          if ! python3 -m unittest discover -s tests -p test_cpu_animate_minnesota_ato_0181.py \
+             > "$ROOT/tests.log" 2>&1; then
+             echo PRIVATE_SOURCE_REGRESSION_TEST_FAILED
+             exit 4
+          fi
+          if ! python3 -m cpu_animate.min_ato_0181_source_gate \
+             > "$ROOT/verified-source.log" 2>&1; then
+             echo PRIVATE_ORIGINAL_SOURCE_GATE_FAILED
+             exit 4
+          fi
+          echo PRIVATE_ORIGINAL_GAME_SOURCE_SHA_PASS
+
+          if ! command -v ffprobe >/dev/null || ! command -v ffmpeg >/dev/null; then
+             sudo apt-get update -qq >/dev/null 2>&1
+             sudo apt-get install -y -qq ffmpeg > "$ROOT/ffmpeg-install.log" 2>&1
+          fi
+          python3 -m pip install -q --disable-pip-version-check \
+             numpy opencv-python-headless > "$ROOT/pip.log" 2>&1 || {
+             echo PUBLIC_CPU_NUMERIC_DEPENDENCY_UNAVAILABLE
+             exit 4
+          }
+          if ! python3 -m unittest discover -s tests -p test_cpu_animate_angle_taxonomy.py \
+             > "$ROOT/taxonomy.log" 2>&1; then
+             echo PRIVATE_CAMERA_TAXONOMY_GATE_FAILED
+             exit 4
+          fi
+          echo PRIVATE_CPU_ANGLE_DISCOVERY_RUNNING
+          if ! python3 -m cpu_animate.multi_angle_cpu_ingest \
+             > "$ROOT/ingest.log" 2>&1; then
+             echo PRIVATE_VIDEO_INGEST_DID_NOT_COMPLETE
+             exit 5
+          fi
+          echo PRIVATE_SHA_VERIFIED_VIDEO_ASSETS_STAGED
+          echo PRIVATE_VIDEO_PTS_TO_UTC_AND_CAMERA_PIXEL_ACCEPTANCE_NOT_CLAIMED
