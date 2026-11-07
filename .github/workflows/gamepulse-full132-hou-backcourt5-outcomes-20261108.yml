@@ -1,0 +1,101 @@
+# Source-graded Full132 Houston backcourt first-five analysis. Public runner holds no private coordinates.
+name: Full132 Rockets first-five backcourt handler and outcome analysis
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/gamepulse-full132-hou-backcourt5-outcomes-20261108.yml
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: full132-rockets-backcourt5-20261108
+  cancel-in-progress: false
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/full132-rockets-backcourt5-possession-outcomes-20261108
+      REPO: timeedmonds-maker/104
+      OUT: gamepulse/fusion/qa/analysis/full132_hou_backcourt5_first_five_20261108.json
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify runner source policy and authenticated access
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Read only nine immutable SHA-verified original NBA GamePulse sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth=1 --filter=blob:none --sparse -b "$BRANCH" "https://github.com/$REPO.git" "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          git sparse-checkout set --no-cone \
+            'gamepulse/fusion/igp_full132_hou_backcourt5_outcomes_v1.py' \
+            'gamepulse/fusion/igp_halfcourt_touch_query_v1.py' \
+            'gamepulse/fusion/universal_possession_alignment_2026.py' \
+            'gamepulse/catalog/2026-27-integrated-current.json' \
+            'gamepulse/fusion/official_pbp_timing/games/0022600009.json' \
+            'gamepulse/fusion/official_pbp_timing/games/0022600021.json' \
+            'gamepulse/fusion/official_pbp_timing/games/0022600091.json' \
+            'gamepulse/fusion/official_pbp_timing/games/0022600107.json' \
+            'gamepulse/fusion/official_pbp_timing/games/0022600125.json' \
+            'gamepulse/fusion/official_pbp_timing/games/0022600138.json' \
+            'gamepulse/fusion/official_pbp_timing/games/0022600153.json' \
+            'gamepulse/fusion/official_pbp_timing/games/0022600167.json' \
+            'gamepulse/fusion/official_pbp_timing/games/0022600181.json' \
+            'gamepulse/fusion/materialized/igp_all_original_xyz/0022600009/*' \
+            'gamepulse/fusion/materialized/igp_all_original_xyz/0022600021/*' \
+            'gamepulse/fusion/materialized/igp_all_original_xyz/0022600091/*' \
+            'gamepulse/fusion/materialized/igp_all_original_xyz/0022600107/*' \
+            'gamepulse/fusion/materialized/igp_all_original_xyz/0022600125/*' \
+            'gamepulse/fusion/materialized/igp_all_original_xyz/0022600138/*' \
+            'gamepulse/fusion/materialized/igp_all_original_xyz/0022600153/*' \
+            'gamepulse/fusion/materialized/igp_all_original_xyz/0022600167/*' \
+            'gamepulse/fusion/materialized/igp_all_original_xyz/0022600181/*'
+          python3 -B -m py_compile gamepulse/fusion/igp_full132_hou_backcourt5_outcomes_v1.py
+          export PYTHONPATH=gamepulse/fusion
+          python3 -B gamepulse/fusion/igp_full132_hou_backcourt5_outcomes_v1.py \
+            --root . --out "$RUNNER_TEMP/backcourt5-private.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          x=json.loads((Path(os.environ['RUNNER_TEMP'])/'backcourt5-private.json').read_text())
+          assert x['schema']=='igp.full132.hou.first5.backcourt.ballhandler.outcomes.source_candidate.v1'
+          assert len(x['game_qa'])==9
+          assert sum(p['all']['n'] for p in x['player_results'].values())==len(x['private_candidate_rows'])
+          assert x['scope']['physical_possessions_certified'] is False
+          print('PRIVATE_SOURCE_QA_VERIFIED',json.dumps({pid:{'player':p['name'],'n':p['all']['n'],
+            'points':p['all']['points'],'ppp':p['all']['ppp'],
+            'action_count':{act:v['n'] for act,v in p['actions'].items()}}
+            for pid,p in x['player_results'].items()},sort_keys=True))
+          PY
+      - name: Save detailed outcome matrix only in private GitHub repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,base64,os,subprocess,time
+          from pathlib import Path
+          path=Path(os.environ['RUNNER_TEMP'])/'backcourt5-private.json'
+          url='repos/'+os.environ['REPO']+'/contents/'+os.environ['OUT']
+          body={'branch':os.environ['BRANCH'],
+            'message':'qa(igp): SHA original Full132 Houston first5 backcourt handler outcomes [skip ci]',
+            'content':base64.b64encode(path.read_bytes()).decode()}
+          for attempt in range(14):
+            old=subprocess.run(['gh','api',url+'?ref='+os.environ['BRANCH']],capture_output=True,text=True)
+            request=dict(body)
+            if old.returncode==0:request['sha']=json.loads(old.stdout)['sha']
+            result=subprocess.run(['gh','api','-X','PUT',url,'--input','-'],
+                input=json.dumps(request),capture_output=True,text=True)
+            if result.returncode==0:
+              print('PRIVATE_FULL132_HOU_BACKCOURT5_OUTCOME_RESULT_PERSISTED')
+              break
+            time.sleep(2+attempt)
+          else:raise RuntimeError('PRIVATE_QA_PERSISTENCE_FAILED')
+          PY
