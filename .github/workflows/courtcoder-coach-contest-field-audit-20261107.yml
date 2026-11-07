@@ -59,6 +59,7 @@ jobs:
           gh release download igp-coach-pps-two-season-readiness-20261107 \
             --repo "$PRIVATE_REPO" --dir "$root" \
             --pattern source-event-pressure-fga.jsonl.gz \
+            --pattern source-event-pressure-qa.json \
             > "$root/release-download.log" 2>&1
           gh auth setup-git
           git clone -q --depth=1 --filter=blob:none --sparse \
@@ -72,7 +73,7 @@ jobs:
           python3 "$root/audit.py" --db "$dbroot/full107_shots.sqlite" \
             --qa "$dbroot/full107_shots.qa.json" \
             --ledger "$root/source-event-pressure-fga.jsonl.gz" \
-            --ledger-qa "$root/source-qa.json" > "$root/current-aggregate.json"
+            --ledger-qa "$root/source-event-pressure-qa.json" > "$root/current-aggregate.json"
           python3 - "$root/current-aggregate.json" <<'PY'
           import json,sys
           a=json.load(open(sys.argv[1]))
