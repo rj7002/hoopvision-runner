@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/opaque-private-cpu-two-player-track-evidence.yml",  # opaque original footage track evidence never enters public files
     ".github/workflows/opaque-private-cpu-two-player-native40.yml",  # private original native two-ID motion 10Hz/40Hz source bridge
     ".github/workflows/opaque-private-cpu-two-player-scout-thumbnails.yml",  # private JPEG scout thumbnails for reviewed person identity only
     ".github/workflows/opaque-private-cpu-two-player-identity-scout.yml",  # authenticated source-video identity study, opaque control only
