@@ -5,12 +5,17 @@ on:
     branches: [main]
     paths: ['.github/workflows/gamepulse-rockets-0194-full131-live-r13-20261108.yml']
   workflow_dispatch:
+  workflow_run:
+    workflows:
+      - Rockets Suns postgame remaining original XYZ minutes
+    types: [completed]
 permissions: {contents: read}
 concurrency:
   group: rockets0194-full131-live-r13
   cancel-in-progress: false
 jobs:
   source-backed-current-game:
+    if: github.event_name == 'workflow_run'
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     env:
