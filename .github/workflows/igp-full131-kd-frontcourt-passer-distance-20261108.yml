@@ -39,7 +39,7 @@ jobs:
           git clone --quiet --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
             "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
           cd "$RUNNER_TEMP/private"
-          test "$(git rev-parse HEAD)" = "8b93eaa7dca0d28ffbf5a5b2daed210add96ee8d"
+          test "$(git rev-parse HEAD)" = "f72bbbc2196de8694b0d8fd3b4d3ed3a2943cf17"
           git sparse-checkout set --no-cone \
             "$SCRIPT" \
             'gamepulse/fusion/analysis/igp_full131_kd_catch_spacing_ppp_correlation_20261108.py' \
@@ -117,7 +117,7 @@ jobs:
               (Path(os.environ['RUNNER_TEMP'])/'ppp.json',
                  'gamepulse/fusion/qa/analysis/full131_kd_frontcourt_pass_spacing_ppp_20261108.json'),
               (Path(os.environ['RUNNER_TEMP'])/'kd-actions.json',
-                 'gamepulse/fusion/qa/analysis/full131_kd_frontcourt_player_action_value_20261108.json')]
+                 'gamepulse/fusion/qa/analysis/full131_kd_frontcourt_player_action_value_v2_20261108.json')]
           for file,dest in outputs:
               data=file.read_bytes()
               assert 0<len(data)<4000000
