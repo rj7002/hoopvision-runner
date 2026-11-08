@@ -1,4 +1,5 @@
 name: Opaque Durant Sengun only original NBA three-camera rings 40Hz
+# Revision: NBA identity persists independently of per-frame observed ankles.
 on:
   push:
     branches: ['cpu-animate-opaque-private-cpu-20261108']
