@@ -179,7 +179,7 @@ jobs:
 
   private-native-half-analysis:
     # Follow the three SHA-original private Git shards, not release-asset API.
-    if: github.event_name == 'workflow_run'
+    if: github.event_name == 'workflow_run' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
