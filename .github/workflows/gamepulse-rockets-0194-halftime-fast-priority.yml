@@ -1,5 +1,5 @@
-name: Rockets Suns first-half fast parallel original XYZ capture
-# 2026-11-08 Q2: PRIORITIZE exact first-half SDK-minute recovery before postgame season jobs.
+name: Rockets Suns postgame remaining original XYZ minutes
+# Postfinal catch-up 2026-11-08: recover all original NBA source minutes after the 118 already preserved; per-source-minute SHA verification.
 # Original coordinates persist solely as SHA-256 private 104 Release assets.
 on:
   push:
@@ -9,15 +9,18 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
-  firsthalf:
+  postgame:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 42
     strategy:
       fail-fast: false
       max-parallel: 6
       matrix:
         include:
-          - {group: q1gap25, start: 25, end: 25}
+          - {group: tailA, start: 118, end: 137}
+          - {group: tailB, start: 138, end: 157}
+          - {group: tailC, start: 158, end: 177}
+          - {group: tailD, start: 178, end: 197}
     concurrency:
       group: rockets-firsthalf-0194-${{ matrix.group }}
       cancel-in-progress: false
@@ -55,7 +58,7 @@ jobs:
           tip=int(start.timestamp()*1000)
           begin=tip-600000
           left,right=int(os.environ["SHARD_START"]),int(os.environ["SHARD_END"])
-          assert 0<=left<=right<=73
+          assert 0<=left<=right<=197
           def gh(*args):
               p=subprocess.run(["gh",*args],capture_output=True,text=True,timeout=80)
               if p.returncode!=0:raise RuntimeError("private_github_api_unavailable")
@@ -146,7 +149,7 @@ jobs:
                         "NATIVE_KEYFRAMES",manifest["unique_keyframes"],
                         "PLAYER_FRAMES",manifest["frames_with_players"],
                         "BALL_FRAMES",manifest["frames_with_ball"])
-          print("HOU_PHX_Q1_SOURCE_SHARD",left,right,"CAPTURED",successes,"REUSED",skipped,
+          print("HOU_PHX_POSTGAME_SOURCE_SHARD",left,right,"CAPTURED",successes,"REUSED",skipped,
                 "UNRESOLVED",failed,"MINUTES",",".join(map(str,failures)))
           if failed:raise SystemExit(2)
           PY
