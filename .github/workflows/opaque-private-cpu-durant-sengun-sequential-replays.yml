@@ -1,4 +1,4 @@
-name: CPU Animate Durant Sengun video-PTS foot segmentation occlusion v3 sequential replays
+name: CPU Animate Durant Sengun frame-PTS shoes and person occlusion v3 back-to-back
 # Security allowlist and private-only source provenance verified before this run
 on:
   push:
@@ -108,13 +108,13 @@ jobs:
           out=Path(sys.argv[1])
           q=json.loads((out/'min_ato_0181_floor_occlusion_replay_v3_receipt.json').read_text())
           assert q['order']==['Broadcast','Left Above Rim','Right Above Rim']
-          assert q['frames']>=1770 and len(q['review_stills'])==3
+          assert q['frames']>=1770 and len(q['sample_image_sha256'])==15
           assert [q['width_px'],q['height_px']]==[1280,720]
           assert q['frozen_HoopVision_ring_blob_sha1']=='9fac8a8915b90bbd9bd1235532c297c35da77ca2'
           assert not q['unverified_NBA_to_video_UTC_used_for_ring_positions']
           assert q['status']=='RESEARCH_PREVIEW_ONLY_NOT_GEOMETRY_OR_TOUCH_CERTIFIED'
-          assert (out/q['output']).stat().st_size>1000000
-          print('REPLAY_SOURCE_AND_OUTPUT_QA_PASS',q['frames'],round(q['total_duration_s'],2))
+          assert (out/q['video_file']).stat().st_size>1000000
+          print('REPLAY_SOURCE_AND_OUTPUT_QA_PASS',q['frames'],round(q['duration_s'],2))
           PY
           TAG=cpu-animate-min-ato-0181-durant-sengun-pts-floor-occlusion-v3
           gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
@@ -130,4 +130,30 @@ jobs:
             echo PRIVATE_REPLAY_VIDEO_ASSET_UPLOAD_FAILED; exit 5; }
           gh release view "$TAG" --repo timeedmonds-maker/104 --json assets \
             --jq '.assets[]| [.name,.size]|@tsv'
+          python3 - "$ROOT/out" <<'PY'
+          import base64,io,json,subprocess,sys
+          from pathlib import Path
+          from PIL import Image
+          out=Path(sys.argv[1])
+          # Publish only reduced, still-PRIVATE review JPEGs to the source branch.
+          # No raw source video, signed URLs, tracking arrays or public artifacts.
+          for index,sec in ((1,4),(2,7),(3,12)):
+              source=out/f'camera_{index}_at_{sec:02}_floor_mask_review.jpg'
+              im=Image.open(source);im.thumbnail((960,540))
+              buff=io.BytesIO()
+              im.save(buff,format='JPEG',quality=75,optimize=True)
+              data=base64.b64encode(buff.getvalue())+b'\n'
+              target=(f'repos/timeedmonds-maker/104/contents/docs/cpu_animate/'
+                f'private_min0181_floor_occ_v3_angle{index}_t{sec:02}.jpg.b64.txt')
+              msg={'message':'qa(cpu-animate): private-only original-video foot/occlusion review frame',
+                   'content':base64.b64encode(data).decode(),
+                   'branch':'cpu-animate/durant-sengun-floor-occlusion-20261108'}
+              q=subprocess.run(['gh','api',target+'?ref='+msg['branch']],
+                        capture_output=True,text=True)
+              if q.returncode==0:msg['sha']=json.loads(q.stdout)['sha']
+              p=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],
+                         input=json.dumps(msg),capture_output=True,text=True)
+              if p.returncode:raise RuntimeError('PRIVATE_STILL_REVIEW_TRANSFER_FAILED')
+          print('PRIVATE_ORIGINAL_VIDEO_REVIEW_STILLS_SHA_READY')
+          PY
           echo CPU_ANIMATE_DURANT_SENGUN_FRAME_LOCKED_SHOE_OCCLUSION_PRIVATE_MP4_COMPLETE
