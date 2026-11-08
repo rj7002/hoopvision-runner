@@ -1,4 +1,4 @@
-name: CPU Animate Durant Sengun floor-anchored frame PTS and masked green v4
+name: CPU Animate Durant Sengun frame-locked sole/ring occlusion v5
 # Security allowlist and private-only source provenance verified before this run
 on:
   push:
@@ -41,7 +41,7 @@ jobs:
           trap 'rm -rf "$ROOT"' EXIT
           gh auth setup-git >/dev/null 2>&1
           git clone -q --depth=1 --filter=blob:none --sparse \
-            --branch cpu-animate/durant-sengun-floor-touch-v4-20261108 \
+            --branch cpu-animate/durant-sengun-pts-floor-occlusion-v5-20261108 \
             https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
             > "$ROOT/clone.log" 2>&1 || { echo PRIVATE_CPU_ANIMATE_SOURCE_CLONE_FAILED; exit 4; }
           git -C "$ROOT/private" sparse-checkout set --no-cone \
@@ -106,7 +106,7 @@ jobs:
           import json,sys
           from pathlib import Path
           out=Path(sys.argv[1])
-          q=json.loads((out/'min_ato_0181_floor_occlusion_replay_v3_receipt.json').read_text())
+          q=json.loads((out/'min_ato_0181_floor_occlusion_replay_v5_receipt.json').read_text())
           assert q['order']==['Broadcast','Left Above Rim','Right Above Rim']
           assert q['frames']>=1770 and len(q['sample_image_sha256'])==15
           assert [q['width_px'],q['height_px']]==[1280,720]
@@ -114,19 +114,20 @@ jobs:
           assert not q['unverified_NBA_to_video_UTC_used_for_ring_positions']
           assert q['status']=='RESEARCH_PREVIEW_ONLY_NOT_GEOMETRY_OR_TOUCH_CERTIFIED'
           assert q['ordinary_ring_colours_not_possession_green'] is True
+          assert q['clipped_video_foot_not_snapped_to_bbox_bottom'] is True
           assert q['base_colour_BGR']['Sengun'] != [80,225,50]
           assert (out/q['video_file']).stat().st_size>1000000
           print('REPLAY_SOURCE_AND_OUTPUT_QA_PASS',q['frames'],round(q['duration_s'],2))
           PY
-          TAG=cpu-animate-min-ato-0181-durant-sengun-video-foot-occlusion-v4
+          TAG=cpu-animate-min-ato-0181-durant-sengun-observed-shoe-occlusion-v5
           gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
             gh release create "$TAG" --repo timeedmonds-maker/104 \
-              --title 'Durant/Sengun independent video shoe rings with correct base hues, occlusion and native-frame tracking — three camera replays' \
+              --title 'Durant/Sengun v5 clipped-foot-safe, frame-PTS shoe ring occlusion — three sequential camera replays' \
               --notes 'Authentic NBA source-only CPU replay: Broadcast, Left Above Rim, Right Above Rim, with original HoopVision ring art. Each ring follows the actual same camera frame video shoe track, no unverified NBA/UTC clock correction. Real person segmentation occludes floor rings. Green only on detected video basketball-wrist contact, may abstain; this is not authoritative physical camera calibration or final ball touch certification.' \
               --latest=false >/dev/null || { echo PRIVATE_REPLAY_RELEASE_CREATE_FAILED; exit 5; }
           gh release upload "$TAG" \
-            "$ROOT/out/MIN_HOU_0181_DURANT_SENGUN_FLOOR_OCCLUSION_TIMING_V3_3SEQUENTIAL.mp4" \
-            "$ROOT/out/min_ato_0181_floor_occlusion_replay_v3_receipt.json" \
+            "$ROOT/out/MIN_HOU_0181_DURANT_SENGUN_VIDEO_FOOT_MASKED_RINGS_V5_3REPLAYS.mp4" \
+            "$ROOT/out/min_ato_0181_floor_occlusion_replay_v5_receipt.json" \
             "$ROOT/out"/camera_*_floor_mask_review.jpg \
             --repo timeedmonds-maker/104 --clobber > "$ROOT/upload.log" 2>&1 || {
             echo PRIVATE_REPLAY_VIDEO_ASSET_UPLOAD_FAILED; exit 5; }
@@ -146,10 +147,10 @@ jobs:
               im.save(buff,format='JPEG',quality=75,optimize=True)
               data=base64.b64encode(buff.getvalue())+b'\n'
               target=(f'repos/timeedmonds-maker/104/contents/docs/cpu_animate/'
-                f'private_min0181_floor_occ_v4_angle{index}_t{sec:02}.jpg.b64.txt')
+                f'private_min0181_floor_occ_v5_angle{index}_t{sec:02}.jpg.b64.txt')
               msg={'message':'qa(cpu-animate): private-only original-video foot/occlusion review frame',
                    'content':base64.b64encode(data).decode(),
-                   'branch':'cpu-animate/durant-sengun-floor-touch-v4-20261108'}
+                   'branch':'cpu-animate/durant-sengun-pts-floor-occlusion-v5-20261108'}
               q=subprocess.run(['gh','api',target+'?ref='+msg['branch']],
                         capture_output=True,text=True)
               if q.returncode==0:msg['sha']=json.loads(q.stdout)['sha']
