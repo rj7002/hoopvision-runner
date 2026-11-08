@@ -1,4 +1,4 @@
-name: CPU Animate KD and Sengun V6 bidirectional video identity plus actual HoopVision rings
+name: CPU Animate V7 KD and Sengun independently corrected video shoe anchors
 # Original pixel-anchor KD seed fix: source-video identity diagnostic V6 rerun
 on:
   push:
@@ -41,7 +41,7 @@ jobs:
           trap 'rm -rf "$ROOT"' EXIT
           gh auth setup-git >/dev/null 2>&1
           git clone -q --depth=1 --filter=blob:none --sparse \
-            --branch cpu-animate/min0181-bidirectional-optical-player-lock-20261108 \
+            --branch cpu-animate/min0181-video-foot-anchor-corrected-v7-20261108 \
             https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
             > "$ROOT/clone.log" 2>&1 || { echo PRIVATE_CPU_ANIMATE_SOURCE_CLONE_FAILED; exit 4; }
           git -C "$ROOT/private" sparse-checkout set --no-cone \
@@ -114,7 +114,7 @@ jobs:
           import json,sys
           from pathlib import Path
           out=Path(sys.argv[1])
-          q=json.loads((out/'v6_bidirectional_player_lock_private_qa.json').read_text())
+          q=json.loads((out/'v7_bidirectional_player_lock_private_qa.json').read_text())
           assert q['replay_order']==['Broadcast','Left Above Rim','Right Above Rim']
           assert q['frames']>=1770 and len(q['review_stills'])==15
           assert q['dimensions']==[1280,720]
@@ -122,20 +122,21 @@ jobs:
           assert not q['rings_from_provisional_tracking_to_video_utc']
           assert q['status']=='PRIVATE_VISUAL_RESEARCH_ONLY_IDENTITY_NEEDS_INDEPENDENT_HELDOUT_QA'
           assert all(q['camera_metrics'][c]['counters'].get('Durant_ring_present',0)>=40 for c in q['replay_order'])
+          assert all(q['camera_metrics'][c]['counters']['previous_missing_ring_camera_gate_passed']==1 for c in q['replay_order'])
           assert all(q['camera_metrics'][c]['counters'].get('Sengun_ring_present',0)>=40 for c in q['replay_order'])
           assert (out/q['output_file']).stat().st_size>1000000
           print('REPLAY_V6_PLAYER_OPTICAL_QA_PASS',q['frames'],round(q['duration_s'],2),{c:{w:q['camera_metrics'][c]['counters'][w+'_ring_present'] for w in ('Durant','Sengun')} for c in q['replay_order']})
           PY
-          TAG=cpu-animate-min-ato-0181-bidirectional-optical-player-lock-v6
+          TAG=cpu-animate-min-ato-0181-optical-shoe-corrected-v7
           gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
             gh release create "$TAG" --repo timeedmonds-maker/104 \
-              --title 'Durant and Sengun v6 original-video player-centred bidirectional optical flow, three sequential cameras' \
+              --title 'Durant and Sengun V7 video-player optical tracking with corrected shoe anchors and floor-mask occlusion' \
               --notes 'Original NBA licensed video kept private. Alternative method: bidirectional optical flow seeded at video identity keyframes, linked to contemporaneous video-detected shoes, with masked HoopVision rings. Camera PTS from original MP4. No unverified NBA UTC position projection. Green contact remains disabled absent certified ball identity. Research preview, not yet independent GT benchmark.' \
               --latest=false >/dev/null || { echo PRIVATE_REPLAY_RELEASE_CREATE_FAILED; exit 5; }
           gh release upload "$TAG" \
-            "$ROOT/out/MIN_HOU_0181_KD_SENGUN_BIDIRECTIONAL_VIDEO_LOCK_V6_3REPLAYS.mp4" \
-            "$ROOT/out/v6_bidirectional_player_lock_private_qa.json" \
-            "$ROOT/out"/v6_*_bidirectional_identity_review.jpg \
+            "$ROOT/out/MIN_HOU_0181_KD_SENGUN_VIDEO_SHOE_PLAYER_LOCK_V7_3REPLAYS.mp4" \
+            "$ROOT/out/v7_bidirectional_player_lock_private_qa.json" \
+            "$ROOT/out"/v7_*_bidirectional_identity_review.jpg \
             --repo timeedmonds-maker/104 --clobber > "$ROOT/upload.log" 2>&1 || {
             echo PRIVATE_REPLAY_VIDEO_ASSET_UPLOAD_FAILED; exit 5; }
           gh release view "$TAG" --repo timeedmonds-maker/104 --json assets \
@@ -148,16 +149,16 @@ jobs:
           # Publish only reduced, still-PRIVATE review JPEGs to the source branch.
           # No raw source video, signed URLs, tracking arrays or public artifacts.
           for index,sec in ((1,4),(1,12),(2,4),(2,12),(3,4),(3,12)): # six proof frames, two per source camera
-              source=out/f'v6_{index}_t{sec:02}_bidirectional_identity_review.jpg'
+              source=out/f'v7_{index}_t{sec:02}_bidirectional_identity_review.jpg'
               im=Image.open(source);im.thumbnail((960,540))
               buff=io.BytesIO()
               im.save(buff,format='JPEG',quality=75,optimize=True)
               data=base64.b64encode(buff.getvalue())+b'\n'
               target=(f'repos/timeedmonds-maker/104/contents/docs/cpu_animate/'
-                f'private_min0181_bidirectional_v6_angle{index}_t{sec:02}.jpg.b64.txt')
+                f'private_min0181_bidirectional_v7_angle{index}_t{sec:02}.jpg.b64.txt')
               msg={'message':'qa(cpu-animate): private-only original-video foot/occlusion review frame',
                    'content':base64.b64encode(data).decode(),
-                   'branch':'cpu-animate/min0181-bidirectional-optical-player-lock-20261108'}
+                   'branch':'cpu-animate/min0181-video-foot-anchor-corrected-v7-20261108'}
               q=subprocess.run(['gh','api',target+'?ref='+msg['branch']],
                         capture_output=True,text=True)
               if q.returncode==0:msg['sha']=json.loads(q.stdout)['sha']
@@ -166,4 +167,4 @@ jobs:
               if p.returncode:raise RuntimeError('PRIVATE_STILL_REVIEW_TRANSFER_FAILED')
           print('PRIVATE_ORIGINAL_VIDEO_REVIEW_STILLS_SHA_READY')
           PY
-          echo CPU_ANIMATE_DURANT_SENGUN_BIDIRECTIONAL_PLAYER_OPTICAL_VIDEO_V6_COMPLETE
+          echo CPU_ANIMATE_DURANT_SENGUN_VIDEO_SHOE_ANCHORED_OPTICAL_V7_COMPLETE
