@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 30
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      REQUEST_ID: req-62b7d8404ae944cabc6f9215c1727e1a
+      REQUEST_ID: req-944ffbac0d32477ea17cdf2166206e22
       CUDA_VISIBLE_DEVICES: '-1'
       NVIDIA_VISIBLE_DEVICES: none
       OMP_NUM_THREADS: '3'
@@ -50,12 +50,12 @@ jobs:
           python3 - "$REQUEST_ID" > "$ROOT/inputs.txt" <<'PY'
           import json,re,subprocess,sys
           from pathlib import Path
-          m=json.loads(Path('docs/cpu_animate/opaque_private_0181_video_pose_ring_request.json').read_text())
-          required={'schema':'cpu-animate.private-video-foot-ring-execution.v1',
+          m=json.loads(Path('docs/cpu_animate/opaque_private_0181_video_pose_ring_request_v2.json').read_text())
+          required={'schema':'cpu-animate.private-video-foot-ring-execution.v2',
                     'request_id':sys.argv[1], 'game_id':'0022600181',
                     'operation':'three_real_original_NBA_videos_vertical_video_ankle_rings_CPU',
                     'source_release':'cpu-animate-min-ato-0022600181-653-original-cpu',
-                    'output_release':'cpu-animate-min-ato-0022600181-vertical-video-foot-rings-v1',
+                    'output_release':'cpu-animate-min-ato-0022600181-vertical-video-foot-rings-v2',
                     'model_name':'yolo11n-pose.pt',
                     'max_cpu_minutes':30,'angle_limit':3,
                     'gpu_allowed':False,'gcp_allowed':False,
@@ -109,7 +109,13 @@ jobs:
             > "$ROOT/weights.log" 2>&1 || { echo OFFICIAL_POSE_MODEL_UNAVAILABLE; exit 4; }
           test "$(stat -c '%s' "$ROOT/yolo11n-pose.pt")" -gt 1000000 || {
             echo OFFICIAL_POSE_MODEL_LENGTH_FAILED; exit 4; }
-          echo CPU_ORIGINAL_POSE_MODEL_ACQUIRED_PRIVATE_SHA_RECEIPT_PENDING
+          MODEL_SHA="$(sha256sum "$ROOT/yolo11n-pose.pt" | cut -d' ' -f1)"
+          EXPECTED_SHA="$(python3 -c 'import json;print(json.load(open("docs/cpu_animate/opaque_private_0181_video_pose_ring_request_v2.json"))["model_sha256_accepted"])')"
+          test "$MODEL_SHA" = "$EXPECTED_SHA" || {
+             echo ORIGINAL_OFFICIAL_VIDEO_POSE_MODEL_SHA_CHANGED
+             exit 4
+          }
+          echo CPU_OFFICIAL_MODEL_IMMUTABLE_SHA256_VERIFIED
 
           if ! python3 -m cpu_animate.min_ato_0181_video_pose_vertical_rings \
             --private "$ROOT/private" --media "$ROOT/media" \
