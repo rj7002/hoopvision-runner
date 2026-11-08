@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full131-kd-frontcourt-passer-distance-20261108.yml",  # Original NBA SHA-native KD receptions, aggregate public QA, private per-touch distances
+
     ".github/workflows/cpu-animate-amen732-lastsecond-native-recovery.yml",  # inspect original final-shot SDK native gap and companion alternatives in private Git CPU-only
     ".github/workflows/cpu-animate-amen732-direct6-original-native-cpu-join.yml",  # SHA-pinned private original NBA XYZ and direct NBA HLS sixview PTS/audio CPU-only; aggregate public QA
     ".github/workflows/cpu-animate-amen732-git-native-source-probe.yml",  # immutable original SDK game0009 sparse git CPU-only source schema and event732 coverage, aggregate logs
