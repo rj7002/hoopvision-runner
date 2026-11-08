@@ -8,6 +8,7 @@ on:
 permissions: {contents: read}
 jobs:
   full131-input-audit:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -92,6 +93,7 @@ jobs:
           echo PRIVATE_FULL131_INPUT_QA_COMMITTED
 
   companion-source:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
@@ -137,6 +139,7 @@ jobs:
           echo ROCKETS_COMPANION_ORIGINAL_PRIVATE_SOURCE_SAVED
 
   full131-r13-half-replay:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -245,9 +248,10 @@ jobs:
           git -C "$RUNNER_TEMP/full131" sparse-checkout set --no-cone \
             '/gamepulse/fusion/*.py' '/gamepulse/fusion/analysis/*.py' \
             '/gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600092.json' \
+            '/gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600111.json' \
             '/gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600181.json' \
             '/gamepulse/fusion/qa/full131_0194/**'
-          git -C "$RUNNER_TEMP/full131" switch -q -c research/rockets0194-full131-r13-companion-half-20261108
+          git -C "$RUNNER_TEMP/full131" switch -q -c research/rockets0194-full131-r13-companion-half-v2-20261108
       - name: Mount all 77 SHA-original first-half capture minutes
         run: |
           set -euo pipefail
@@ -276,6 +280,7 @@ jobs:
             --sources "$RUNNER_TEMP" \
             --companion "$RUNNER_TEMP/companion/gamepulse/fusion/qa/full131_0194" \
             --roster gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600092.json \
+                     gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600111.json \
                      gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600181.json \
             --out gamepulse/fusion/qa/full131_0194/firsthalf_actual_r13_v2_frontcourt_by_player.json
           python3 - <<'PY'
@@ -296,5 +301,5 @@ jobs:
           git add --sparse -f gamepulse/fusion/qa/full131_0194/firsthalf_actual_r13_v2_frontcourt_by_player.json
           git diff --cached --check
           git commit -q -m 'data(igp): Rockets 0194 firsthalf verified companion clock Full131 original R13 touches'
-          git push -q origin HEAD:refs/heads/research/rockets0194-full131-r13-companion-half-20261108
+          git push -q origin HEAD:refs/heads/research/rockets0194-full131-r13-companion-half-v2-20261108
           echo ROCKETS_FIRST_HALF_FULL131_R13_ORIGINAL_PRIVATE_RESULTS_PERSISTED
