@@ -48,7 +48,7 @@ jobs:
           from pathlib import Path
           from PIL import Image
           src=Path(sys.argv[1])
-          sampled={1:'t02',4:'t07',7:'t12',10:'t17'}
+          sampled={0:'t00',2:'t04',3:'t05',5:'t09',6:'t10',8:'t14',9:'t15',11:'t19'}
           for camera in ('broadcast','left-above-rim','right-above-rim'):
               img=Image.open(src/f'identity-scout-{camera}.jpg').convert('RGB')
               if img.width!=2880 or img.height!=2160:raise SystemExit(4)
