@@ -91,6 +91,13 @@ jobs:
           python3 -m pip install -q --disable-pip-version-check \
             'ultralytics==8.3.190' 'opencv-python-headless' 'pillow' \
             > "$ROOT/pose.log" 2>&1 || { echo CPU_POSE_DEPENDENCY_SETUP_FAILED; exit 4; }
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update -qq > "$ROOT/apt-update.log" 2>&1
+            sudo apt-get install -y -qq ffmpeg > "$ROOT/ffmpeg-install.log" 2>&1 || {
+              echo CPU_FFMPEG_AND_FFPROBE_DEPENDENCY_FAILED; exit 4; }
+          fi
+          command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null || exit 4
+          echo CPU_VIDEO_FFMPEG_DECODE_TOOLS_READY
           echo CPU_VIDEO_POSE_ENVIRONMENT_READY
           python3 -m unittest discover -s tests \
             -p 'test_cpu_animate_min_ato_0181_video_pose_vertical.py' \
@@ -113,6 +120,12 @@ jobs:
           s=open(sys.argv[1]).read()
           names=re.findall(r'(?m)^([\w.]+(?:Error|Exception)):',s)
           print('CPU_POSE_RENDER_ERROR_CLASS',names[-1] if names else 'UNKNOWN')
+          import os
+          missing=re.findall(r"FileNotFoundError:.*?[\'\"]([^\'\"]+)[\'\"]",s)
+          basename=os.path.basename(missing[-1]) if missing else ''
+          safe=['ffmpeg','ffprobe','yolo11n-pose.pt','angle-broadcast.mp4',
+                'angle-left-above-rim.mp4','angle-right-above-rim.mp4']
+          print('CPU_POSE_RENDER_MISSING_RESOURCE',basename if basename in safe else 'REDACTED_OR_UNKNOWN')
           PY
             echo ORIGINAL_NBA_VERTICAL_RING_RENDER_FAILED
             exit 5
