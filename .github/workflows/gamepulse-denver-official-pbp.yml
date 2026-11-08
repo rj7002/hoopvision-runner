@@ -34,8 +34,8 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      NBA_GAME_ID: ${{ inputs.game_id || '0022600009' }}
-      NBA_PLAYER_ID: ${{ inputs.player_id || '203500' }}
+      NBA_GAME_ID: ${{ inputs.game_id || '0022600194' }}
+      NBA_PLAYER_ID: ${{ inputs.player_id || '1626164' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -62,6 +62,61 @@ jobs:
           python3 -m py_compile "$ROOT/"*.py
           cd "$ROOT"
           python3 -m unittest -q test_player_possession_clips
+      - name: Audit Rockets possessions inside the two Phoenix runs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/nba-official"
+          python3 - <<'PY'
+          from official_pbp_timestamps_2026 import official_json
+          from player_possession_clips import ordered_actions, possession_team, is_gameplay
+          import json
+          game='0022600194'
+          data,sha,url=official_json(game,'playbyplay')
+          rows=ordered_actions(data)
+          ids={'1610612745':'HOU','1610612756':'PHX'}
+          def score(a):
+              h,p=a.get('scoreAway'),a.get('scoreHome')
+              if h is None or p is None or not str(h).isdigit() or not str(p).isdigit():return None
+              return (int(h),int(p))
+          markers={'34-14_start':(11,10),'14-2_start':(23,30),'both_end':(25,44)}
+          found={}
+          for label,target in markers.items():
+              indices=[i for i,a in enumerate(rows) if score(a)==target and (i==0 or score(rows[i-1])!=target)]
+              if not indices:raise ValueError('MISSING_SCORE_MARKER_'+label)
+              found[label]=indices[0]
+              a=rows[indices[0]]
+              print('RUN_MARKER',label,'idx',indices[0],'period',a['period'],'clock',a['clock'],'event',a['actionNumber'],'type',a.get('actionType'),'description',a.get('description'),'score',score(a))
+          # Consecutive official NBA possession-team action runs, segmented at period boundaries.
+          episodes=[]
+          active=None;begin=None;last=None
+          for i,a in enumerate(rows):
+              if active is not None and last is not None and a['period'] != rows[last]['period']:
+                  episodes.append((active,begin,last,'PERIOD_BOUNDARY'))
+                  active=begin=last=None
+              team=possession_team(a,ids)
+              if team is None:continue
+              if team!=active:
+                  if active is not None and last is not None:
+                      episodes.append((active,begin,last,'POSSESSION_CHANGE'))
+                  active=team
+                  begin=i
+              last=i
+          if active is not None and last is not None:
+              episodes.append((active,begin,last,'END_GAME'))
+          for name,lo in [('34-14',found['34-14_start']),('14-2',found['14-2_start'])]:
+              hi=found['both_end']
+              hou=[(t,a,b,c) for t,a,b,c in episodes if t=='HOU' and a>lo and b<hi]
+              partial=[(t,a,b,c) for t,a,b,c in episodes if t=='HOU' and a<=lo<b or t=='HOU' and a<=hi<b]
+              print('RUN_RESULT',json.dumps({'run':name,'score_start':score(rows[lo]),'score_end':score(rows[hi]),'houston_offensive_possessions':len(hou),'boundary_crossings':len(partial),'pbp_sha256':sha,'source':url}))
+              for k,(_,a,b,c) in enumerate(hou,1):
+                  ea=rows[a];eb=rows[b]
+                  play=[x for x in rows[a:b+1] if is_gameplay(x)]
+                  last_play=play[-1] if play else eb
+                  print('HOU_POSSESSION',name,k,'start',ea['period'],ea['clock'],'end',eb['period'],eb['clock'],'terminal_event',last_play['actionNumber'],'terminal_type',last_play.get('actionType'),'terminal_description',last_play.get('description'),'score',score(eb),'end_reason',c)
+              for t,a,b,c in partial:
+                  print('BOUNDARY_WARNING',name,t,rows[a]['period'],rows[a]['clock'],rows[b]['period'],rows[b]['clock'],c)
+          PY
       - name: Build source-verified full-game player possessions and NBA clip references
         shell: bash
         run: |
@@ -107,7 +162,7 @@ jobs:
           print("PRIVATE_NBA_EVENT_LINKS_SHA256_READBACK_PASS")
           PY
   season-index:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
