@@ -1,0 +1,124 @@
+name: Rockets Suns first-half fast parallel original XYZ capture
+# 2026-11-08 Q2: PRIORITIZE exact first-half SDK-minute recovery before postgame season jobs.
+# Original coordinates persist solely as SHA-256 private 104 Release assets.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/gamepulse-rockets-0194-halftime-fast-priority.yml
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  firsthalf:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        include:
+          - {group: q1a, start: 0, end: 5}
+          - {group: q1b, start: 6, end: 11}
+          - {group: q1c, start: 12, end: 17}
+          - {group: q1d, start: 18, end: 23}
+          - {group: q1e, start: 24, end: 29}
+          - {group: q1f, start: 30, end: 35}
+    concurrency:
+      group: rockets-firsthalf-0194-${{ matrix.group }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      SHARD_START: '${{ matrix.start }}'
+      SHARD_END: '${{ matrix.end }}'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Public runner boundary and only private source writes
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install existing authorized licensed SDK
+        working-directory: tools/licensed_feed
+        run: |
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Capture missing exact Q1 early first-half 5s SDK slots, SHA-upload private
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import datetime,hashlib,json,os,subprocess,tempfile,time,shutil
+          from pathlib import Path
+          game="0022600194"
+          repo="timeedmonds-maker/104"
+          tag="gamepulse-live-sdk-"+game
+          start=datetime.datetime(2026,11,8,2,0,tzinfo=datetime.timezone.utc)
+          tip=int(start.timestamp()*1000)
+          begin=tip-600000
+          left,right=int(os.environ["SHARD_START"]),int(os.environ["SHARD_END"])
+          assert 0<=left<=right<=35
+          def gh(*args):
+              p=subprocess.run(["gh",*args],capture_output=True,text=True,timeout=80)
+              if p.returncode!=0:raise RuntimeError("private_github_api_unavailable")
+              return p.stdout
+          def assets():
+              o=json.loads(gh("api","repos/"+repo+"/releases/tags/"+tag))
+              return {a["name"]:a for a in o.get("assets",[])}
+          archive_map=assets()
+          successes=skipped=failed=0
+          failures=[]
+          for minute in range(left,right+1):
+              utc=tip+minute*60000
+              base="live-"+str(utc)
+              tar_name=base+".tar.gz"
+              note_name=base+".json"
+              if tar_name in archive_map and note_name in archive_map:
+                  skipped+=1;continue
+              if int(time.time()*1000)<utc+90000:
+                  failures.append(minute);failed+=1
+                  print("SDK_MINUTE_NOT_MATURE",minute)
+                  continue
+              with tempfile.TemporaryDirectory(prefix="rockets-firsthalf-") as td:
+                  folder=Path(td)
+                  job={"game_id":game,"account_id":"nba","program_id":"companion-"+game+"-positions",
+                       "part":(utc-begin)//(300*5000),"start_ms":utc,"count":12}
+                  job_file=folder/"job.json"
+                  job_file.write_text(json.dumps(job))
+                  result=subprocess.run(["node","capture.mjs",str(job_file),str(folder)],
+                      cwd="tools/licensed_feed",capture_output=True,text=True,timeout=160)
+                  if result.returncode!=0:
+                      failed+=1;failures.append(minute)
+                      print("SOURCE_MINUTE_RETRY_REQUIRED",minute)
+                      continue
+                  manifest=json.loads((folder/"manifest.json").read_bytes())
+                  assert manifest["game_id"]==game and manifest["start_ms"]==utc
+                  assert manifest["observed"] is True and manifest["imputed"] is False
+                  assert manifest["successful_windows"]==12,"SDK_WINDOWS_INCOMPLETE"
+                  src=folder/"checkpoint.tar.gz"
+                  raw=src.read_bytes()
+                  sha=hashlib.sha256(raw).hexdigest()
+                  dest=folder/tar_name
+                  shutil.copyfile(src,dest)
+                  side=folder/note_name
+                  side.write_text(json.dumps({**manifest,"archive_sha256":sha})+"\n")
+                  upload=subprocess.run(["gh","release","upload",tag,str(dest),str(side),"--repo",repo],
+                      capture_output=True,text=True,timeout=100)
+                  refreshed=assets()
+                  if refreshed.get(tar_name,{}).get("digest")!="sha256:"+sha or note_name not in refreshed:
+                      if upload.returncode!=0 and tar_name in refreshed:
+                          print("SOURCE_CONCURRENT_ASSET_PRESENT_BUT_SHA_DIFFERS",minute)
+                      failed+=1;failures.append(minute)
+                      continue
+                  archive_map=refreshed
+                  successes+=1
+                  print("ORIGINAL_SOURCE_SHA_VERIFIED_MINUTE",minute,
+                        "NATIVE_KEYFRAMES",manifest["unique_keyframes"],
+                        "PLAYER_FRAMES",manifest["frames_with_players"],
+                        "BALL_FRAMES",manifest["frames_with_ball"])
+          print("HOU_PHX_Q1_SOURCE_SHARD",left,right,"CAPTURED",successes,"REUSED",skipped,
+                "UNRESOLVED",failed,"MINUTES",",".join(map(str,failures)))
+          if failed:raise SystemExit(2)
+          PY
