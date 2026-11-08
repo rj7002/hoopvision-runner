@@ -89,3 +89,48 @@ jobs:
           git commit -q -m 'qa(igp): original Rockets 0194 SDK inputs for Full131 R13'
           git push -q origin HEAD:refs/heads/research/rockets0194-full131-input-probe-20261108
           echo PRIVATE_FULL131_INPUT_QA_COMMITTED
+
+  companion-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      NBA_GAME_ID: '0022600194'
+      NBA_TIPOFF_UTC: '2026-11-08T02:00:00Z'
+      IGP_PRIVATE_CAPTURE_DIR: /tmp/rockets0194_companion
+      IGP_CAPTURE_ZERO_SHOT_FULL_EVENTS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Collect companion event metadata with existing authorized SDK
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          mkdir -p "$IGP_PRIVATE_CAPTURE_DIR"
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          (cd tools/licensed_feed && npm install --ignore-scripts --no-audit --no-fund --silent)
+          node tools/licensed_feed/companion_original_sdk_probe.mjs > "$RUNNER_TEMP/companion.log"
+      - name: Save original companion response privately
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b analysis/full131-kd-frontcourt-passer-distance-20261108 \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/p"
+          cd "$RUNNER_TEMP/p"
+          git sparse-checkout set --no-cone '/gamepulse/fusion/qa/full131_0194/**'
+          git switch -q -c research/rockets0194-full131-companion-clock-20261108
+          mkdir -p gamepulse/fusion/qa/full131_0194
+          cp "$IGP_PRIVATE_CAPTURE_DIR/companion_probe_receipt.json" gamepulse/fusion/qa/full131_0194/
+          if test -f "$IGP_PRIVATE_CAPTURE_DIR/companion_original_sdk_response.json"; then
+            cp "$IGP_PRIVATE_CAPTURE_DIR/companion_original_sdk_response.json" gamepulse/fusion/qa/full131_0194/
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f gamepulse/fusion/qa/full131_0194/
+          git diff --cached --check
+          git commit -q -m 'data(igp): original Rockets companion NBA clock source'
+          git push -q origin HEAD:refs/heads/research/rockets0194-full131-companion-clock-20261108
+          echo ROCKETS_COMPANION_ORIGINAL_PRIVATE_SOURCE_SAVED
