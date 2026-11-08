@@ -1,4 +1,4 @@
-name: CPU Animate V8C frozen HoopVision rotating/pulsing three-sector floor rings
+name: CPU Animate V9 original-camera ball-control source review
 # Original pixel-anchor KD seed fix: source-video identity diagnostic V6 rerun
 on:
   push:
@@ -41,7 +41,7 @@ jobs:
           trap 'rm -rf "$ROOT"' EXIT
           gh auth setup-git >/dev/null 2>&1
           git clone -q --depth=1 --filter=blob:none --sparse \
-            --branch cpu-animate/min0181-v8-team-color-floor-ring-20261108 \
+            --branch cpu-animate/min0181-v9-stabilized-floor-possession-20261108 \
             https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
             > "$ROOT/clone.log" 2>&1 || { echo PRIVATE_CPU_ANIMATE_SOURCE_CLONE_FAILED; exit 4; }
           git -C "$ROOT/private" sparse-checkout set --no-cone \
@@ -99,6 +99,29 @@ jobs:
           assert set(receipt['per_player'])=={'Durant','Sengun'}
           PY
           echo NBA_SOURCE_VIDEO_IDENTITY_AND_DERIVED_40HZ_SHA_PASS
+          python3 -m cpu_animate.min_ato_0181_contact_review_v9 --media "$ROOT/media" --out "$ROOT/out"
+          python3 - "$ROOT/out" <<'PY'
+          import base64,json,subprocess,sys
+          from pathlib import Path
+          out=Path(sys.argv[1])
+          for camera in (1,2,3):
+              for sheet in (1,2):
+                  name=f'v9_touch_camera_{camera}_sheet_{sheet}.jpg'
+                  blob=(base64.b64encode((out/name).read_bytes())+b'\n')
+                  target=(f'repos/timeedmonds-maker/104/contents/docs/cpu_animate/'
+                          f'private_v9_source_contact_camera_{camera}_sheet_{sheet}.jpg.b64.txt')
+                  payload={'message':'qa(cpu animate): original camera source ball-control contact video frames',
+                           'content':base64.b64encode(blob).decode(),
+                           'branch':'cpu-animate/min0181-v9-stabilized-floor-possession-20261108'}
+                  prev=subprocess.run(['gh','api',target+'?ref='+payload['branch']],
+                         capture_output=True,text=True)
+                  if prev.returncode==0: payload['sha']=json.loads(prev.stdout)['sha']
+                  t=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],
+                          input=json.dumps(payload),capture_output=True,text=True)
+                  if t.returncode:raise RuntimeError(f'PRIVATE_SOURCE_CONTACT_FRAME_UPLOAD_FAILED {name}')
+          print('PRIVATE_ORIGINAL_NBA_TOUCH_SHEETS_SAVED')
+          PY
+          exit 0
           if ! python3 -m cpu_animate.min_ato_0181_bidirectional_player_lock_v6 \
               --private "$ROOT/private" --media "$ROOT/media" \
               --scout "$ROOT/scout" \
