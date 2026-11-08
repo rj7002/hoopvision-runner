@@ -105,7 +105,7 @@ jobs:
           if active is not None and last is not None:
               episodes.append((active,begin,last,'END_GAME'))
           for i,a in enumerate(rows):
-              if 48<=i<=80 or 100<=i<=171:
+              if 30<=i<=80 or 100<=i<=171:
                   print('PBP_ROW',json.dumps({'idx':i,'event':a['actionNumber'],'period':a['period'],'clock':a['clock'],'type':a.get('actionType'),'sub':a.get('subType'),'team':a.get('teamTricode'),'poss':a.get('possession'),'shotResult':a.get('shotResult'),'description':a.get('description'),'score':score(a)},separators=(',',':')))
           for name,lo in [('34-14',found['34-14_start']),('14-2',found['14-2_start'])]:
               hi=found['both_end']
