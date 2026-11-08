@@ -1,4 +1,5 @@
 name: Rockets Suns 0022600194 original Game Pulse live XYZ catch-up
+# Re-run with latest public allowlist confirmed on 2026-11-08 UTC for Rockets source-only private catch-up.
 # Exact official game ID and NBA tipoff from schedule; reuse tested licensed SDK capture.
 # Raw player-ball XYZ and hashes are written ONLY to private 104 Releases.
 on:
