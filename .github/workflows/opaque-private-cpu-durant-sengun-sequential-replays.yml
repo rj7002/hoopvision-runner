@@ -1,4 +1,4 @@
-name: CPU Animate V10B native-video short-range LK court motion calibration QA
+name: CPU Animate V11 CPU NBA-specific 48-keypoint original-camera study
 # Original pixel-anchor KD seed fix: source-video identity diagnostic V6 rerun
 on:
   push:
@@ -54,7 +54,7 @@ jobs:
             sudo apt-get update -qq > "$ROOT/apt.log" 2>&1
             sudo apt-get install -y -qq ffmpeg > "$ROOT/ffmpeg.log" 2>&1
           fi
-          python3 -m py_compile cpu_animate/min0181_v10b_local_court_motion_diagnostic.py
+          python3 -m py_compile cpu_animate/min0181_v11_basketball_keypoint_probe.py
           echo V10_SOURCE_COURT_MOTION_CAMERA_DIAGNOSTIC_CODE_COMPILED
           echo ORIGINAL_HOOPVISION_PRODUCTION_RING_BLOB_AND_FULLSIZE_POLICY_PASS
           mkdir -p "$ROOT/media" "$ROOT/scout" "$ROOT/motion" "$ROOT/out"
@@ -62,38 +62,67 @@ jobs:
             --repo timeedmonds-maker/104 --dir "$ROOT/media" \
             --pattern 'angle-*.mp4' --pattern 'angle-*.json' \
             > "$ROOT/source-media.log" 2>&1 || { echo PRIVATE_ORIGINAL_THREE_VIDEO_DOWNLOAD_FAILED; exit 4; }
-          python3 -m cpu_animate.min0181_v10b_local_court_motion_diagnostic \
+          # Restrict external basketball-court model to research evaluation.
+          # Its AGPL terms and quantitative validation are not accepted for a
+          # commercial release; weights are SHA recorded, never uploaded.
+          python3 - <<'PY'
+          import hashlib,json,requests
+          from pathlib import Path
+          base='https://huggingface.co/api/models/koppolusameer/yolo11n-basketball-court-keypoints'
+          api=requests.get(base,timeout=35)
+          api.raise_for_status()
+          revision=api.json().get('sha')
+          assert revision and len(revision)==40 and all(c in '0123456789abcdef' for c in revision)
+          url=f'https://huggingface.co/koppolusameer/yolo11n-basketball-court-keypoints/resolve/{revision}/best.pt'
+          resp=requests.get(url,timeout=120)
+          resp.raise_for_status()
+          assert 5000000 < len(resp.content) < 15000000
+          Path('basketball_court_best.pt').write_bytes(resp.content)
+          manifest={'model':'koppolusameer/yolo11n-basketball-court-keypoints',
+               'snapshot_commit_sha1':revision,
+               'sha256':hashlib.sha256(resp.content).hexdigest(),
+               'bytes':len(resp.content),
+               'license':'AGPL-3.0; research evaluation only, no redistribution'}
+          Path('basketball_court_model_provenance.json').write_text(json.dumps(manifest,indent=2))
+          print('CPU_COURT_KEYPOINT_WEIGHT_PINNED_SHA',json.dumps(manifest))
+          PY
+          env -u GH_TOKEN -u GITHUB_TOKEN -u GIT_ASKPASS \
+           python3 -m cpu_animate.min0181_v11_basketball_keypoint_probe \
              --media "$ROOT/media" --out "$ROOT/out" \
+             --weights "$ROOT/private/basketball_court_best.pt" \
+             --provenance "$ROOT/private/basketball_court_model_provenance.json" \
              > "$ROOT/court-diagnostic.log" 2>&1 || {
-              tail -c 5000 "$ROOT/court-diagnostic.log"
-              echo V10_ORIGINAL_CAMERA_COURT_MOTION_DIAGNOSTIC_FAILED
+              tail -c 10000 "$ROOT/court-diagnostic.log"
+              echo CPU_ORIGINAL_BASKETBALL_COURT_KPT_EVALUATION_FAILED
               exit 5
              }
-          tail -c 12000 "$ROOT/court-diagnostic.log"
+          tail -c 11000 "$ROOT/court-diagnostic.log"
           python3 - "$ROOT/out" <<'PY'
           import json,sys
           from pathlib import Path
-          q=json.loads((Path(sys.argv[1])/'v10b_original_video_local_court_motion_QA.json').read_text())
-          assert q['source_NBA_player_XYZ_used_to_fit_camera'] is False
-          assert q['independent_heldout_human_court_landmarks_evaluated'] is False
-          assert q['independent_player_foot_p95_evaluated'] is False
-          assert q['short_range_flow_train_holdout_split'] is True
-          assert set(q['camera_results'])=={'Broadcast','Left Above Rim','Right Above Rim'}
-          assert all(v['total_links']>=20 for v in q['camera_results'].values())
-          print('V10B_NATIVE_VIDEO_COURT_MOTION_ENGINEERING_EVIDENCE',
-                {k:{"valid":v["valid_links"],"total":v["total_links"],
-                    "fraction":v["candidate_motion_link_fraction"]}
-                 for k,v in q["camera_results"].items()})
+          q=json.loads((Path(sys.argv[1])/'v11_cpu_basketball_court_keypoint_evaluation.json').read_text())
+          assert q['original_NBA_XYZ_used_in_camera_fit'] is False
+          assert q['original_player_foot_used_in_camera_fit'] is False
+          assert q['physical_calibrated_floor_accepted'] is False
+          assert q['CPU_only'] is True
+          assert set(q['camera'])=={'Broadcast','Left Above Rim','Right Above Rim'}
+          assert all(v['sampled_source_frames']==11 for v in q['camera'].values())
+          print('CPU_BASKETBALL_SPECIFIC_KPT_MODEL_EVALUATED',
+                {k:{'median_visible':v['median_visible_keypoints'],
+                    'heldout_pass':v['candidate_heldout_p95_le8px'],
+                    'tests':v['candidate_same_scene_camera_warps']}
+                 for k,v in q['camera'].items()})
           PY
-          TAG=cpu-animate-min0181-neighbour-frame-court-motion-v10b
+          TAG=cpu-animate-min0181-basketball-specific-kpt-v11-research
           gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
             gh release create "$TAG" --repo timeedmonds-maker/104 \
-              --title 'MIN 0181 V10B original-video local court motion reference QA, no player overlay' \
-              --notes 'Private original NBA video only: local Lucas-Kanade court feature tracking between adjacent source camera frames; 20 percent of tracked original court pixels held out from RANSAC; no source NBA XYZ, unverified timestamp mapping, or player feet used to fit camera. Engineering motion fidelity does not certify physical world camera calibration or independent foot error.' \
+              --title 'MIN 0181 V11 CPU basketball court keypoint evaluation, no new player overlay' \
+              --notes 'Research-only 48-keypoint basketball court model, sampled on original three NBA camera views. Checkpoint digest and immutable model revision recorded. Heldout same-index court motion QA. Does not establish independently labelled accurate court calibration nor authorize production model licence.' \
               --latest=false >/dev/null
-          gh release upload "$TAG" "$ROOT/out/v10b_original_video_local_court_motion_QA.json" \
-              "$ROOT/out"/v10b_*_motion_proof.jpg --repo timeedmonds-maker/104 --clobber
-          echo V10B_SOURCE_VIDEO_NEIGHBOUR_COURT_MOTION_DIAGNOSTIC_COMPLETE
+          gh release upload "$TAG" "$ROOT/out/v11_cpu_basketball_court_keypoint_evaluation.json" \
+             "$ROOT/out"/v11_court_kpt_*.jpg \
+             --repo timeedmonds-maker/104 --clobber
+          echo V11_ORIGINAL_BASKETBALL_COURT_KEYPOINT_DIAGNOSTIC_COMPLETE
           exit 0
           gh release download cpu-animate-min-ato-0181-durant-sengun-identity-scout \
             --repo timeedmonds-maker/104 --dir "$ROOT/scout" \
