@@ -39,10 +39,11 @@ jobs:
           git clone --quiet --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
             "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
           cd "$RUNNER_TEMP/private"
-          test "$(git rev-parse HEAD)" = "c9edcee18f481ee513d286a39c6fcb43c629445c"
+          test "$(git rev-parse HEAD)" = "8b93eaa7dca0d28ffbf5a5b2daed210add96ee8d"
           git sparse-checkout set --no-cone \
             "$SCRIPT" \
             'gamepulse/fusion/analysis/igp_full131_kd_catch_spacing_ppp_correlation_20261108.py' \
+            'gamepulse/fusion/analysis/igp_full131_kd_catch_action_player_value_20261108.py' \
             'gamepulse/fusion/universal_possession_alignment_2026.py' \
             'gamepulse/fusion/official_pbp_timing/games/0022600009.json' \
             'gamepulse/fusion/official_pbp_timing/games/0022600021.json' \
@@ -81,6 +82,9 @@ jobs:
           mkdir -p "$(dirname "$TARGET")"
           cp "$RUNNER_TEMP/report.json" "$TARGET"
           python3 -B gamepulse/fusion/analysis/igp_full131_kd_catch_spacing_ppp_correlation_20261108.py --root . --out "$RUNNER_TEMP/ppp.json"
+          python3 -B -m py_compile gamepulse/fusion/analysis/igp_full131_kd_catch_action_player_value_20261108.py
+          python3 -B gamepulse/fusion/analysis/igp_full131_kd_catch_action_player_value_20261108.py --root . --out "$RUNNER_TEMP/kd-actions.json"
+
           python3 - <<'PY'
           import json,os,pathlib
           z=json.loads((pathlib.Path(os.environ['RUNNER_TEMP'])/'report.json').read_text())
@@ -94,7 +98,11 @@ jobs:
           assert 0 < p['unique_chains_matched'] <= z['overall_spacing_ft']['n']
           assert sum(x['receiving_possessions'] for x in p['binned_ppp']) == p['unique_chains_matched']
           assert p['physical_possession_certified'] is False
-          print("KD_FULL131_SOURCE_DISTANCE_AND_PPP_QA_PASS")
+          q=json.loads((pathlib.Path(os.environ['RUNNER_TEMP'])/'kd-actions.json').read_text())
+          assert q['n_original_catches']==211 and q['exclusive_actions_reconcile']
+          assert q['original_native_sha_verified'] and q['no_original_NBA_coordinates_exported']
+          assert sum(b['stats']['n'] for b in q['bins'])==211
+          print("KD_FULL131_SOURCE_DISTANCE_AND_PPP_AND_ACTION_VALUE_QA_PASS")
           PY
       - name: Save private result and public aggregate receipt
         shell: bash
@@ -107,7 +115,9 @@ jobs:
           outputs=[
               (Path(os.environ['RUNNER_TEMP'])/'report.json',os.environ['TARGET']),
               (Path(os.environ['RUNNER_TEMP'])/'ppp.json',
-                 'gamepulse/fusion/qa/analysis/full131_kd_frontcourt_pass_spacing_ppp_20261108.json')]
+                 'gamepulse/fusion/qa/analysis/full131_kd_frontcourt_pass_spacing_ppp_20261108.json'),
+              (Path(os.environ['RUNNER_TEMP'])/'kd-actions.json',
+                 'gamepulse/fusion/qa/analysis/full131_kd_frontcourt_player_action_value_20261108.json')]
           for file,dest in outputs:
               data=file.read_bytes()
               assert 0<len(data)<4000000
