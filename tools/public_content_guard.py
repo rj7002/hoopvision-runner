@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-live-rockets-0194-20261108.yml",  # verified existing private SDK capture writes only SHA-checked private original XYZ releases
+    ".github/workflows/gamepulse-rockets-suns-private-xyz-readback-20261108.yml",  # original SHA-verified source XYZ samples persist only to private 104; public logs aggregate counts
     ".github/workflows/igp-full131-kd-frontcourt-passer-distance-20261108.yml",  # Original NBA SHA-native KD receptions, aggregate public QA, private per-touch distances
 
     ".github/workflows/cpu-animate-amen732-lastsecond-native-recovery.yml",  # inspect original final-shot SDK native gap and companion alternatives in private Git CPU-only
