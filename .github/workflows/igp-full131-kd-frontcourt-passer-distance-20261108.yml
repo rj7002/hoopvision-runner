@@ -1,0 +1,102 @@
+name: Full131 KD frontcourt pass reception spacing by passer
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/igp-full131-kd-frontcourt-passer-distance-20261108.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: igp-full131-kd-frontcourt-passer-distance
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: analysis/full131-kd-frontcourt-passer-distance-20261108
+      TARGET: gamepulse/fusion/qa/analysis/full131_kd_frontcourt_passer_distance_20261108.json
+      SCRIPT: gamepulse/fusion/analysis/igp_full131_kd_frontcourt_passer_distance_20261108.py
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify public privacy gate and private source auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Sparse clone original NBA native data and R13 source-graded touches
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          test "$(git rev-parse HEAD)" = "95c67b3acab1bf0b557551ee2eedce314f619066"
+          git sparse-checkout set --no-cone \
+            "$SCRIPT" \
+            'gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600009.json' \
+            'gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600021.json' \
+            'gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600091.json' \
+            'gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600107.json' \
+            'gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600125.json' \
+            'gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600138.json' \
+            'gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600153.json' \
+            'gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600167.json' \
+            'gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600181.json' \
+            'gamepulse/fusion/materialized/igp_all_original_xyz/0022600009/' \
+            'gamepulse/fusion/materialized/igp_all_original_xyz/0022600021/' \
+            'gamepulse/fusion/materialized/igp_all_original_xyz/0022600091/' \
+            'gamepulse/fusion/materialized/igp_all_original_xyz/0022600107/' \
+            'gamepulse/fusion/materialized/igp_all_original_xyz/0022600125/' \
+            'gamepulse/fusion/materialized/igp_all_original_xyz/0022600138/' \
+            'gamepulse/fusion/materialized/igp_all_original_xyz/0022600153/' \
+            'gamepulse/fusion/materialized/igp_all_original_xyz/0022600167/' \
+            'gamepulse/fusion/materialized/igp_all_original_xyz/0022600181/'
+      - name: Run exact-catch distance analysis and validate output
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -B -m py_compile "$SCRIPT"
+          python3 -B "$SCRIPT" --root . --out "$RUNNER_TEMP/report.json"
+          python3 - <<'PY'
+          import json,os,pathlib
+          z=json.loads((pathlib.Path(os.environ['RUNNER_TEMP'])/'report.json').read_text())
+          assert z['games_examined']==9 and z['no_original_xyz_exported'] is True
+          assert z['total_qa']['KD_frontcourt_R13_touches']>0
+          assert z['overall_spacing_ft']['n']>0
+          assert sum(x['n'] for x in z['passers_by_average_defender_distance'])==z['overall_spacing_ft']['n']
+          assert len({x['catch_event_key'] for x in z['individual_catches']})==len(z['individual_catches'])
+          print("KD_FULL131_SOURCE_DISTANCE_ANALYSIS_QA_PASS")
+          PY
+      - name: Save private result and public aggregate receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,base64,json,subprocess,time
+          from pathlib import Path
+          data=(Path(os.environ['RUNNER_TEMP'])/'report.json').read_bytes()
+          assert len(data)<4000000
+          url='repos/'+os.environ['PRIVATE_REPO']+'/contents/'+os.environ['TARGET']
+          branch=os.environ['PRIVATE_BRANCH']
+          for i in range(12):
+              old=subprocess.run(['gh','api',url+'?ref='+branch],capture_output=True,text=True)
+              body={'branch':branch,'message':'qa(private): Full131 KD frontcourt pass spacing exact-native census [skip ci]',
+                    'content':base64.b64encode(data).decode()}
+              if old.returncode==0:body['sha']=json.loads(old.stdout)['sha']
+              result=subprocess.run(['gh','api','-X','PUT',url,'--input','-'],
+                                    input=json.dumps(body),capture_output=True,text=True)
+              if result.returncode==0:
+                  print('KD_FULL131_PRIVATE_ANALYSIS_SAVED')
+                  break
+              time.sleep(i+2)
+          else:raise RuntimeError('PRIVATE_QA_SAVE_FAILED')
+          PY
