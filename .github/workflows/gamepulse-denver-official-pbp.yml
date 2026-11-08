@@ -34,8 +34,8 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      NBA_GAME_ID: ${{ inputs.game_id || '0022600009' }}
-      NBA_PLAYER_ID: ${{ inputs.player_id || '203500' }}
+      NBA_GAME_ID: ${{ inputs.game_id || '0022600194' }}
+      NBA_PLAYER_ID: ${{ inputs.player_id || '1626164' }}
     steps:
       - uses: actions/checkout@v4
         with:
