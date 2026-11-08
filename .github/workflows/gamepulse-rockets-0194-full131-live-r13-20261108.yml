@@ -1,3 +1,4 @@
+# Approved public/private source-boundary allowlist installed; rerun live Full131 R13 source-grade analysis.
 name: Rockets Suns 0194 current live original XYZ Full131 R13 all available periods
 on:
   push:
