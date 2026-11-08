@@ -111,6 +111,25 @@ jobs:
               hi=found['both_end']
               hou=[(t,a,b,c) for t,a,b,c in episodes if t=='HOU' and a>lo and b<hi]
               partial=[(t,a,b,c) for t,a,b,c in episodes if t=='HOU' and a<=lo<b or t=='HOU' and a<=hi<b]
+              def exclude_episode(e):
+                  _,a,b,_=e
+                  segment=rows[a:b+1]
+                  if not any(is_gameplay(x) for x in segment):return 'ADMIN_ONLY_NO_OFFENSIVE_ACTION'
+                  last=rows[b]
+                  if (a==b and last.get('actionType')=='turnover' and
+                      last.get('subType')=='illegal assist' and
+                      any(x.get('actionType')=='rebound' and x.get('subType')=='defensive'
+                          and x.get('teamTricode')=='PHX' and x['clock']==last['clock']
+                          and x['period']==last['period'] for x in rows[max(0,a-8):a]) and
+                      any(x.get('actionType') in ('2pt','3pt') and
+                          x.get('teamTricode')=='HOU' and x['clock']==last['clock']
+                          and x['period']==last['period'] for x in rows[max(0,a-8):a])):
+                      return 'SAME_CLOCK_PRIOR_HOU_FGA_AND_PHOENIX_DEF_REBOUND_NO_NEW_HOU_GAIN'
+                  return None
+              removed=[{'event':rows[b]['actionNumber'],'reason':exclude_episode(e)} for e in hou for _,a,b,_ in [e] if exclude_episode(e)]
+              accepted=[e for e in hou if not exclude_episode(e)]
+              print('AUDITED_RUN_RESULT',json.dumps({'run':name,'houston_true_offensive_possessions':len(accepted),'raw_source_team_runs':len(hou),'excluded':removed,'source_pbp_sha256':sha},sort_keys=True))
+              assert len(accepted)==(22 if name=='34-14' else 8)
               print('RUN_RESULT',json.dumps({'run':name,'score_start':score(rows[lo]),'score_end':score(rows[hi]),'houston_offensive_possessions':len(hou),'boundary_crossings':len(partial),'pbp_sha256':sha,'source':url}))
               for k,(_,a,b,c) in enumerate(hou,1):
                   ea=rows[a];eb=rows[b]
