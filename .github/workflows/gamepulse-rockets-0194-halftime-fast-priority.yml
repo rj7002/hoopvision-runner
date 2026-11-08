@@ -107,12 +107,37 @@ jobs:
                   shutil.copyfile(src,dest)
                   side=folder/note_name
                   side.write_text(json.dumps({**manifest,"archive_sha256":sha})+"\n")
-                  upload=subprocess.run(["gh","release","upload",tag,str(dest),str(side),"--repo",repo],
+                  # Some earlier uploads landed only the private checksum sidecar.
+                  # First preserve the original orphan sidecar immutably, before replacing it.
+                  if note_name in archive_map and tar_name not in archive_map:
+                      prior=folder/"prior-sidecar"
+                      prior.mkdir()
+                      got=subprocess.run(["gh","release","download",tag,"--repo",repo,
+                          "--pattern",note_name,"--dir",str(prior)],capture_output=True,text=True,timeout=80)
+                      if got.returncode!=0:
+                          raise RuntimeError("original_orphan_sidecar_read_failed")
+                      prev=prior/note_name
+                      assert prev.exists()
+                      prior_sha=hashlib.sha256(prev.read_bytes()).hexdigest()
+                      assert archive_map[note_name].get("digest")=="sha256:"+prior_sha
+                      orphan=folder/("orphan-"+base+"-original-sidecar.json")
+                      shutil.copyfile(prev,orphan)
+                      preserved=subprocess.run(["gh","release","upload",tag,str(orphan),"--repo",repo],
+                          capture_output=True,text=True,timeout=80)
+                      archive_map=assets()
+                      assert archive_map.get(orphan.name,{}).get("digest")=="sha256:"+prior_sha, "orphan_receipt_preservation_failed"
+                      print("ORIGINAL_ORPHAN_SIDECAR_PRESERVED",minute)
+                  # Upload archive and sidecar separately; --clobber is safe only after
+                  # the original orphan receipt has been saved as a distinct private asset.
+                  u1=subprocess.run(["gh","release","upload",tag,str(dest),"--repo",repo],
+                      capture_output=True,text=True,timeout=100)
+                  if u1.returncode!=0 and tar_name not in assets():
+                      failed+=1;failures.append(minute);continue
+                  u2=subprocess.run(["gh","release","upload",tag,str(side),"--repo",repo,"--clobber"],
                       capture_output=True,text=True,timeout=100)
                   refreshed=assets()
-                  if refreshed.get(tar_name,{}).get("digest")!="sha256:"+sha or note_name not in refreshed:
-                      if upload.returncode!=0 and tar_name in refreshed:
-                          print("SOURCE_CONCURRENT_ASSET_PRESENT_BUT_SHA_DIFFERS",minute)
+                  if refreshed.get(tar_name,{}).get("digest")!="sha256:"+sha or
+                          refreshed.get(note_name,{}).get("digest")!="sha256:"+hashlib.sha256(side.read_bytes()).hexdigest():
                       failed+=1;failures.append(minute)
                       continue
                   archive_map=refreshed
