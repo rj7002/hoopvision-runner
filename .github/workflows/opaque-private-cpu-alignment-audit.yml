@@ -43,7 +43,7 @@ jobs:
             https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
             > "$ROOT/private-clone.log" 2>&1 || { echo PRIVATE_CPU_CHECKOUT_FAILED; exit 4; }
           git -C "$ROOT/private" sparse-checkout set --no-cone \
-            '/cpu_animate/' '/tests/' '/docs/cpu_animate/' \
+            '/cpu_animate/' '/tests/' '/docs/cpu_animate/' '/tools/locked_broadcast_screen_v5_rings.py' \
             > "$ROOT/private-sparse.log" 2>&1 || { echo PRIVATE_CPU_SOURCE_SPARSE_FAILED; exit 4; }
           cd "$ROOT/private"
           python3 - "$REQUEST_ID" > "$ROOT/control.json" <<'PY'
@@ -62,7 +62,7 @@ jobs:
               or m.get('storage')!='private_release_only'):
               raise SystemExit(4)
           pins=m.get('approved_source_git_blob_sha1') or {}
-          if len(pins)!=8 or m.get('detail_gallery_required') is not True or m.get('review_video_requested') is not True or m.get('ball_rim_frame_grid_requested') is not True or m.get('four_panel_original_source_candidate_requested') is not True or m.get('four_panel_native_fps_preservation_required') is not True:raise SystemExit(4)
+          if len(pins)!=9 or m.get('frozen_source_world_ring_preview_requested') is not True or m.get('frozen_original_ring_git_blob_sha1')!='9fac8a8915b90bbd9bd1235532c297c35da77ca2' or m.get('detail_gallery_required') is not True or m.get('review_video_requested') is not True or m.get('ball_rim_frame_grid_requested') is not True or m.get('four_panel_original_source_candidate_requested') is not True or m.get('four_panel_native_fps_preservation_required') is not True:raise SystemExit(4)
           for path,hash_value in pins.items():
               if not path.startswith(('cpu_animate/','tests/','docs/cpu_animate/')):raise SystemExit(4)
               if not re.fullmatch(r'[0-9a-f]{40}',hash_value):raise SystemExit(4)
@@ -121,7 +121,7 @@ jobs:
             }
           fi
           echo CPU_FFMPEG_AND_FFPROBE_AVAILABLE
-          python3 -m pip install -q --disable-pip-version-check numpy scipy opencv-python-headless \
+          python3 -m pip install -q --disable-pip-version-check numpy scipy opencv-python-headless pillow \
               > "$ROOT/dependencies.log" 2>&1 || { echo CPU_DEPENDENCIES_FAILED; exit 4; }
           python3 -m unittest discover -s tests \
             -p 'test_cpu_animate_min_ato_0181_multiview_audit.py' \
@@ -206,6 +206,22 @@ jobs:
               exit 5
             }
           echo PRIVATE_REAL_THREEVIEW_PLUS_SOURCE_XYZ_FOUR_PANEL_READY
+          if ! python3 -m cpu_animate.min_ato_0181_source_world_rings \
+              --private "$ROOT/private" \
+              --media "$ROOT/media" \
+              --trace "$ROOT/output/original_source_window_private.json" \
+              --audit "$ROOT/output/min_ato_0181_multiview_alignment_audit.json" \
+              --out "$ROOT/output" > "$ROOT/native-frozen-rings.log" 2>&1; then
+            python3 - "$ROOT/native-frozen-rings.log" <<'PY'
+          import re,sys
+          s=open(sys.argv[1]).read()
+          classes=re.findall(r'(?m)^([\w.]+(?:Error|Exception)):',s)
+          print('PRIVATE_FROZEN_RINGS_EXCEPTION_CLASS',classes[-1] if classes else 'UNKNOWN')
+          PY
+            echo PRIVATE_FROZEN_SOURCE_FLOOR_RING_RENDER_FAILED
+            exit 5
+          fi
+          echo PRIVATE_HOOPVISION_FROZEN_SOURCE_WORLD_RING_VIDEO_RENDERED
           base64 -w0 "$ROOT/output/min_ato_0181_threeview_storyboard.jpg" \
             > "$ROOT/output/min_ato_0181_threeview_storyboard.b64.txt"
           if ! gh release view "$output_tag" --repo timeedmonds-maker/104 >/dev/null 2>&1; then
@@ -230,7 +246,9 @@ jobs:
                       rim-frames-left-above-rim.jpg \
                       rim-frames-right-above-rim.jpg \
                       min_ato_0181_four_panel_original_XYZ_CANDIDATE_ONLY.mp4 \
-                      min_ato_0181_fourpanel_candidate_receipt.json; do
+                      min_ato_0181_fourpanel_candidate_receipt.json \
+                      min_ato_0181_native_world_frozen_rings_REVIEW_ONLY.mp4 \
+                      min_ato_0181_native_world_frozen_rings_receipt.json; do
               gh release upload "$output_tag" "$ROOT/output/$name" \
                 --repo timeedmonds-maker/104 --clobber \
                 >/dev/null 2>&1 || { echo PRIVATE_OUTPUT_UPLOAD_FAILED; exit 5; }
@@ -250,6 +268,7 @@ jobs:
               'min_ato_0181_synced_review_receipt.json':'private_min_ato_synced_review_receipt.json',
               'min_ato_0181_rim_anchor_review.json':'private_min_ato_rim_anchor_review.json',
               'min_ato_0181_fourpanel_candidate_receipt.json':'private_min_ato_fourpanel_candidate_receipt.json',
+              'min_ato_0181_native_world_frozen_rings_receipt.json':'private_min_ato_source_world_rings_receipt.json',
           }
           for filename,target in targets.items():
               payload={'message':'qa(cpu-animate): private original source video timing and geometry candidate audit',
@@ -326,7 +345,9 @@ jobs:
                  'rim-frames-left-above-rim.jpg',
                  'rim-frames-right-above-rim.jpg',
                  'min_ato_0181_four_panel_original_XYZ_CANDIDATE_ONLY.mp4',
-                 'min_ato_0181_fourpanel_candidate_receipt.json']
+                 'min_ato_0181_fourpanel_candidate_receipt.json',
+                 'min_ato_0181_native_world_frozen_rings_REVIEW_ONLY.mp4',
+                 'min_ato_0181_native_world_frozen_rings_receipt.json']
           expected={name:'sha256:'+hashlib.sha256((root/name).read_bytes()).hexdigest() for name in files}
           for _ in range(12):
               q=subprocess.run(['gh','api','repos/timeedmonds-maker/104/releases/tags/'+sys.argv[2]],
@@ -334,7 +355,7 @@ jobs:
               if q.returncode==0:
                   assets={a['name']:a.get('digest') for a in json.loads(q.stdout)['assets']}
                   if all(assets.get(name)==value for name,value in expected.items()):
-                      print('PRIVATE_THREEVIEW_AUDIT_SEVENTEEN_ASSETS_SHA256_READBACK_PASS')
+                      print('PRIVATE_THREEVIEW_AUDIT_NINETEEN_ASSETS_SHA256_READBACK_PASS')
                       break
               time.sleep(3)
           else:raise SystemExit(5)
