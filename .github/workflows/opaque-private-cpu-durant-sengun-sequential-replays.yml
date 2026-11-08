@@ -1,4 +1,4 @@
-name: CPU Animate V9 stabilised floor tracks and source-reviewed green ball control
+name: CPU Animate V9 source-verified stable floor and green, SHA-pinned segmentation
 # Original pixel-anchor KD seed fix: source-video identity diagnostic V6 rerun
 on:
   push:
@@ -54,6 +54,26 @@ jobs:
             sudo apt-get update -qq > "$ROOT/apt.log" 2>&1
             sudo apt-get install -y -qq ffmpeg > "$ROOT/ffmpeg.log" 2>&1
           fi
+          # Fetch official, version-pinned Ultralytics YOLO11-seg weights from
+          # their own Hugging Face model repository; SHA verified before any
+          # unpickling/inference. Avoid runtime latest-release auto-download 504.
+          MODEL_SHA=55ed65c56c91713d23e8402371c6c49a6fd84f257f7dce452e8d70e41dcbe152
+          MODEL_URL=https://huggingface.co/Ultralytics/YOLO11/resolve/1fad642026e935ebf53c4d878b6fd844ad08de3f/yolo11n-seg.pt
+          for attempt in 1 2 3; do
+            if curl -fL --retry 2 --retry-all-errors \
+                 --connect-timeout 12 --max-time 90 -sS \
+                 "$MODEL_URL" -o yolo11n-seg.pt && \
+               echo "$MODEL_SHA  yolo11n-seg.pt" | sha256sum -c - >/dev/null; then
+              echo FROZEN_ORIGINAL_YOLO11_SEGMENTATION_WEIGHT_SHA256_PASS
+              break
+            fi
+            rm -f yolo11n-seg.pt
+            if [ "$attempt" = 3 ]; then
+              echo PRIVATE_CPU_SEGMENTATION_MODEL_SHA_RETRIEVAL_FAILED
+              exit 4
+            fi
+            sleep 2
+          done
           python3 -m py_compile cpu_animate/min_ato_0181_bidirectional_player_lock_v6.py
           python3 -m cpu_animate.v9_stable_floor_paths
           python3 - <<'PY'
@@ -179,7 +199,7 @@ jobs:
                 f'private_min0181_hoopvision_stable_floor_green_v9_angle{index}_t{sec:02}.jpg.b64.txt')
               msg={'message':'qa(cpu-animate): private-only original-video foot/occlusion review frame',
                    'content':base64.b64encode(data).decode(),
-                   'branch':'cpu-animate/min0181-v8-team-color-floor-ring-20261108'}
+                   'branch':'cpu-animate/min0181-v9-stabilized-floor-possession-20261108'}
               q=subprocess.run(['gh','api',target+'?ref='+msg['branch']],
                         capture_output=True,text=True)
               if q.returncode==0:msg['sha']=json.loads(q.stdout)['sha']
