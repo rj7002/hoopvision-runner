@@ -1,4 +1,4 @@
-name: CPU Animate V10 court-only camera registration diagnostic before any new overlay
+name: CPU Animate V10B native-video short-range LK court motion calibration QA
 # Original pixel-anchor KD seed fix: source-video identity diagnostic V6 rerun
 on:
   push:
@@ -54,7 +54,7 @@ jobs:
             sudo apt-get update -qq > "$ROOT/apt.log" 2>&1
             sudo apt-get install -y -qq ffmpeg > "$ROOT/ffmpeg.log" 2>&1
           fi
-          python3 -m py_compile cpu_animate/min0181_v10_court_motion_diagnostic.py
+          python3 -m py_compile cpu_animate/min0181_v10b_local_court_motion_diagnostic.py
           echo V10_SOURCE_COURT_MOTION_CAMERA_DIAGNOSTIC_CODE_COMPILED
           echo ORIGINAL_HOOPVISION_PRODUCTION_RING_BLOB_AND_FULLSIZE_POLICY_PASS
           mkdir -p "$ROOT/media" "$ROOT/scout" "$ROOT/motion" "$ROOT/out"
@@ -62,7 +62,7 @@ jobs:
             --repo timeedmonds-maker/104 --dir "$ROOT/media" \
             --pattern 'angle-*.mp4' --pattern 'angle-*.json' \
             > "$ROOT/source-media.log" 2>&1 || { echo PRIVATE_ORIGINAL_THREE_VIDEO_DOWNLOAD_FAILED; exit 4; }
-          python3 -m cpu_animate.min0181_v10_court_motion_diagnostic \
+          python3 -m cpu_animate.min0181_v10b_local_court_motion_diagnostic \
              --media "$ROOT/media" --out "$ROOT/out" \
              > "$ROOT/court-diagnostic.log" 2>&1 || {
               tail -c 5000 "$ROOT/court-diagnostic.log"
@@ -73,26 +73,27 @@ jobs:
           python3 - "$ROOT/out" <<'PY'
           import json,sys
           from pathlib import Path
-          q=json.loads((Path(sys.argv[1])/'v10_original_camera_court_motion_QA.json').read_text())
-          assert q['original_source_NBA_XYZ_not_used'] is True
-          assert q['player_foot_position_not_used_for_court_fit'] is True
-          assert q['uncertified_video_to_NBA_UTC_not_used'] is True
-          assert set(q['cameras'])=={'Broadcast','Left Above Rim','Right Above Rim'}
-          assert all(x['total_court_samples']>=12 for x in q['cameras'].values())
-          print('V10_ORIGINAL_COURT_HOMOGRAPHY_EVIDENCE_ARCHIVED',
-                {c:{"valid":v["valid_court_samples"],"samples":v["total_court_samples"],
-                    "holdout_p95":v["holdout_video_court_feature_p95_of_p95_px"]}
-                 for c,v in q['cameras'].items()})
+          q=json.loads((Path(sys.argv[1])/'v10b_original_video_local_court_motion_QA.json').read_text())
+          assert q['source_NBA_player_XYZ_used_to_fit_camera'] is False
+          assert q['independent_heldout_human_court_landmarks_evaluated'] is False
+          assert q['independent_player_foot_p95_evaluated'] is False
+          assert q['short_range_flow_train_holdout_split'] is True
+          assert set(q['camera_results'])=={'Broadcast','Left Above Rim','Right Above Rim'}
+          assert all(v['total_links']>=20 for v in q['camera_results'].values())
+          print('V10B_NATIVE_VIDEO_COURT_MOTION_ENGINEERING_EVIDENCE',
+                {k:{"valid":v["valid_links"],"total":v["total_links"],
+                    "fraction":v["candidate_motion_link_fraction"]}
+                 for k,v in q["camera_results"].items()})
           PY
-          TAG=cpu-animate-min0181-court-motion-diagnostic-v10
+          TAG=cpu-animate-min0181-neighbour-frame-court-motion-v10b
           gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
             gh release create "$TAG" --repo timeedmonds-maker/104 \
-              --title 'MIN 0181 original-video court camera registration QA — V10 no new player overlay' \
-              --notes 'Private source-only diagnostic: disjoint held-out original-video floor SIFT feature reprojection by camera and cut. No original NBA XYZ/UTC/body positions were used to fit camera. Engineering feature agreement is NOT independent annotated court landmarks and does not authorize a player-ring release.' \
+              --title 'MIN 0181 V10B original-video local court motion reference QA, no player overlay' \
+              --notes 'Private original NBA video only: local Lucas-Kanade court feature tracking between adjacent source camera frames; 20 percent of tracked original court pixels held out from RANSAC; no source NBA XYZ, unverified timestamp mapping, or player feet used to fit camera. Engineering motion fidelity does not certify physical world camera calibration or independent foot error.' \
               --latest=false >/dev/null
-          gh release upload "$TAG" "$ROOT/out/v10_original_camera_court_motion_QA.json" \
-              "$ROOT/out"/v10_court_*.jpg --repo timeedmonds-maker/104 --clobber
-          echo V10_SOURCE_VIDEO_COURT_REGISTRATION_DIAGNOSTIC_COMPLETE
+          gh release upload "$TAG" "$ROOT/out/v10b_original_video_local_court_motion_QA.json" \
+              "$ROOT/out"/v10b_*_motion_proof.jpg --repo timeedmonds-maker/104 --clobber
+          echo V10B_SOURCE_VIDEO_NEIGHBOUR_COURT_MOTION_DIAGNOSTIC_COMPLETE
           exit 0
           gh release download cpu-animate-min-ato-0181-durant-sengun-identity-scout \
             --repo timeedmonds-maker/104 --dir "$ROOT/scout" \
