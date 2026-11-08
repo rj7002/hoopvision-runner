@@ -23,6 +23,7 @@ jobs:
       cancel-in-progress: false
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GAMEPULSE_FINAL_FASTLANE: 'true'
       SHARD_START: '${{ matrix.start }}'
       SHARD_END: '${{ matrix.end }}'
     steps:
