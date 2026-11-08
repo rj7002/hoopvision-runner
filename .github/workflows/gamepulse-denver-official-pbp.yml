@@ -34,8 +34,8 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      NBA_GAME_ID: ${{ inputs.game_id || '0022600194' }}
-      NBA_PLAYER_ID: ${{ inputs.player_id || '1626164' }}
+      NBA_GAME_ID: ${{ inputs.game_id || '0022600009' }}
+      NBA_PLAYER_ID: ${{ inputs.player_id || '203500' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -62,30 +62,6 @@ jobs:
           python3 -m py_compile "$ROOT/"*.py
           cd "$ROOT"
           python3 -m unittest -q test_player_possession_clips
-      - name: Audit exact NBA first-half scoring-run team box stats
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/nba-official"
-          python3 - <<'PY'
-          import json,hashlib
-          from official_pbp_timestamps_2026 import official_json
-          from player_possession_clips import ordered_actions
-          src,sha,url=official_json('0022600194','playbyplay')
-          rows=ordered_actions(src)
-          def score(a):
-              try:return [int(a.get('scoreAway')),int(a.get('scoreHome'))]
-              except (TypeError,ValueError):return None
-          def first(target):
-              matches=[i for i,a in enumerate(rows) if score(a)==target and (i==0 or score(rows[i-1])!=target)]
-              assert matches,(target,'score not found')
-              return matches[0]
-          lo,hi=first([11,10]),first([25,44])
-          print('AUDIT_RANGE',json.dumps({'start_idx':lo,'end_idx':hi,'start_event':rows[lo]['actionNumber'],'end_event':rows[hi]['actionNumber'],'start_clock':rows[lo]['clock'],'end_clock':rows[hi]['clock'],'game_id':'0022600194','sha256':sha,'source':url},separators=(',',':')))
-          keys=['period','clock','actionNumber','actionType','subType','shotResult','teamTricode','personId','possession','description','scoreAway','scoreHome','assistPersonId','assistPlayerNameInitial','assistPlayerName','qualifiers','isFieldGoal','pointsTotal','points']
-          for i,a in enumerate(rows[lo+1:hi+1],lo+1):
-              print('AUDIT_EVENT',json.dumps({'idx':i,**{k:a.get(k) for k in keys if k in a}},separators=(',',':'),ensure_ascii=False))
-          PY
       - name: Build source-verified full-game player possessions and NBA clip references
         shell: bash
         run: |
@@ -131,7 +107,7 @@ jobs:
           print("PRIVATE_NBA_EVENT_LINKS_SHA256_READBACK_PASS")
           PY
   season-index:
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
