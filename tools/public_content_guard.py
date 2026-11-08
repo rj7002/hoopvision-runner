@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/opaque-private-cpu-durant-sengun-40hz-vertical.yml",  # original two-player 40Hz NBA video ring render, private outputs only
     ".github/workflows/opaque-private-cpu-durant-sengun-two-rings-full.yml",  # only two SHA-original NBA actor rings, confidential source
     ".github/workflows/opaque-private-cpu-two-target-40hz-source.yml",  # private NBA two-player source trajectory evidence
     ".github/workflows/opaque-private-cpu-two-player-track-evidence.yml",  # opaque original footage track evidence never enters public files
