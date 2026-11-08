@@ -17,8 +17,7 @@ jobs:
       max-parallel: 6
       matrix:
         include:
-          - {group: q2taila, start: 66, end: 69}
-          - {group: q2tailb, start: 70, end: 73}
+          - {group: q1gap25, start: 25, end: 25}
     concurrency:
       group: rockets-firsthalf-0194-${{ matrix.group }}
       cancel-in-progress: false
@@ -83,11 +82,18 @@ jobs:
                        "part":(utc-begin)//(300*5000),"start_ms":utc,"count":12}
                   job_file=folder/"job.json"
                   job_file.write_text(json.dumps(job))
-                  result=subprocess.run(["node","capture.mjs",str(job_file),str(folder)],
-                      cwd="tools/licensed_feed",capture_output=True,text=True,timeout=160)
+                  for retry in range(3):
+                      result=subprocess.run(["node","capture.mjs",str(job_file),str(folder)],
+                          cwd="tools/licensed_feed",capture_output=True,text=True,timeout=160)
+                      if result.returncode==0:break
+                      time.sleep(4)
                   if result.returncode!=0:
                       failed+=1;failures.append(minute)
-                      print("SOURCE_MINUTE_RETRY_REQUIRED",minute)
+                      why=[x.strip() for x in result.stderr.splitlines()
+                           if x.strip() in ("uncovered_window","sdk_session_url_missing",
+                            "sdk_initialization_failed","private_operation_failed",
+                            "live_worker_failed","capture_failed","invalid_job")]
+                      print("SOURCE_MINUTE_RETRY_REQUIRED",minute,why[-1] if why else "unclassified_sdk_failure")
                       continue
                   manifest=json.loads((folder/"manifest.json").read_bytes())
                   assert manifest["game_id"]==game and manifest["start_ms"]==utc
