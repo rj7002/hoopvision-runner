@@ -220,3 +220,80 @@ jobs:
           if test "$outcome" -ne 0; then
             echo FULL131_NEEDS_VALID_OFFICIAL_INPUTS_NOT_PROMOTED
           fi
+
+  full131-r13-companion-half:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Preserve NBA private-data boundary
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Mount exact Full131 R13 v2 engine and previous verified NBA roster names
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --filter=blob:none --sparse -b analysis/full131-kd-frontcourt-passer-distance-20261108 \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/full131"
+          git -C "$RUNNER_TEMP/full131" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/*.py' '/gamepulse/fusion/analysis/*.py' \
+            '/gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600092.json' \
+            '/gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600181.json' \
+            '/gamepulse/fusion/qa/full131_0194/**'
+          git -C "$RUNNER_TEMP/full131" switch -q -c research/rockets0194-full131-r13-companion-half-20261108
+      - name: Mount all 77 SHA-original first-half capture minutes
+        run: |
+          set -euo pipefail
+          for s in firstA firstB firstC; do
+            git clone -q --depth=1 --filter=blob:none --sparse -b "research/rockets-0194-half-$s-20261108" \
+              https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/$s"
+            git -C "$RUNNER_TEMP/$s" sparse-checkout set --no-cone \
+              "/gamepulse/live/halftime_sdk_0194/$s/**"
+          done
+      - name: Mount licensed full companion NBA clock and on-court events
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --filter=blob:none --sparse \
+            -b research/rockets0194-full131-companion-clock-20261108 \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/companion"
+          git -C "$RUNNER_TEMP/companion" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/qa/full131_0194/**'
+      - name: Execute actual Full131 R13 v2 contact and episode detector for Q1 plus Q2
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/full131"
+          mkdir -p gamepulse/fusion/qa/full131_0194
+          python3 -B -m py_compile gamepulse/fusion/analysis/igp_0194_full131_r13_companion_halftime_20261108.py
+          python3 -B gamepulse/fusion/analysis/igp_0194_full131_r13_companion_halftime_20261108.py \
+            --sources "$RUNNER_TEMP" \
+            --companion "$RUNNER_TEMP/companion/gamepulse/fusion/qa/full131_0194" \
+            --roster gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600092.json \
+                     gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600181.json \
+            --out gamepulse/fusion/qa/full131_0194/firsthalf_actual_r13_v2_frontcourt_by_player.json
+          python3 - <<'PY'
+          import json
+          p='gamepulse/fusion/qa/full131_0194/firsthalf_actual_r13_v2_frontcourt_by_player.json'
+          x=json.load(open(p))
+          assert x['full131_R13_core_detector_executed'] is True
+          assert x['status']=='CORE_FULL131_R13_V2_EXECUTED_ON_ORIGINAL_FIRSTHALF_XYZ'
+          assert x['NBA_original_companion_live_clock_events']['1'] >= 10
+          assert x['NBA_original_companion_live_clock_events']['2'] >= 10
+          print("REAL_FULL131_R13_SOURCE_FRAMES",x['source_qa']['original_unique_native_xyz_timestamps'])
+          print("REAL_FULL131_R13_ACCEPTED_TOUCHES",x['R13_accepted_touch_episodes'])
+          print("REAL_FULL131_R13_PLAYERS",len(x['players']))
+          print("REAL_FULL131_R13_Q1_AND_Q2_CLOCK_CERTIFIED",True)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f gamepulse/fusion/qa/full131_0194/firsthalf_actual_r13_v2_frontcourt_by_player.json
+          git diff --cached --check
+          git commit -q -m 'data(igp): Rockets 0194 firsthalf verified companion clock Full131 original R13 touches'
+          git push -q origin HEAD:refs/heads/research/rockets0194-full131-r13-companion-half-20261108
+          echo ROCKETS_FIRST_HALF_FULL131_R13_ORIGINAL_PRIVATE_RESULTS_PERSISTED
