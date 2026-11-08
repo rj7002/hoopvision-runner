@@ -1,0 +1,49 @@
+name: Rockets Suns 0022600194 original Game Pulse live XYZ catch-up
+# Exact official game ID and NBA tipoff from schedule; reuse tested licensed SDK capture.
+# Raw player-ball XYZ and hashes are written ONLY to private 104 Releases.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/gamepulse-live-rockets-0194-20261108.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  rockets-private-xyz-backfill:
+    concurrency:
+      group: gamepulse-live-2026-0022600194
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GAMEPULSE_LIVE_ID: '0022600194'
+      GAMEPULSE_LIVE_TIPOFF: '2026-11-08T02:00:00.000Z'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce public runner source boundary
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install existing licensed SDK without postinstall scripts
+        working-directory: tools/licensed_feed
+        run: |
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Capture missing source minute windows sequentially, preserving private SHA receipts
+        working-directory: tools/licensed_feed
+        shell: bash
+        run: |
+          set -euo pipefail
+          for cycle in 1 2 3 4 5 6; do
+            echo "ROCKETS_PRIVATE_XYZ_RECOVERY_CYCLE_$cycle"
+            node live_capture_cycle.mjs
+          done
+          echo "ROCKETS_PRIVATE_XYZ_RECOVERY_CYCLES_COMPLETE"
