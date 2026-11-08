@@ -136,8 +136,8 @@ jobs:
                   u2=subprocess.run(["gh","release","upload",tag,str(side),"--repo",repo,"--clobber"],
                       capture_output=True,text=True,timeout=100)
                   refreshed=assets()
-                  if refreshed.get(tar_name,{}).get("digest")!="sha256:"+sha or
-                          refreshed.get(note_name,{}).get("digest")!="sha256:"+hashlib.sha256(side.read_bytes()).hexdigest():
+                  if (refreshed.get(tar_name,{}).get("digest")!="sha256:"+sha or
+                      refreshed.get(note_name,{}).get("digest")!="sha256:"+hashlib.sha256(side.read_bytes()).hexdigest()):
                       failed+=1;failures.append(minute)
                       continue
                   archive_map=refreshed
