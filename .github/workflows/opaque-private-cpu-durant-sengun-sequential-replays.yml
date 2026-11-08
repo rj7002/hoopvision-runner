@@ -1,4 +1,4 @@
-name: CPU Animate V11B original NBA Broadcast court-referenced KD/Sengun replay
+name: CourtCoder universal floor-lock V12 cross-camera CPU regressions
 # Original pixel-anchor KD seed fix: source-video identity diagnostic V6 rerun
 on:
   push:
@@ -41,7 +41,7 @@ jobs:
           trap 'rm -rf "$ROOT"' EXIT
           gh auth setup-git >/dev/null 2>&1
           git clone -q --depth=1 --filter=blob:none --sparse \
-            --branch cpu-animate/min0181-v10-ground-plane-diagnostic-20261108 \
+            --branch cpu-animate/universal-floor-lock-v12-20261109 \
             https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
             > "$ROOT/clone.log" 2>&1 || { echo PRIVATE_CPU_ANIMATE_SOURCE_CLONE_FAILED; exit 4; }
           git -C "$ROOT/private" sparse-checkout set --no-cone \
@@ -55,6 +55,9 @@ jobs:
             sudo apt-get update -qq > "$ROOT/apt.log" 2>&1
             sudo apt-get install -y -qq ffmpeg > "$ROOT/ffmpeg.log" 2>&1
           fi
+          python3 -m cpu_animate.test_floor_lock_v12
+          echo CPU_ANIMATE_UNIVERSAL_FLOOR_LOCK_V12_SYNTHETIC_REGRESSION_COMPLETE
+          exit 0
           python3 -m py_compile cpu_animate/min0181_v11b_broadcast_court_locked_preview.py
           # Public, revision-pinned basketball-specific 48 keypoint model.
           # AGPL terms: research user review, not a product-shipping artefact.
