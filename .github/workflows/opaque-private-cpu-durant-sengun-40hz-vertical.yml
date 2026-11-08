@@ -1,0 +1,177 @@
+name: Original Minnesota ATO 40Hz Durant + Sengun ONLY 3 vertical cameras
+on:
+  push:
+    branches: ['cpu-animate-opaque-private-cpu-20261108']
+    paths: ['.github/workflows/opaque-private-cpu-durant-sengun-40hz-vertical.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: original-min-0181-durant-sengun-40hz-video-v1
+  cancel-in-progress: false
+jobs:
+  source-locked-only-two-person-render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+      OMP_NUM_THREADS: '3'
+      OPENBLAS_NUM_THREADS: '3'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Public boundary and original video licence isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN" && test ! -e /dev/nvidia0 && test ! -e /dev/kfd
+          echo PRIVATE_SOURCE_ONLY_CPU_VIDEO_GUARD_PASS
+      - name: Original NBA identities and native 40Hz to portrait video
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(mktemp -d)"
+          chmod 700 "$ROOT"
+          trap 'rm -rf "$ROOT"' EXIT
+          gh auth setup-git >/dev/null 2>&1
+          git clone -q --depth=1 --filter=blob:none --sparse \
+            --branch cpu-animate/durant-sengun-two-rings-20261108 \
+            https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
+            > "$ROOT/source-clone.log" 2>&1 || {
+            echo PRIVATE_TWO_TARGET_SOURCE_CODE_NOT_AVAILABLE; exit 4; }
+          git -C "$ROOT/private" sparse-checkout set --no-cone \
+            '/cpu_animate/' '/tools/locked_broadcast_screen_v5_rings.py' \
+            > "$ROOT/sparse.log" 2>&1 || exit 4
+          test "$(git -C "$ROOT/private" hash-object cpu_animate/min_ato_0181_only_two_source_40hz_vertical.py)" = \
+            "ac97a264143ed0abc01c595f7d63d8b491cdc087" || {
+            echo PRIVATE_TWO_PERSON_RENDERER_SHA_CHANGED; exit 4; }
+          test "$(git -C "$ROOT/private" hash-object tools/locked_broadcast_screen_v5_rings.py)" = \
+            "9fac8a8915b90bbd9bd1235532c297c35da77ca2" || {
+            echo ORIGINAL_HOOPVISION_RING_ENGINE_SHA_CHANGED; exit 4; }
+          mkdir -p "$ROOT/media" "$ROOT/scout" "$ROOT/track40" "$ROOT/out"
+          gh release download 'cpu-animate-min-ato-0022600181-653-original-cpu' \
+            --repo timeedmonds-maker/104 --dir "$ROOT/media" \
+            --pattern 'angle-*.mp4' --pattern 'angle-*.json' \
+            > "$ROOT/media-download.log" 2>&1 || {
+            echo PRIVATE_NBA_3CAMERA_MEDIA_NOT_AVAILABLE; exit 4; }
+          gh release download 'cpu-animate-min-ato-0181-durant-sengun-identity-scout' \
+            --repo timeedmonds-maker/104 --dir "$ROOT/scout" \
+            --pattern 'identity-tracks-*.json' > "$ROOT/scout-download.log" 2>&1 || {
+            echo PRIVATE_PLAYER_VIDEO_TRACK_DATA_NOT_AVAILABLE; exit 4; }
+          gh release download 'cpu-animate-min-ato-0181-source-40hz-two-player-v1' \
+            --repo timeedmonds-maker/104 --dir "$ROOT/track40" \
+            --pattern 'min_ato_two_target_full131_derived40hz.json' \
+            > "$ROOT/track40-download.log" 2>&1 || {
+            echo PRIVATE_TWO_NBA_SOURCE_PLAYERS_NOT_AVAILABLE; exit 4; }
+          python3 - "$ROOT" <<'PY'
+          import hashlib,sys
+          from pathlib import Path
+          r=Path(sys.argv[1])
+          expect={
+          'track40/min_ato_two_target_full131_derived40hz.json':
+            '8c3a55b917f06245bd3c1cb51eb333e6cf9a97cafebf5fcc40c1ff573091e7fe',
+          'scout/identity-tracks-broadcast.json':
+            '4ff0ca81296444b12150bcbf132f89aa13be73b5f5b763fff725e9ae5db0fc72',
+          'scout/identity-tracks-left-above-rim.json':
+            '56068ce807827dcb13aff3d5594fb0118157fb9889b8731cf080b08480d79217',
+          'scout/identity-tracks-right-above-rim.json':
+            'be992a3ebae152668ca5de8fcff718428c568ab8e0dcd0c78f31083505d76908'}
+          for filename,h in expect.items():
+              if hashlib.sha256((r/filename).read_bytes()).hexdigest()!=h:
+                  raise SystemExit(4)
+          print('ORIGINAL_ONLY_TWO_NBA_PLAYER_IDS_AND_SCOUT_SHA_LOCK_PASS')
+          PY
+          python3 -m pip install -q --disable-pip-version-check \
+            'numpy>=1.23,<3' opencv-python-headless pillow \
+            > "$ROOT/cpu-python-dependencies.log" 2>&1 || {
+            echo CPU_RENDER_DEPENDENCY_FAILED; exit 4; }
+          command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null || {
+            sudo apt-get update -qq > "$ROOT/apt.log" 2>&1
+            sudo apt-get install -y -qq ffmpeg > "$ROOT/ffmpeg.log" 2>&1 || exit 4
+          }
+          cd "$ROOT/private"
+          python3 -m py_compile \
+            cpu_animate/min_ato_0181_only_two_source_40hz_vertical.py \
+            > "$ROOT/compile.log" 2>&1 || {
+            echo ORIGINAL_ONLY_TWO_PERSON_SOURCE_RENDERER_SYNTAX_FAILED; exit 4; }
+          if ! python3 -m cpu_animate.min_ato_0181_only_two_source_40hz_vertical \
+              --private "$ROOT/private" --media "$ROOT/media" \
+              --scout "$ROOT/scout" \
+              --motion "$ROOT/track40/min_ato_two_target_full131_derived40hz.json" \
+              --out "$ROOT/out" \
+              > "$ROOT/render.log" 2>&1; then
+              python3 - "$ROOT/render.log" <<'PY'
+          import re,sys
+          s=open(sys.argv[1]).read()
+          x=re.findall(r'(?m)^([\w.]+(?:Error|Exception)):',s)
+          print('PRIVATE_DURANT_SENGUN_RENDER_FAILURE_CLASS',x[-1] if x else 'UNKNOWN')
+          PY
+              echo ORIGINAL_TWO_PERSON_40HZ_SOURCE_VIDEO_RENDER_FAILED
+              exit 5
+          fi
+          echo ORIGINAL_3CAMERA_DURANT_SENGUN_ONLY_40HZ_FULLPLAY_RENDERED
+
+          tag="cpu-animate-min-ato-0181-Durant-Sengun-Only-40hz-v1"
+          if ! gh release view "$tag" --repo timeedmonds-maker/104 >/dev/null 2>&1; then
+            gh release create "$tag" --repo timeedmonds-maker/104 \
+              --title 'CPU Animate Minnesota source-only Durant and Sengun two-ring video' \
+              --notes 'Exactly two NBA named rings on three original private source videos, Full 19.75-second available sync, SHA-original 40Hz-derived native-player motion, prediction/foot pixel uncertainty review. Not full timeout inbound.' \
+              --latest=false >/dev/null 2>&1 || { echo PRIVATE_TWO_RING_RELEASE_FAILED; exit 5; }
+          fi
+          for file in "$ROOT/out/min_ato_0181_DURANT_SENGUN_ONLY_FULL19s_3vertical_native40hz_REVIEW.mp4" \
+                      "$ROOT/out/durant_sengun_full_source_40hz_vertical_receipt.json" \
+                      "$ROOT/out"/two-target-preview-*.jpg; do
+            if ! test -f "$file"; then continue; fi
+            gh release upload "$tag" "$file" --repo timeedmonds-maker/104 \
+              --clobber >/dev/null 2>&1 || { echo PRIVATE_TWO_RING_ASSET_UPLOAD_FAILED; exit 5; }
+          done
+          python3 - "$ROOT/out" "$tag" <<'PY'
+          import hashlib,json,subprocess,sys,time
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          files=[f for f in root.iterdir() if f.name.endswith('.mp4')
+              and 'DURANT_SENGUN_ONLY' in f.name]
+          files+=list(root.glob('two-target-preview-*.jpg'))
+          files.append(root/'durant_sengun_full_source_40hz_vertical_receipt.json')
+          expected={f.name:'sha256:'+hashlib.sha256(f.read_bytes()).hexdigest() for f in files}
+          for _ in range(12):
+              r=subprocess.run(['gh','api',
+                'repos/timeedmonds-maker/104/releases/tags/'+sys.argv[2]],
+                capture_output=True,text=True)
+              if r.returncode==0:
+                  actual={a['name']:a.get('digest') for a in json.loads(r.stdout)['assets']}
+                  if all(actual.get(n)==h for n,h in expected.items()):
+                      print('PRIVATE_EXACTLY_TWO_PERSON_VIDEO_AND_ALL_PREVIEWS_SHA256_READBACK_PASS')
+                      break
+              time.sleep(3)
+          else:raise SystemExit(5)
+          PY
+          python3 - "$ROOT/out" <<'PY'
+          import base64,json,subprocess,sys
+          from pathlib import Path
+          d=Path(sys.argv[1])
+          p=d/'durant_sengun_full_source_40hz_vertical_receipt.json'
+          target='private_two_player_full40hz_render_receipt.json'
+          payload={'message':'qa(cpu-animate): real two-player source 40Hz video receipt for review',
+             'content':base64.b64encode(p.read_bytes()).decode(),
+             'branch':'cpu-animate/durant-sengun-two-rings-20261108'}
+          res=subprocess.run(['gh','api','-X','PUT',
+            'repos/timeedmonds-maker/104/contents/docs/cpu_animate/'+target,
+            '--input','-'],input=json.dumps(payload),capture_output=True,text=True)
+          if res.returncode:raise SystemExit(5)
+          for jpg in sorted(d.glob('two-target-preview-*.jpg')):
+              content=base64.b64encode(jpg.read_bytes())+b'\n'
+              target='private_'+jpg.stem+'.b64.txt'
+              payload={'message':'qa(cpu-animate): original private NBA frame two-player video ring QA still',
+                 'content':base64.b64encode(content).decode(),
+                 'branch':'cpu-animate/durant-sengun-two-rings-20261108'}
+              res=subprocess.run(['gh','api','-X','PUT',
+                'repos/timeedmonds-maker/104/contents/docs/cpu_animate/'+target,
+                '--input','-'],input=json.dumps(payload),capture_output=True,text=True)
+              if res.returncode:raise SystemExit(5)
+          PY
+          echo PRIVATE_EXACT_DURANT_SENGUN_19SEC_VIDEO_SHA_AND_QA_DONE
