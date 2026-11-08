@@ -74,3 +74,37 @@ jobs:
                   if res.returncode:raise SystemExit(5)
           print('PRIVATE_ORIGINAL_NBA_VIDEO_12_TRACK_REVIEW_IMAGES_READY')
           PY
+          gh release download 'cpu-animate-min-ato-0181-durant-sengun-identity-scout' \
+             --repo timeedmonds-maker/104 --dir "$ROOT/assets" \
+             --pattern 'identity-tracks-*.json' > "$ROOT/tracks.log" 2>&1 || {
+             echo PRIVATE_SOURCE_TRACK_DATA_UNAVAILABLE; exit 4; }
+          python3 - "$ROOT/assets" <<'PY'
+          import base64,json,subprocess,sys
+          from pathlib import Path
+          p=Path(sys.argv[1]); result={}
+          for name in ('broadcast','left-above-rim','right-above-rim'):
+              obj=json.loads((p/('identity-tracks-'+name+'.json')).read_bytes())
+              obs=obj['observations']
+              samples={}
+              for sec in (0.5,2.2,3.9,5.6,7.3,9.,10.7,12.4,14.1,15.8,17.5,19.2):
+                  q=min(obs,key=lambda x:abs(x['t']-sec))
+                  candidates=[{'id':v['id'],'box':v['bbox'],
+                     'ankle':v['foot'],'jersey_visual':v['jersey_visual']}
+                     for v in q['tracks'] if v['jersey_visual']=='HOU_WHITE']
+                  samples[str(sec)]={
+                    'actual_native_pts_s':q['t'],'white_uniform_track_candidates':candidates}
+              result[name]=samples
+          content=json.dumps({'game_id':'0022600181',
+            'source':'original_20s_ByteTrack_scene',
+            'identity_proof_from_jersey_not_yet_certified':True,
+            'cameras':result},separators=(',',':')).encode()
+          if len(content)>75000:raise SystemExit(4)
+          payload={'message':'qa(cpu-animate): source-tracked exact-camera 12-frame white jersey candidate ID summaries',
+            'content':base64.b64encode(content).decode(),
+            'branch':'req-0181-two-player-scout-20261108'}
+          r=subprocess.run(['gh','api','-X','PUT',
+            'repos/timeedmonds-maker/104/contents/docs/cpu_animate/private_target_12frame_track_index.json',
+            '--input','-'],input=json.dumps(payload),capture_output=True,text=True)
+          if r.returncode:raise SystemExit(5)
+          print('PRIVATE_HOUSTON_TRACK_ID_TEMPORAL_INDEX_READY')
+          PY
