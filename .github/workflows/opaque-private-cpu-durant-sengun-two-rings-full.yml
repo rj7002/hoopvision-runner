@@ -61,7 +61,7 @@ jobs:
               or m.get('source_media_release')!='cpu-animate-min-ato-0022600181-653-original-cpu'
               or m.get('source_scout_release')!='cpu-animate-min-ato-0181-durant-sengun-identity-scout'
               or m.get('source_40hz_release')!='cpu-animate-0181-durant-sengun-native10-coach40'
-              or m.get('output_release')!='cpu-animate-min-ato-0181-durant-sengun-two-rings-fullsource-v1'
+              or m.get('output_release')!='cpu-animate-min-ato-0181-durant-sengun-two-rings-fullsource-v2'
               or m.get('source_camera_count')!=3 or m.get('output_orientation')!='vertical_1080x1920'
               or m.get('gpu') is not False or m.get('gcp') is not False
               or m.get('public_media_release') is not False or m.get('preview_only') is not True):
@@ -130,7 +130,7 @@ jobs:
              exit 5
           fi
           echo ORIGINAL_NBA_DURANT_SENGUN_ONLY_40HZ_PERSISTENT_3STACK_VIDEO_READY
-          TAG=cpu-animate-min-ato-0181-durant-sengun-two-rings-fullsource-v1
+          TAG=cpu-animate-min-ato-0181-durant-sengun-two-rings-fullsource-v2
           gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
             gh release create "$TAG" --repo timeedmonds-maker/104 \
               --title 'Only Durant and Sengun HoopVision rings original 3 video cameras 40Hz motion' \
