@@ -1,0 +1,113 @@
+name: Opaque original NBA 10Hz to coach 40Hz two-person motion
+on:
+  push:
+    branches: ['cpu-animate-opaque-private-cpu-20261108']
+    paths: ['.github/workflows/opaque-private-cpu-two-player-native40.yml']
+permissions:
+  contents: read
+jobs:
+  native-two-target:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Guard opaque private CPU-only source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN" && test ! -e /dev/nvidia0 && test ! -e /dev/kfd
+          echo TWO_PLAYER_PRIVATE_CPU_SECURITY_PASS
+      - name: Original verified NBA actor motion source to 10Hz and 40Hz
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(mktemp -d)"
+          trap 'rm -rf "$ROOT"' EXIT
+          gh auth setup-git >/dev/null 2>&1
+          git clone -q --depth=1 --filter=blob:none --sparse \
+            --branch req-0181-two-player-native40-20261108 \
+            https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
+            > "$ROOT/private-clone.log" 2>&1 || { echo PRIVATE_MOTION_CODE_UNAVAILABLE; exit 4; }
+          git -C "$ROOT/private" sparse-checkout set --no-cone \
+            '/cpu_animate/' '/tests/test_cpu_animate_min_ato_0181_full131_motion.py' \
+            '/docs/cpu_animate/private_two_player_native40_request.json' \
+            > "$ROOT/private-sparse.log" 2>&1 || exit 4
+          cd "$ROOT/private"
+          python3 - <<'PY'
+          import json,subprocess
+          from pathlib import Path
+          d=json.loads(Path('docs/cpu_animate/private_two_player_native40_request.json').read_text())
+          if (d.get('schema')!='cpu-animate.private-two-player-native-motion.v1'
+              or not d.get('authorized')
+              or d.get('req')!='req-0181-two-player-native40-20261108'
+              or d.get('game_id')!='0022600181'
+              or d.get('targets')!=[201142,1630578]
+              or d.get('rates_hz')!=[10,40]
+              or d.get('gpu') is not False or d.get('gcp') is not False
+              or d.get('max_cpu_minutes')!=12
+              or d.get('source_branch')!='research/gamepulse-clock-boundary-integrity-20261025'
+              or d.get('source_index_git_blob_sha1')!='08be65d68a73eb3229f43dba27b76c5b984bb64b'):
+              raise SystemExit(4)
+          for path,pin in d['code_sha1'].items():
+              if subprocess.check_output(['git','hash-object',path],text=True).strip()!=pin:
+                  raise SystemExit(4)
+          PY
+          echo SOURCE_NBA_TWO_ID_CODE_PINS_PASS
+          git clone -q --depth=1 --filter=blob:none --sparse \
+            --branch research/gamepulse-clock-boundary-integrity-20261025 \
+            https://github.com/timeedmonds-maker/104.git "$ROOT/original" \
+            > "$ROOT/original-clone.log" 2>&1 || { echo ORIGINAL_NBA_PRIVATE_SOURCE_UNAVAILABLE; exit 4; }
+          git -C "$ROOT/original" sparse-checkout set --no-cone \
+            gamepulse/fusion/materialized/igp_all_original_xyz/0022600181/index.json \
+            gamepulse/fusion/materialized/igp_all_original_xyz/0022600181/original-native-00014.jsonl.gz \
+            gamepulse/fusion/materialized/igp_all_original_xyz/0022600181/original-native-00015.jsonl.gz \
+            > "$ROOT/original-sparse.log" 2>&1 || { echo PRIVATE_NATIVE_CHUNKS_UNAVAILABLE; exit 4; }
+          test "$(git -C "$ROOT/original" hash-object gamepulse/fusion/materialized/igp_all_original_xyz/0022600181/index.json)" = \
+            08be65d68a73eb3229f43dba27b76c5b984bb64b || {
+            echo NBA_ORIGINAL_INDEX_VERSION_CHANGED; exit 4; }
+          python3 -m unittest discover -s tests \
+            -p test_cpu_animate_min_ato_0181_full131_motion.py \
+            > "$ROOT/tests.log" 2>&1 || { echo NATIVE_MOTION_10HZ40HZ_TESTS_FAILED; exit 4; }
+          echo ORIGINAL_NBA_TWO_PLAYER_10HZ_40HZ_TESTS_PASS
+          mkdir -p "$ROOT/out"
+          if ! python3 -m cpu_animate.min_ato_0181_full131_10hz40hz_motion \
+            --original "$ROOT/original" --out "$ROOT/out" > "$ROOT/motion.log" 2>&1; then
+            python3 - "$ROOT/motion.log" <<'PY'
+          import re,sys
+          e=re.findall(r'(?m)^([\w.]+(?:Error|Exception)):',open(sys.argv[1]).read())
+          print('NATIVE_TWO_PLAYER_MOTION_ERROR_CLASS',e[-1] if e else 'UNKNOWN')
+          PY
+            echo PRIVATE_ORIGINAL_PLAYER_MOTION_EXPORT_FAILED
+            exit 5
+          fi
+          echo ORIGINAL_NBA_10HZ_TO_40HZ_DURANT_SENGUN_MOTION_READY
+          TAG=cpu-animate-0181-durant-sengun-native10-coach40
+          gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
+            gh release create "$TAG" --repo timeedmonds-maker/104 \
+             --title 'NBA original Durant/Sengun 10 Hz and 40 Hz coach motion' \
+             --notes 'Private exact source. 40 Hz is interpolated animation. Original source and player IDs immutable.' \
+             --latest=false >/dev/null 2>&1 || { echo PRIVATE_MOTION_RELEASE_CREATE_FAILED; exit 5; }
+          gh release upload "$TAG" \
+             "$ROOT/out/durant_sengun_native10hz_coach40hz.json" \
+             "$ROOT/out/durant_sengun_native_motion_qa.json" \
+             --repo timeedmonds-maker/104 --clobber >/dev/null 2>&1 || {
+             echo PRIVATE_NBA_MOTION_ASSET_UPLOAD_FAILED; exit 5; }
+          python3 - "$ROOT/out/durant_sengun_native_motion_qa.json" <<'PY'
+          import base64,json,subprocess,sys
+          raw=open(sys.argv[1],'rb').read()
+          data={'message':'qa(cpu-animate): NBA original two-player SHA-verified 10Hz and 40Hz motion bridge',
+           'branch':'req-0181-two-player-native40-20261108',
+           'content':base64.b64encode(raw).decode()}
+          q=subprocess.run(['gh','api','-X','PUT',
+            'repos/timeedmonds-maker/104/contents/docs/cpu_animate/private_mn_0181_two_player_native40_qa.json',
+            '--input','-'],input=json.dumps(data),text=True,capture_output=True)
+          if q.returncode:raise SystemExit(5)
+          PY
+          echo PRIVATE_ORIGINAL_NBA_10HZ40HZ_QA_COMPLETE
