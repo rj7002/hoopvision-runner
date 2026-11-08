@@ -16,7 +16,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       NBA_GAME_ID: '0022600194'
       NBA_TIPOFF_UTC: '2026-11-08T02:00:00Z'
-      IGP_PRIVATE_CAPTURE_DIR: ${{ runner.temp }}/rockets0194-live-companion
+      IGP_PRIVATE_CAPTURE_DIR: /tmp/rockets0194-live-companion
       IGP_CAPTURE_ZERO_SHOT_FULL_EVENTS: 'true'
     steps:
       - uses: actions/checkout@v4
@@ -30,7 +30,7 @@ jobs:
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
           gh auth setup-git
-          mkdir -p "$RUNNER_TEMP/rockets0194-live-original" "$RUNNER_TEMP/rockets0194-live-companion"
+          mkdir -p "$RUNNER_TEMP/rockets0194-live-original" "$IGP_PRIVATE_CAPTURE_DIR"
           gh release download gamepulse-live-sdk-0022600194 --repo timeedmonds-maker/104 --pattern 'live-*' --dir "$RUNNER_TEMP/rockets0194-live-original"
           npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
           (cd tools/licensed_feed && npm install --ignore-scripts --no-audit --no-fund --silent)
@@ -48,7 +48,7 @@ jobs:
           GAME = "0022600194"
           root = Path(os.environ["RUNNER_TEMP"])
           folder = root / "rockets0194-live-original"
-          companion = root / "rockets0194-live-companion"
+          companion = Path(os.environ["IGP_PRIVATE_CAPTURE_DIR"])
           out = Path("gamepulse/fusion/qa/full131_0194/live_full131_r13_" + os.environ["GITHUB_RUN_ID"] + ".json")
           require = lambda yes,why: None if yes else (_ for _ in ()).throw(ValueError(why))
           sha = lambda b: hashlib.sha256(b).hexdigest()
