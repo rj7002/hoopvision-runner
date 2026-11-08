@@ -158,6 +158,9 @@ jobs:
                 'content':base64.b64encode(base64.b64encode(buf.getvalue())+b'\n').decode(),
                 'branch':'req-0181-durant-sengun-two-40hz-render-20261108'}
               url='repos/timeedmonds-maker/104/contents/docs/cpu_animate/private_two_only_frame_'+time+'.b64.txt'
+              prior=subprocess.run(['gh','api',url+'?ref=req-0181-durant-sengun-two-40hz-render-20261108'],
+                  capture_output=True,text=True)
+              if prior.returncode==0:payload['sha']=json.loads(prior.stdout)['sha']
               r=subprocess.run(['gh','api','-X','PUT',url,'--input','-'],
                   input=json.dumps(payload),capture_output=True,text=True)
               if r.returncode:raise SystemExit(5)
@@ -165,9 +168,12 @@ jobs:
           payload={'message':'qa(cpu-animate): private two-target original NBA video and 40Hz motion provenance',
              'content':base64.b64encode(qa.read_bytes()).decode(),
              'branch':'req-0181-durant-sengun-two-40hz-render-20261108'}
-          r=subprocess.run(['gh','api','-X','PUT',
-            'repos/timeedmonds-maker/104/contents/docs/cpu_animate/private_two_only_40hz_receipt.json',
-            '--input','-'],input=json.dumps(payload),capture_output=True,text=True)
+          target='repos/timeedmonds-maker/104/contents/docs/cpu_animate/private_two_only_40hz_receipt.json'
+          prior=subprocess.run(['gh','api',target+'?ref=req-0181-durant-sengun-two-40hz-render-20261108'],
+                  capture_output=True,text=True)
+          if prior.returncode==0:payload['sha']=json.loads(prior.stdout)['sha']
+          r=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],
+                  input=json.dumps(payload),capture_output=True,text=True)
           if r.returncode:raise SystemExit(5)
           PY
           echo DRAFT_ONLY_TWO_ORIGINAL_NBA_PLAYER_RINGS_VIDEO_QA_READY
