@@ -1,4 +1,4 @@
-name: CourtCoder universal floor-lock V12 cross-camera CPU regressions
+name: CourtCoder V12 universal floor/foot continuity source NBA Broadcast review
 # Original pixel-anchor KD seed fix: source-video identity diagnostic V6 rerun
 on:
   push:
@@ -57,10 +57,9 @@ jobs:
           fi
           python3 -m cpu_animate.test_floor_lock_v12
           echo CPU_ANIMATE_UNIVERSAL_FLOOR_LOCK_V12_SYNTHETIC_REGRESSION_COMPLETE
-          exit 0
-          python3 -m py_compile cpu_animate/min0181_v11b_broadcast_court_locked_preview.py
-          # Public, revision-pinned basketball-specific 48 keypoint model.
-          # AGPL terms: research user review, not a product-shipping artefact.
+          python3 -m py_compile cpu_animate/floor_lock_v12.py \
+             cpu_animate/shoe_evidence_v12.py \
+             cpu_animate/min0181_v12_universal_floor_real_video.py
           COURT_SHA=68e5faf5fb5388cf83477238abe22e9824a69fb33a4cf34f79ab61858f410064
           POSE_SHA=869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0
           SEG_SHA=55ed65c56c91713d23e8402371c6c49a6fd84f257f7dce452e8d70e41dcbe152
@@ -92,6 +91,76 @@ jobs:
              --repo timeedmonds-maker/104 --dir "$ROOT/media" \
              --pattern 'angle-*.mp4' --pattern 'angle-*.json' \
              > "$ROOT/source-media.log" 2>&1 || { echo ORIGINAL_NBA_ANGLE_DOWNLOAD_FAILED; exit 4; }
+          gh release download cpu-animate-min-ato-0181-durant-sengun-identity-scout \
+             --repo timeedmonds-maker/104 --dir "$ROOT/scout" \
+             --pattern 'identity-tracks-*.json' \
+             > "$ROOT/source-scout.log" 2>&1 || { echo ORIGINAL_VIDEO_IDENTITY_SCOUT_DOWNLOAD_FAILED; exit 4; }
+          env -u GH_TOKEN -u GITHUB_TOKEN -u GIT_ASKPASS \
+            python3 -m cpu_animate.min0181_v12_universal_floor_real_video \
+               --private "$ROOT/private" --media "$ROOT/media" \
+               --scout "$ROOT/scout" \
+               --modelcourt "$ROOT/private/basketball_court_best.pt" \
+               --modelpose "$ROOT/private/yolo11n-pose.pt" \
+               --modelseg "$ROOT/private/yolo11n-seg.pt" \
+               --out "$ROOT/out" > "$ROOT/render.log" 2>&1 || {
+                  tail -c 11000 "$ROOT/render.log"
+                  echo V12_UNIVERSAL_COURT_FLOOR_CPU_PREVIEW_REJECTED
+                  exit 5
+               }
+          tail -c 10000 "$ROOT/render.log"
+          python3 - "$ROOT/out" <<'PY'
+          import json,sys
+          from pathlib import Path
+          q=json.loads((Path(sys.argv[1])/'v12_universal_floor_lock_real_video_QA.json').read_text())
+          assert q['frames']>=235
+          assert q['original_NBA_source_mutated'] is False
+          assert q['camera_cuts_are_hard_resets'] is True
+          assert q['fixed_frozen_ring_size'] is True
+          assert q['camera_registration_frame_count']>=int(.70*q['frames'])
+          assert q['court_keypoint_model_sha256']=='68e5faf5fb5388cf83477238abe22e9824a69fb33a4cf34f79ab61858f410064'
+          assert q['topdown_pose_model_sha256']=='869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0'
+          for who in ('Durant','Sengun'):
+              n=q['ring_output_qa'].get(who+'_visible_ring_frames',0)
+              assert n>=135,(who,n)
+          assert q['ring_output_qa'].get('Sengun_green_reviewed_frames',0)>60
+          assert (Path(sys.argv[1])/q['video_file']).stat().st_size>1000000
+          print('V12_UNIVERSAL_COURT_SHOE_IDENTITY_VISIBILITY_ACCEPTANCE_PASS',
+                {'frames':q['frames'],'source':q['model_foot_sources_qa'],
+                 'floor':q['floor_filter_qa'],
+                 'ring':q['ring_frame_dynamics']})
+          PY
+          TAG=cpu-animate-min0181-universal-floor-shoe-persistence-v12
+          gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
+            gh release create "$TAG" --repo timeedmonds-maker/104 \
+              --title 'CPU Animate V12 universal camera-ground floor lock + ROI pose shoe + persistence research preview' \
+              --notes 'Authentic NBA Broadcast eight second private research clip. Universal camera-reference Kalman RTS shoe tracker, independent identity-gated topdown CPU person pose, segmented shoe and optical evidence, shot resets, separate ring visibility hysteresis and segmentation-mask temporal persistence. Original frozen rotating/pulsing HoopVision styling. The source court model is AGPL-3.0 research only. No independent real video foot p95 or physical court calibration certified.' \
+              --latest=false >/dev/null
+          gh release upload "$TAG" \
+             "$ROOT/out/MIN0181_V12_UNIVERSAL_FLOOR_LOCK_BROADCAST_8S_REVIEW.mp4" \
+             "$ROOT/out/v12_universal_floor_lock_real_video_QA.json" \
+             "$ROOT/out"/v12_floor_review_t*.jpg \
+             --repo timeedmonds-maker/104 --clobber
+          python3 - "$ROOT/out" <<'PY'
+          import base64,json,subprocess,sys
+          from pathlib import Path
+          out=Path(sys.argv[1])
+          branch='cpu-animate/universal-floor-lock-v12-20261109'
+          for sec in (2,3,4,5,6):
+              p=out/f'v12_floor_review_t{sec:02}.jpg'
+              if not p.is_file():continue
+              data=base64.b64encode(p.read_bytes())+b'\n'
+              dest=f'repos/timeedmonds-maker/104/contents/docs/cpu_animate/v12_universal_floor_t{sec:02}.jpg.b64.txt'
+              item={'message':'qa(V12): original NBA source real frame floor ring for technical review',
+                    'branch':branch,'content':base64.b64encode(data).decode()}
+              old=subprocess.run(['gh','api',dest+'?ref='+branch],capture_output=True,text=True)
+              if old.returncode==0:item['sha']=json.loads(old.stdout)['sha']
+              result=subprocess.run(['gh','api','-X','PUT',dest,'--input','-'],
+                            input=json.dumps(item),capture_output=True,text=True)
+              if result.returncode:raise RuntimeError('V12_PRIVATE_REAL_VIDEO_FRAME_ARCHIVAL_FAILED')
+          print('V12_ORIGINAL_NBA_REAL_FRAMES_ARCHIVED')
+          PY
+          echo V12_UNIVERSAL_COURT_RELATIVE_FLOOR_PREVIEW_COMPLETE
+          exit 0
           gh release download cpu-animate-min-ato-0181-durant-sengun-identity-scout \
              --repo timeedmonds-maker/104 --dir "$ROOT/scout" \
              --pattern 'identity-tracks-*.json' \
