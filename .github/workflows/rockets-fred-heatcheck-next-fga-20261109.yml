@@ -80,6 +80,10 @@ jobs:
           people=collections.defaultdict(collections.Counter)
           receipts=[]
           names={}
+          categories=collections.defaultdict(collections.Counter)
+          teammate3_details=collections.defaultdict(collections.Counter)
+          followup_shooter=collections.Counter()
+          fred_after_others3_cases=[]
           for date,opp in FIXTURES:
             gid=fixtures[(date,opp)]
             base='https://cdn.nba.com/static/json/liveData/'
@@ -122,7 +126,7 @@ jobs:
               if t in ('2pt','3pt') and team==HOU and str(a.get('shotResult') or '').lower() in ('made','missed'):
                 entry={'a':int(a.get('actionNumber') or 0),'player':pid,
                        'three':t=='3pt','made':str(a.get('shotResult')).lower()=='made',
-                       'fred_on':FRED in court,'court_count':len(court),
+                       'fred_on':FRED in court,'court_count':len(court),'court_ids':sorted(court),
                        'period':a.get('period'),'clock':a.get('clock')}
                 shooting.append(entry)
                 if len(court)!=5:anomalies.append(('courtcount',a.get('actionNumber'),len(court)))
@@ -136,6 +140,33 @@ jobs:
             if tpm is not None: assert sum(z['three'] and z['made'] for z in shooting)==int(tpm),(gid,'3PM mismatch',tpm)
             madefred=0
             frednext=0
+            per_game_fred_follow=0
+            for q in shooting:
+              if q['fred_on'] and q['court_count']==5:
+                totals['hou_on_fred_fga']+=1
+                totals['fred_on_fred_fga']+=int(q['player']==FRED)
+            for prev,nxt in zip(shooting,shooting[1:]):
+              if prev['player']==FRED or not prev['fred_on'] or prev['court_count']!=5:continue
+              label=('three' if prev['three'] else 'two')+'_'+('made' if prev['made'] else 'missed')
+              r=categories[label]
+              r['opportunities']+=1
+              r['fred_next']+=int(nxt['player']==FRED)
+              r['fred_still_on_at_next']+=int(nxt['fred_on'] and nxt['court_count']==5)
+              r['same_shooter_next']+=int(nxt['player']==prev['player'])
+              if label=='three_made':
+                pre=teammate3_details[prev['player']]
+                pre['made_threes']+=1
+                pre['fred_next']+=int(nxt['player']==FRED)
+                pre['self_next']+=int(nxt['player']==prev['player'])
+                pre['fred_still_on_at_next']+=int(nxt['fred_on'])
+                followup_shooter[nxt['player']]+=1
+                if nxt['player']==FRED:
+                  per_game_fred_follow+=1
+                  r['fred_2pa']+=int(not nxt['three'])
+                  r['fred_2pm']+=int(not nxt['three'] and nxt['made'])
+                  r['fred_3pa']+=int(nxt['three'])
+                  r['fred_3pm']+=int(nxt['three'] and nxt['made'])
+                  fred_after_others3_cases.append({'game_id':gid,'pre_shooter_id':prev['player'],'pre_action':prev['a'],'fred_action':nxt['a'],'followup_shot_type':'3PT' if nxt['three'] else '2PT','fred_made':nxt['made']})
             good=0
             inconclusive=0
             for idx,a in enumerate(shooting):
@@ -170,7 +201,7 @@ jobs:
                 totals['others_n']+=1
                 totals['others_same']+=matched
             receipts.append({'date':date,'opponent':opp,'gid':gid,'official_fga':fga,'official_3pm':tpm,
-                'shots':len(shooting),'fred_trigger':madefred,'fred_next':frednext,
+                'shots':len(shooting),'fred_trigger':madefred,'fred_next':frednext,'fred_after_teammate_three':per_game_fred_follow,
                 'no_followup':inconclusive,'on_floor_last':len(court),'pbp_sha':psha,'box_sha':boxsha,
                 'starter_names':[names.get(x,str(x)) for x in sorted(starters)]})
             print('GAME_RECONCILED',json.dumps(receipts[-1],sort_keys=True))
@@ -190,5 +221,17 @@ jobs:
           print('FRED_ON_COURT_SAME_PLAYER_NEXT_ROCKETS_FGA_FINAL',json.dumps(summary,sort_keys=True))
           assert summary['fred']['triggers']==22 and summary['fred']['same']==11, 'Prior reconciled Fred 22 and 11 calibration mismatch: investigate before accepting teammate result'
           assert sum(c['denom'] for c in people.values())==totals['n']
+          def pct(n,d):return round(100*n/d,4) if d else None
+          by_category={key:{**dict(v),'fred_next_pct':pct(v['fred_next'],v['opportunities']),'self_next_pct':pct(v['same_shooter_next'],v['opportunities'])} for key,v in sorted(categories.items())}
+          n=categories['three_made']['opportunities']
+          x=categories['three_made']['fred_next']
+          assert n==41,('teammate made threes source regression',n)
+          assert categories['three_made']['same_shooter_next']==11
+          assert sum(followup_shooter.values())==41
+          assert sum(v['made_threes'] for v in teammate3_details.values())==41
+          assert sum(v['fred_next'] for v in teammate3_details.values())==x
+          result={'schema':'rockets-fred-teammate-three-next-fga.v1','games':len(receipts),'teammate_made_three_with_fred_on_and_next_rockets_fga':n,'next_fga_taken_by_fred':x,'fred_next_pct':pct(x,n),'next_fga_taken_by_original_shooter':categories['three_made']['same_shooter_next'],'next_fga_taken_by_other_player':n-x-categories['three_made']['same_shooter_next'],'fred_available_next':categories['three_made']['fred_still_on_at_next'],'baseline_rockets_fga_with_fred_on':totals['hou_on_fred_fga'],'baseline_fred_fga_with_fred_on':totals['fred_on_fred_fga'],'baseline_fred_fga_share_pct':pct(totals['fred_on_fred_fga'],totals['hou_on_fred_fga']),'after_other_teammate_shots':by_category,'by_made_three_shooter':[{'name':names.get(pid,str(pid)),'player_id':pid,**dict(v),'fred_next_pct':pct(v['fred_next'],v['made_threes'])} for pid,v in sorted(teammate3_details.items(),key=lambda t:-t[1]['made_threes'])],'next_fga_shooter_distribution':[{'name':names.get(pid,str(pid)),'player_id':pid,'count':count,'pct':pct(count,n)} for pid,count in followup_shooter.most_common()],'fred_followup_shot_types':{'two_made':categories['three_made']['fred_2pm'],'two_attempted':categories['three_made']['fred_2pa'],'three_made':categories['three_made']['fred_3pm'],'three_attempted':categories['three_made']['fred_3pa']},'per_game':[{'game_id':a['gid'],'opponent':a['opponent'],'fred_after_teammate_three':a['fred_after_teammate_three']} for a in receipts]}
+          print('FRED_TAKES_TEAMMATES_HEATCHECKS_FINAL',json.dumps(result,sort_keys=True,ensure_ascii=False),flush=True)
+          print('FRED_TAKES_TEAMMATES_HEATCHECKS_CASES',json.dumps(fred_after_others3_cases,sort_keys=True),flush=True)
           print('FRED_HEATCHECK_COMPARISON_EIGHT_GAME_CALIBRATION_PASSED')
           PY
