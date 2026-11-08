@@ -1,0 +1,69 @@
+name: Opaque private three-stack video-foot QA still and receipt
+on:
+  push:
+    branches: ['cpu-animate-opaque-private-cpu-20261108']
+    paths: ['.github/workflows/opaque-private-cpu-three-stack-review-sync.yml']
+permissions:
+  contents: read
+jobs:
+  review-copy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify bridge and copy only verified final still/receipt to PRIVATE repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN" || exit 4
+          ROOT="$(mktemp -d)"
+          trap 'rm -rf "$ROOT"' EXIT
+          gh auth setup-git >/dev/null 2>&1
+          git clone -q --depth=1 --filter=blob:none --sparse \
+            --branch 'req-62b7d8404ae944cabc6f9215c1727e1a' \
+            https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
+            > "$ROOT/private-checkout.log" 2>&1 || exit 4
+          git -C "$ROOT/private" sparse-checkout set --no-cone \
+            '/docs/cpu_animate/opaque_private_0181_video_pose_ring_request.json' \
+            > "$ROOT/sparse.log" 2>&1 || exit 4
+          python3 - "$ROOT/private/docs/cpu_animate/opaque_private_0181_video_pose_ring_request.json" <<'PY'
+          import json,sys
+          m=json.load(open(sys.argv[1]))
+          if m.get('request_id')!='req-62b7d8404ae944cabc6f9215c1727e1a' or not m.get('owner_authorized'):
+              raise SystemExit(4)
+          if m.get('output_release')!='cpu-animate-min-ato-0022600181-vertical-video-foot-rings-v1':
+              raise SystemExit(4)
+          PY
+          mkdir -p "$ROOT/assets"
+          gh release download 'cpu-animate-min-ato-0022600181-vertical-video-foot-rings-v1' \
+            --repo timeedmonds-maker/104 --dir "$ROOT/assets" \
+            --pattern 'vertical_pose_rings_review_frame.jpg' \
+            --pattern 'min_ato_0181_three_vertical_video_rings_receipt.json' \
+            > "$ROOT/release-fetch.log" 2>&1 || { echo PRIVATE_RING_REVIEW_ASSETS_NOT_FOUND; exit 4; }
+          python3 - "$ROOT/assets" <<'PY'
+          import base64,hashlib,json,subprocess,sys
+          from pathlib import Path
+          d=Path(sys.argv[1])
+          filenames=[
+           ('vertical_pose_rings_review_frame.jpg','private_min_ato_0181_vertical_pose_frame.b64.txt',True),
+           ('min_ato_0181_three_vertical_video_rings_receipt.json','private_min_ato_0181_vertical_pose_receipt.json',False)]
+          for original,target,is_binary in filenames:
+              source=(d/original).read_bytes()
+              if is_binary:source=base64.b64encode(source)+b'\n'
+              payload={'message':'qa(cpu-animate): private verified three-video footage foot-ring frame and receipt',
+                       'content':base64.b64encode(source).decode(),
+                       'branch':'req-62b7d8404ae944cabc6f9215c1727e1a'}
+              path='repos/timeedmonds-maker/104/contents/docs/cpu_animate/'+target
+              previous=subprocess.run(['gh','api',path+'?ref=req-62b7d8404ae944cabc6f9215c1727e1a'],
+                   capture_output=True,text=True)
+              if previous.returncode==0:payload['sha']=json.loads(previous.stdout)['sha']
+              result=subprocess.run(['gh','api','-X','PUT',path,'--input','-'],
+                  input=json.dumps(payload),text=True,capture_output=True)
+              if result.returncode:raise SystemExit(5)
+          print('PRIVATE_THREE_VERTICAL_RING_PREVIEW_AND_QA_RECEIPT_COPIED')
+          PY
