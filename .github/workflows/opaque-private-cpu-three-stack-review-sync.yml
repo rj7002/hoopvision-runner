@@ -25,22 +25,22 @@ jobs:
           trap 'rm -rf "$ROOT"' EXIT
           gh auth setup-git >/dev/null 2>&1
           git clone -q --depth=1 --filter=blob:none --sparse \
-            --branch 'req-62b7d8404ae944cabc6f9215c1727e1a' \
+            --branch 'req-944ffbac0d32477ea17cdf2166206e22' \
             https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
             > "$ROOT/private-checkout.log" 2>&1 || exit 4
           git -C "$ROOT/private" sparse-checkout set --no-cone \
-            '/docs/cpu_animate/opaque_private_0181_video_pose_ring_request.json' \
+            '/docs/cpu_animate/opaque_private_0181_video_pose_ring_request_v2.json' \
             > "$ROOT/sparse.log" 2>&1 || exit 4
-          python3 - "$ROOT/private/docs/cpu_animate/opaque_private_0181_video_pose_ring_request.json" <<'PY'
+          python3 - "$ROOT/private/docs/cpu_animate/opaque_private_0181_video_pose_ring_request_v2.json" <<'PY'
           import json,sys
           m=json.load(open(sys.argv[1]))
-          if m.get('request_id')!='req-62b7d8404ae944cabc6f9215c1727e1a' or not m.get('owner_authorized'):
+          if m.get('request_id')!='req-944ffbac0d32477ea17cdf2166206e22' or not m.get('owner_authorized'):
               raise SystemExit(4)
-          if m.get('output_release')!='cpu-animate-min-ato-0022600181-vertical-video-foot-rings-v1':
+          if m.get('output_release')!='cpu-animate-min-ato-0022600181-vertical-video-foot-rings-v2':
               raise SystemExit(4)
           PY
           mkdir -p "$ROOT/assets"
-          gh release download 'cpu-animate-min-ato-0022600181-vertical-video-foot-rings-v1' \
+          gh release download 'cpu-animate-min-ato-0022600181-vertical-video-foot-rings-v2' \
             --repo timeedmonds-maker/104 --dir "$ROOT/assets" \
             --pattern 'vertical_pose_rings_review_frame.jpg' \
             --pattern 'min_ato_0181_three_vertical_video_rings_receipt.json' \
@@ -50,16 +50,16 @@ jobs:
           from pathlib import Path
           d=Path(sys.argv[1])
           filenames=[
-           ('vertical_pose_rings_review_frame.jpg','private_min_ato_0181_vertical_pose_frame.b64.txt',True),
-           ('min_ato_0181_three_vertical_video_rings_receipt.json','private_min_ato_0181_vertical_pose_receipt.json',False)]
+           ('vertical_pose_rings_review_frame.jpg','private_min_ato_0181_vertical_pose_frame_v2.b64.txt',True),
+           ('min_ato_0181_three_vertical_video_rings_receipt.json','private_min_ato_0181_vertical_pose_receipt_v2.json',False)]
           for original,target,is_binary in filenames:
               source=(d/original).read_bytes()
               if is_binary:source=base64.b64encode(source)+b'\n'
               payload={'message':'qa(cpu-animate): private verified three-video footage foot-ring frame and receipt',
                        'content':base64.b64encode(source).decode(),
-                       'branch':'req-62b7d8404ae944cabc6f9215c1727e1a'}
+                       'branch':'req-944ffbac0d32477ea17cdf2166206e22'}
               path='repos/timeedmonds-maker/104/contents/docs/cpu_animate/'+target
-              previous=subprocess.run(['gh','api',path+'?ref=req-62b7d8404ae944cabc6f9215c1727e1a'],
+              previous=subprocess.run(['gh','api',path+'?ref=req-944ffbac0d32477ea17cdf2166206e22'],
                    capture_output=True,text=True)
               if previous.returncode==0:payload['sha']=json.loads(previous.stdout)['sha']
               result=subprocess.run(['gh','api','-X','PUT',path,'--input','-'],
