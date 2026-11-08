@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/opaque-private-cpu-three-stack-video-feet.yml",  # opaque-only authentic NBA source vertical video-ankle ring trial
     ".github/workflows/opaque-private-cpu-alignment-audit.yml",  # separate opaque-only read of authorized original private NBA source, CPU QA output private
     ".github/workflows/opaque-private-cpu-source-intake.yml",  # single opaque private-authorized CPU-only read, no public private-source payload
     ".github/workflows/cpu-animate-amen732-lastsecond-native-recovery.yml",  # inspect original final-shot SDK native gap and companion alternatives in private Git CPU-only
