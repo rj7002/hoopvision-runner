@@ -1,0 +1,154 @@
+name: Opaque private Minnesota vertical video foot rings
+on:
+  push:
+    branches: ['cpu-animate-opaque-private-cpu-20261108']
+    paths: ['.github/workflows/opaque-private-cpu-three-stack-video-feet.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cpu-animate-0181-real-three-video-ankle-rings
+  cancel-in-progress: false
+jobs:
+  video-ankle-rings:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      REQUEST_ID: req-62b7d8404ae944cabc6f9215c1727e1a
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+      OMP_NUM_THREADS: '3'
+      MKL_NUM_THREADS: '3'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce public security and CPU-only execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN" && test ! -e /dev/nvidia0 && test ! -e /dev/kfd
+          echo PUBLIC_OPAQUE_CPU_VIDEO_FOOT_GATE_PASS
+      - name: Validate private source and render original camera stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(mktemp -d)"
+          chmod 700 "$ROOT"
+          trap 'rm -rf "$ROOT"' EXIT
+          gh auth setup-git >/dev/null 2>&1
+          git clone -q --depth=1 --filter=blob:none --sparse --branch "$REQUEST_ID" \
+            https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
+            > "$ROOT/clone.log" 2>&1 || { echo PRIVATE_SOURCE_CLONE_FAILED; exit 4; }
+          git -C "$ROOT/private" sparse-checkout set --no-cone \
+            '/cpu_animate/' '/tests/' '/docs/cpu_animate/' \
+            '/tools/locked_broadcast_screen_v5_rings.py' \
+            > "$ROOT/sparse.log" 2>&1 || { echo PRIVATE_SOURCE_SPARSE_FAILED; exit 4; }
+          cd "$ROOT/private"
+          python3 - "$REQUEST_ID" > "$ROOT/inputs.txt" <<'PY'
+          import json,re,subprocess,sys
+          from pathlib import Path
+          m=json.loads(Path('docs/cpu_animate/opaque_private_0181_video_pose_ring_request.json').read_text())
+          required={'schema':'cpu-animate.private-video-foot-ring-execution.v1',
+                    'request_id':sys.argv[1], 'game_id':'0022600181',
+                    'operation':'three_real_original_NBA_videos_vertical_video_ankle_rings_CPU',
+                    'source_release':'cpu-animate-min-ato-0022600181-653-original-cpu',
+                    'output_release':'cpu-animate-min-ato-0022600181-vertical-video-foot-rings-v1',
+                    'model_name':'yolo11n-pose.pt',
+                    'max_cpu_minutes':30,'angle_limit':3,
+                    'gpu_allowed':False,'gcp_allowed':False,
+                    'public_original_video_allowed':False,
+                    'public_raw_tracking_allowed':False,'owner_authorized':True}
+          if any(m.get(k)!=v for k,v in required.items()):raise SystemExit(4)
+          p=m.get('approved_code_sha1') or {}
+          expected={'cpu_animate/min_ato_0181_video_pose_vertical_rings.py',
+            'tests/test_cpu_animate_min_ato_0181_video_pose_vertical.py',
+            'tools/locked_broadcast_screen_v5_rings.py'}
+          if set(p)!=expected:raise SystemExit(4)
+          for path,sha in p.items():
+              if not re.fullmatch(r'[0-9a-f]{40}',sha):raise SystemExit(4)
+              if subprocess.check_output(['git','hash-object',path],text=True).strip()!=sha:
+                  raise SystemExit(4)
+          print(m['source_release'])
+          print(m['output_release'])
+          PY
+          readarray -t INPUTS < "$ROOT/inputs.txt"
+          SOURCE_RELEASE="$(sed -n '1p' "$ROOT/inputs.txt")"
+          OUTPUT_RELEASE="$(sed -n '2p' "$ROOT/inputs.txt")"
+          echo PRIVATE_SOURCE_AND_CODE_BLOB_SHA_PASS
+
+          mkdir -p "$ROOT/media" "$ROOT/out"
+          gh release download "$SOURCE_RELEASE" --repo timeedmonds-maker/104 \
+            --dir "$ROOT/media" --pattern 'angle-*.mp4' --pattern 'angle-*.json' \
+            > "$ROOT/media.log" 2>&1 || { echo PRIVATE_VIDEO_ASSETS_UNAVAILABLE; exit 4; }
+
+          python3 -m pip install -q --disable-pip-version-check \
+            'torch==2.5.1+cpu' 'torchvision==0.20.1+cpu' \
+            --index-url https://download.pytorch.org/whl/cpu \
+            > "$ROOT/torch.log" 2>&1 || { echo CPU_TORCH_DEPENDENCY_SETUP_FAILED; exit 4; }
+          python3 -m pip install -q --disable-pip-version-check \
+            'ultralytics==8.3.190' 'opencv-python-headless' 'pillow' \
+            > "$ROOT/pose.log" 2>&1 || { echo CPU_POSE_DEPENDENCY_SETUP_FAILED; exit 4; }
+          echo CPU_VIDEO_POSE_ENVIRONMENT_READY
+          python3 -m unittest discover -s tests \
+            -p 'test_cpu_animate_min_ato_0181_video_pose_vertical.py' \
+            > "$ROOT/tests.log" 2>&1 || { echo CPU_REAL_VIDEO_POSE_UNIT_TESTS_FAILED; exit 4; }
+          echo CPU_VIDEO_ANCHOR_LAYOUT_TESTS_PASS
+          curl -fSL --retry 3 --max-time 180 \
+            'https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n-pose.pt' \
+            -o "$ROOT/yolo11n-pose.pt" \
+            > "$ROOT/weights.log" 2>&1 || { echo OFFICIAL_POSE_MODEL_UNAVAILABLE; exit 4; }
+          test "$(stat -c '%s' "$ROOT/yolo11n-pose.pt")" -gt 1000000 || {
+            echo OFFICIAL_POSE_MODEL_LENGTH_FAILED; exit 4; }
+          echo CPU_ORIGINAL_POSE_MODEL_ACQUIRED_PRIVATE_SHA_RECEIPT_PENDING
+
+          if ! python3 -m cpu_animate.min_ato_0181_video_pose_vertical_rings \
+            --private "$ROOT/private" --media "$ROOT/media" \
+            --weights "$ROOT/yolo11n-pose.pt" --out "$ROOT/out" \
+            > "$ROOT/renderer.log" 2>&1; then
+            python3 - "$ROOT/renderer.log" <<'PY'
+          import re,sys
+          s=open(sys.argv[1]).read()
+          names=re.findall(r'(?m)^([\w.]+(?:Error|Exception)):',s)
+          print('CPU_POSE_RENDER_ERROR_CLASS',names[-1] if names else 'UNKNOWN')
+          PY
+            echo ORIGINAL_NBA_VERTICAL_RING_RENDER_FAILED
+            exit 5
+          fi
+          echo THREE_ORIGINAL_NBA_VIDEO_FOOT_RING_FRAMES_RENDERED
+
+          if ! gh release view "$OUTPUT_RELEASE" --repo timeedmonds-maker/104 \
+            >/dev/null 2>&1; then
+            gh release create "$OUTPUT_RELEASE" --repo timeedmonds-maker/104 \
+              --title 'CPU Animate MIN 0181 original three-stack video-foot ring review' \
+              --notes 'CPU-only research diagnostic. Rings from observed video pose ankles, identities and world camera geometry not certified. Private footage; no public distribution.' \
+              --latest=false >/dev/null 2>&1 || { echo PRIVATE_RELEASE_CREATE_FAILED; exit 5; }
+          fi
+          for file in "$ROOT/out/min_ato_0181_three_vertical_real_video_ankle_rings_REVIEW_ONLY.mp4" \
+                      "$ROOT/out/min_ato_0181_three_vertical_video_rings_receipt.json" \
+                      "$ROOT/out/vertical_pose_rings_review_frame.jpg"; do
+            gh release upload "$OUTPUT_RELEASE" "$file" --repo timeedmonds-maker/104 \
+              --clobber >/dev/null 2>&1 || { echo PRIVATE_OUTPUT_UPLOAD_FAILED; exit 5; }
+          done
+          python3 - "$ROOT/out" "$OUTPUT_RELEASE" <<'PY'
+          import hashlib,json,subprocess,sys,time
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          names=['min_ato_0181_three_vertical_real_video_ankle_rings_REVIEW_ONLY.mp4',
+                 'min_ato_0181_three_vertical_video_rings_receipt.json',
+                 'vertical_pose_rings_review_frame.jpg']
+          expected={n:'sha256:'+hashlib.sha256((root/n).read_bytes()).hexdigest() for n in names}
+          for _ in range(12):
+              v=subprocess.run(['gh','api','repos/timeedmonds-maker/104/releases/tags/'+sys.argv[2]],
+                               capture_output=True,text=True)
+              if v.returncode==0:
+                  actual={x['name']:x.get('digest') for x in json.loads(v.stdout)['assets']}
+                  if all(actual.get(n)==h for n,h in expected.items()):
+                      print('PRIVATE_REAL_THREE_VERTICAL_RING_ASSETS_SHA256_PASS')
+                      break
+              time.sleep(3)
+          else:raise SystemExit(5)
+          PY
+          echo PRIVATE_REAL_VIDEO_FOOT_RINGS_THREE_STACK_REVIEW_READY
