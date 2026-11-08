@@ -1,5 +1,5 @@
 name: CPU Animate V6 original-video player identity optical diagnostic
-# Security allowlist and private-only source provenance verified before this run
+# Original pixel-anchor KD seed fix: source-video identity diagnostic V6 rerun
 on:
   push:
     branches: ['cpu-animate-opaque-private-cpu-20261108']
