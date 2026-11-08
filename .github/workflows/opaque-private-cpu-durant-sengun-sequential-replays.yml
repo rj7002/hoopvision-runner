@@ -109,6 +109,24 @@ jobs:
             exit 5
           fi
           tail -c 14500 "$ROOT/render.log"
+          python3 - "$ROOT/out" <<'PY'
+          import base64,json,subprocess,sys
+          from pathlib import Path
+          folder=Path(sys.argv[1])
+          for camera,sec in ((1,4),(1,12),(2,4),(2,12),(3,4),(3,12)):
+              img=folder/f"diag_cam{camera}_t{sec:02}.jpg"
+              encoded=base64.b64encode(img.read_bytes())+b"\n"
+              target=f"repos/timeedmonds-maker/104/contents/docs/cpu_animate/private_v6_eyecheck_cam{camera}_t{sec:02}.b64.txt"
+              branch="cpu-animate/min0181-bidirectional-optical-player-lock-20261108"
+              prior=subprocess.run(["gh","api",target+"?ref="+branch],capture_output=True,text=True)
+              payload={"message":"qa: visual NBA player identification source-frame check",
+                       "content":base64.b64encode(encoded).decode(),"branch":branch}
+              if prior.returncode==0:payload["sha"]=json.loads(prior.stdout)["sha"]
+              x=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
+                    input=json.dumps(payload),text=True,capture_output=True)
+              if x.returncode:raise RuntimeError("QA_FRAME_SAVE_FAILED")
+          print("PRIVATE_IDENTITY_REVIEW_FRAMES_STORED")
+          PY
           echo OPTICAL_DIAGNOSTIC_FINISHED_WITHOUT_MP4_RELEASE
           exit 0
           tail -c 2500 "$ROOT/render.log"
