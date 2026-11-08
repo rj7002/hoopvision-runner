@@ -65,7 +65,7 @@ jobs:
                   assert man["start_ms"]==note["start_ms"]
                   stream=t.extractfile("frames.jsonl.gz")
                   assert stream is not None
-                  rows=[json.loads(x) for x in gzip.GzipFile(fileobj=stream)]
+                  rows=[json.loads(x) for x in gzip.GzipFile(fileobj=stream) if x.strip()]
                   assert len(rows)==man["unique_keyframes"]
               minute=man["start_ms"]
               by_minute[str(minute)]={"source_sha256":sha,"five_second_windows":man["successful_windows"],
