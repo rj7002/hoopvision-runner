@@ -60,7 +60,7 @@ jobs:
                   assert manifest.get("successful_windows")==12
                   zipped=tar.extractfile("frames.jsonl.gz")
                   assert zipped is not None
-                  rows=list(gzip.GzipFile(fileobj=zipped))
+                  rows=[line for line in gzip.GzipFile(fileobj=zipped) if line.strip()]
                   assert len(rows)==manifest.get("unique_keyframes"),"source_frame_count_mismatch"
                   for raw in rows:
                       row=json.loads(raw)
