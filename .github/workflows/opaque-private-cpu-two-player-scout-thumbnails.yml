@@ -1,0 +1,76 @@
+name: Opaque private two-player identity scout inspected thumbnails
+on:
+  push:
+    branches: ['cpu-animate-opaque-private-cpu-20261108']
+    paths: ['.github/workflows/opaque-private-cpu-two-player-scout-thumbnails.yml']
+permissions:
+  contents: read
+jobs:
+  private-thumbnail:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Privately stage compact source NBA visuals for manual track review
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN" || exit 4
+          ROOT="$(mktemp -d)"
+          trap 'rm -rf "$ROOT"' EXIT
+          gh auth setup-git >/dev/null 2>&1
+          git clone -q --depth=1 --filter=blob:none --sparse \
+            --branch 'req-0181-two-player-scout-20261108' \
+            https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
+            > "$ROOT/clone.log" 2>&1 || { echo PRIVATE_SOURCE_AUTH_NOT_AVAILABLE; exit 4; }
+          git -C "$ROOT/private" sparse-checkout set --no-cone \
+            '/docs/cpu_animate/private_two_player_identity_scout_request.json' \
+            > "$ROOT/sparse.log" 2>&1 || exit 4
+          python3 - "$ROOT/private/docs/cpu_animate/private_two_player_identity_scout_request.json" <<'PY'
+          import json,sys
+          m=json.load(open(sys.argv[1]))
+          if not m.get("authorized") or m.get("req")!="req-0181-two-player-scout-20261108":raise SystemExit(4)
+          if m.get("output_release")!="cpu-animate-min-ato-0181-durant-sengun-identity-scout":raise SystemExit(4)
+          PY
+          mkdir -p "$ROOT/assets"
+          gh release download 'cpu-animate-min-ato-0181-durant-sengun-identity-scout' \
+             --repo timeedmonds-maker/104 --dir "$ROOT/assets" \
+             --pattern 'identity-scout-*.jpg' > "$ROOT/download.log" 2>&1 || {
+             echo PRIVATE_SOURCE_JPEGS_MISSING; exit 4; }
+          python3 -m pip install -q pillow > "$ROOT/pip.log" 2>&1
+          python3 - "$ROOT/assets" <<'PY'
+          import base64,io,json,subprocess,sys
+          from pathlib import Path
+          from PIL import Image
+          src=Path(sys.argv[1])
+          sampled={1:'t02',4:'t07',7:'t12',10:'t17'}
+          for camera in ('broadcast','left-above-rim','right-above-rim'):
+              img=Image.open(src/f'identity-scout-{camera}.jpg').convert('RGB')
+              if img.width!=2880 or img.height!=2160:raise SystemExit(4)
+              for idx,name in sampled.items():
+                  col,row=idx%3,idx//3
+                  crop=img.crop((col*960,row*540,(col+1)*960,(row+1)*540))
+                  crop.thumbnail((800,450))
+                  buffer=io.BytesIO()
+                  crop.save(buffer,format='JPEG',quality=72,optimize=True)
+                  binary=buffer.getvalue()
+                  if not 10000<len(binary)<130000:raise SystemExit(4)
+                  as_b64=base64.b64encode(binary)+b'\n'
+                  dest=f'private_mn_0181_identity_{camera}_{name}.b64.txt'
+                  payload={'message':'qa(cpu-animate): private original NBA player track visual identity review',
+                    'content':base64.b64encode(as_b64).decode(),
+                    'branch':'req-0181-two-player-scout-20261108'}
+                  url='repos/timeedmonds-maker/104/contents/docs/cpu_animate/'+dest
+                  prior=subprocess.run(['gh','api',url+'?ref=req-0181-two-player-scout-20261108'],
+                    capture_output=True,text=True)
+                  if prior.returncode==0:payload['sha']=json.loads(prior.stdout)['sha']
+                  res=subprocess.run(['gh','api','-X','PUT',url,'--input','-'],
+                    input=json.dumps(payload),capture_output=True,text=True)
+                  if res.returncode:raise SystemExit(5)
+          print('PRIVATE_ORIGINAL_NBA_VIDEO_12_TRACK_REVIEW_IMAGES_READY')
+          PY
