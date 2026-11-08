@@ -1,4 +1,5 @@
 name: Rockets Fred on-court made-three next-FGA exact comparison (2026-11-09)
+# Source-reviewed allowlist entry approved; public NBA PBP and boxscore only.
 'on':
   push:
     branches: [main]
