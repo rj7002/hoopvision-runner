@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/rockets-fred-heatcheck-next-fga-20261109.yml",  # audited public NBA official game boxscore/PBP only; aggregate same-shooter next-FGA rates, no tracking, licensed XYZ or raw private rows
+
     ".github/workflows/gamepulse-rockets-0194-full131-live-r13-20261108.yml",  # reviewed private-only SHA-original HOU-PHX live R13 source ingestion; licensed positions and per-player report remain private, aggregate logs only
     ".github/workflows/rockets-0194-full131-r13-halftime.yml",  # original first-half NBA SDK source is read only in private 104; derived aggregated R13 counts private only
     ".github/workflows/gamepulse-rockets-0194-halftime-private-qa.yml",  # exact HOU PHX halftime original XYZ + official PBP private-only QA; no source coordinates in public logs
