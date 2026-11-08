@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - .github/workflows/igp-full131-kd-frontcourt-passer-distance-20261108.yml
+      - tools/public_content_guard.py
   workflow_dispatch:
 permissions:
   contents: read
