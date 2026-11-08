@@ -1,0 +1,148 @@
+name: Opaque private Minnesota original two-player identity scout
+on:
+  push:
+    branches: ['cpu-animate-opaque-private-cpu-20261108']
+    paths: ['.github/workflows/opaque-private-cpu-two-player-identity-scout.yml']
+permissions:
+  contents: read
+concurrency:
+  group: mn-0181-target-id-scout
+  cancel-in-progress: false
+jobs:
+  source-video-identity-scout:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      REQUEST_ID: req-0181-two-player-scout-20261108
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+      OMP_NUM_THREADS: '3'
+      MKL_NUM_THREADS: '3'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Public-source boundary and private opaque authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN" && test ! -e /dev/nvidia0 && test ! -e /dev/kfd
+          echo OPAQUE_PRIVATE_VIDEO_SOURCE_GUARD_PASS
+      - name: Acquire source-locked original video and privately score anonymous visual tracks
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(mktemp -d)"
+          chmod 700 "$ROOT"
+          trap 'rm -rf "$ROOT"' EXIT
+          gh auth setup-git >/dev/null 2>&1
+          git clone -q --depth=1 --filter=blob:none --sparse \
+            --branch "$REQUEST_ID" https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
+            > "$ROOT/clone.log" 2>&1 || { echo PRIVATE_SOURCE_CHECKOUT_FAILED; exit 4; }
+          git -C "$ROOT/private" sparse-checkout set --no-cone \
+            '/cpu_animate/' '/docs/cpu_animate/private_two_player_identity_scout_request.json' \
+            '/tools/locked_broadcast_screen_v5_rings.py' > "$ROOT/sparse.log" 2>&1 || {
+            echo PRIVATE_SOURCE_SPARSE_FAILED; exit 4; }
+          cd "$ROOT/private"
+          python3 - "$REQUEST_ID" > "$ROOT/controls.txt" <<'PY'
+          import json,re,subprocess,sys
+          from pathlib import Path
+          m=json.loads(Path('docs/cpu_animate/private_two_player_identity_scout_request.json').read_text())
+          if (m.get('schema')!='cpu-animate.private-mn-0181-target-id-scout.v1'
+              or m.get('req')!=sys.argv[1] or not m.get('authorized')
+              or m.get('game')!='0022600181'
+              or m.get('gpu') is not False or m.get('gcp') is not False
+              or m.get('media_private') is not True
+              or m.get('source_release')!='cpu-animate-min-ato-0022600181-653-original-cpu'
+              or m.get('output_release')!='cpu-animate-min-ato-0181-durant-sengun-identity-scout'
+              or m.get('max_cpu_minutes')!=35 or m.get('frame_window_common_video_s')!=19.75
+              or m.get('weights_sha256')!='869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0'
+              or m.get('players')!=[{'player_id':201142,'jersey':7},{'player_id':1630578,'jersey':28}]):
+              raise SystemExit(4)
+          expect=m.get('approved_blobs') or {}
+          if set(expect)!={'cpu_animate/min_ato_0181_two_player_identity_scout.py',
+              'cpu_animate/min_ato_0181_video_pose_vertical_rings.py',
+              'tools/locked_broadcast_screen_v5_rings.py'}:raise SystemExit(4)
+          for path,sha in expect.items():
+              if not re.fullmatch('[0-9a-f]{40}',sha):raise SystemExit(4)
+              if subprocess.check_output(['git','hash-object',path],text=True).strip()!=sha:
+                  raise SystemExit(4)
+          print(m['source_release'])
+          print(m['output_release'])
+          PY
+          SRC="$(sed -n '1p' "$ROOT/controls.txt")"
+          OUTPUT="$(sed -n '2p' "$ROOT/controls.txt")"
+          echo PRIVATE_DURANT_SENGUN_AUTH_AND_CODE_SHA_PASS
+          mkdir -p "$ROOT/media" "$ROOT/out"
+          gh release download "$SRC" --repo timeedmonds-maker/104 \
+            --dir "$ROOT/media" --pattern 'angle-*.mp4' --pattern 'angle-*.json' \
+            > "$ROOT/media.log" 2>&1 || { echo PRIVATE_NBA_ORIGINAL_CAMERAS_UNAVAILABLE; exit 4; }
+          python3 -m pip install -q --disable-pip-version-check \
+            'torch==2.5.1+cpu' 'torchvision==0.20.1+cpu' \
+            --index-url https://download.pytorch.org/whl/cpu > "$ROOT/torch.log" 2>&1 || {
+            echo CPU_TORCH_INSTALL_FAILED; exit 4; }
+          python3 -m pip install -q --disable-pip-version-check \
+            'ultralytics==8.3.190' 'opencv-python-headless' 'pillow' \
+            > "$ROOT/pose.log" 2>&1 || { echo CPU_ID_SCOUT_INSTALL_FAILED; exit 4; }
+          curl -fsSL --retry 3 --max-time 180 \
+            'https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n-pose.pt' \
+            -o "$ROOT/pose.pt" > "$ROOT/model.log" 2>&1 || {
+            echo PINNED_POSE_MODEL_NOT_RETRIEVABLE; exit 4; }
+          test "$(sha256sum "$ROOT/pose.pt" | cut -d' ' -f1)" = \
+            "869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0" || {
+            echo POSE_MODEL_SOURCE_CHECKSUM_CHANGED; exit 4; }
+          echo ORIGINAL_VIDEO_ID_SCOUT_CPU_READY
+          if ! python3 -m cpu_animate.min_ato_0181_two_player_identity_scout \
+            --media "$ROOT/media" --weights "$ROOT/pose.pt" --out "$ROOT/out" \
+            > "$ROOT/scout.log" 2>&1; then
+            python3 - "$ROOT/scout.log" <<'PY'
+          import re,sys
+          s=open(sys.argv[1]).read()
+          classes=re.findall(r'(?m)^([\w.]+(?:Error|Exception)):',s)
+          print('PRIVATE_DURANT_SENGUN_SCOUT_ERROR_CLASS',classes[-1] if classes else 'UNKNOWN')
+          PY
+            echo PRIVATE_FULL_PLAY_ID_SCOUT_FAILED
+            exit 5
+          fi
+          echo ORIGINAL_NBA_20S_THREE_CAMERA_PLAYER_TRACK_SCOUT_COMPLETED
+          if ! gh release view "$OUTPUT" --repo timeedmonds-maker/104 >/dev/null 2>&1; then
+            gh release create "$OUTPUT" --repo timeedmonds-maker/104 \
+              --title 'Minnesota ATO private Durant/Sengun full video identity scout' \
+              --notes 'Original NBA camera footage sampled; anonymous pose/ByteTrack tracks and Houston white team hypotheses, not verified player identities.' \
+              --latest=false >/dev/null 2>&1 || { echo PRIVATE_SCOUT_RELEASE_CREATE_FAILED; exit 5; }
+          fi
+          for p in "$ROOT/out"/identity-* "$ROOT/out"/durant_sengun_scout_index.json; do
+            gh release upload "$OUTPUT" "$p" --repo timeedmonds-maker/104 \
+              --clobber >/dev/null 2>&1 || { echo PRIVATE_SCOUT_ASSET_UPLOAD_FAILED; exit 5; }
+          done
+          python3 - "$ROOT/out" <<'PY'
+          import base64,json,subprocess,sys
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          for camera in ('broadcast','left-above-rim','right-above-rim'):
+              original=root/('identity-scout-'+camera+'.jpg')
+              raw=base64.b64encode(original.read_bytes())+b'\n'
+              target='private_target_id_scout_'+camera+'.b64.txt'
+              src=raw
+              payload={'message':'qa(cpu-animate): private authentic 20s NBA video player identity scout',
+                'content':base64.b64encode(src).decode(),
+                'branch':'req-0181-two-player-scout-20261108'}
+              url='repos/timeedmonds-maker/104/contents/docs/cpu_animate/'+target
+              prior=subprocess.run(['gh','api',url+'?ref=req-0181-two-player-scout-20261108'],
+                capture_output=True,text=True)
+              if prior.returncode==0:payload['sha']=json.loads(prior.stdout)['sha']
+              result=subprocess.run(['gh','api','-X','PUT',url,'--input','-'],
+                 input=json.dumps(payload),text=True,capture_output=True)
+              if result.returncode:raise SystemExit(5)
+          summary=(root/'durant_sengun_scout_index.json').read_bytes()
+          payload={'message':'qa(cpu-animate): private 3-camera anonymous tracking and full-clip source coverage summary',
+            'content':base64.b64encode(summary).decode(),
+            'branch':'req-0181-two-player-scout-20261108'}
+          res=subprocess.run(['gh','api','-X','PUT',
+             'repos/timeedmonds-maker/104/contents/docs/cpu_animate/private_target_id_scout_index.json',
+             '--input','-'],input=json.dumps(payload),capture_output=True,text=True)
+          if res.returncode:raise SystemExit(5)
+          PY
+          echo ORIGINAL_NBA_PRIVATE_VIDEO_ID_SCOUT_VISUAL_REVIEW_READY
