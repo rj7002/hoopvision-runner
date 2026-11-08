@@ -1,4 +1,4 @@
-name: CPU Animate V9 original-camera ball-control source review
+name: CPU Animate V9 stabilised floor tracks and source-reviewed green ball control
 # Original pixel-anchor KD seed fix: source-video identity diagnostic V6 rerun
 on:
   push:
@@ -55,6 +55,7 @@ jobs:
             sudo apt-get install -y -qq ffmpeg > "$ROOT/ffmpeg.log" 2>&1
           fi
           python3 -m py_compile cpu_animate/min_ato_0181_bidirectional_player_lock_v6.py
+          python3 -m cpu_animate.v9_stable_floor_paths
           python3 - <<'PY'
           from pathlib import Path
           from cpu_animate.core import git_blob_sha
@@ -99,29 +100,6 @@ jobs:
           assert set(receipt['per_player'])=={'Durant','Sengun'}
           PY
           echo NBA_SOURCE_VIDEO_IDENTITY_AND_DERIVED_40HZ_SHA_PASS
-          python3 -m cpu_animate.min_ato_0181_contact_review_v9 --media "$ROOT/media" --out "$ROOT/out"
-          python3 - "$ROOT/out" <<'PY'
-          import base64,json,subprocess,sys
-          from pathlib import Path
-          out=Path(sys.argv[1])
-          for camera in (1,2,3):
-              for sheet in (1,2):
-                  name=f'v9_touch_camera_{camera}_sheet_{sheet}.jpg'
-                  blob=(base64.b64encode((out/name).read_bytes())+b'\n')
-                  target=(f'repos/timeedmonds-maker/104/contents/docs/cpu_animate/'
-                          f'private_v9_source_contact_camera_{camera}_sheet_{sheet}.jpg.b64.txt')
-                  payload={'message':'qa(cpu animate): original camera source ball-control contact video frames',
-                           'content':base64.b64encode(blob).decode(),
-                           'branch':'cpu-animate/min0181-v9-stabilized-floor-possession-20261108'}
-                  prev=subprocess.run(['gh','api',target+'?ref='+payload['branch']],
-                         capture_output=True,text=True)
-                  if prev.returncode==0: payload['sha']=json.loads(prev.stdout)['sha']
-                  t=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],
-                          input=json.dumps(payload),capture_output=True,text=True)
-                  if t.returncode:raise RuntimeError(f'PRIVATE_SOURCE_CONTACT_FRAME_UPLOAD_FAILED {name}')
-          print('PRIVATE_ORIGINAL_NBA_TOUCH_SHEETS_SAVED')
-          PY
-          exit 0
           if ! python3 -m cpu_animate.min_ato_0181_bidirectional_player_lock_v6 \
               --private "$ROOT/private" --media "$ROOT/media" \
               --scout "$ROOT/scout" \
@@ -137,9 +115,9 @@ jobs:
           import json,sys
           from pathlib import Path
           out=Path(sys.argv[1])
-          q=json.loads((out/'v8c_hoopvision_rotating_pulsing_floor_private_qa.json').read_text())
+          q=json.loads((out/'v9_stable_floor_green_ball_control_private_qa.json').read_text())
           assert q['replay_order']==['Broadcast','Left Above Rim','Right Above Rim']
-          assert q['frames']>=1770 and len(q['review_stills'])==15
+          assert q['frames']>=1770 and len(q['review_stills'])==21
           assert q['dimensions']==[1280,720]
           assert q['frozen_ring_artwork_git_blob_sha1']=='9fac8a8915b90bbd9bd1235532c297c35da77ca2'
           assert not q['rings_from_provisional_tracking_to_video_utc']
@@ -148,6 +126,16 @@ jobs:
           assert all(q['camera_metrics'][c]['counters']['previous_missing_ring_camera_gate_passed']==1 for c in q['replay_order'])
           assert q['team_ring_bgr']['Durant']==[65,17,206]
           assert q['team_ring_bgr']['Sengun']==[65,17,206]
+          assert abs(q['ring_size_input_output_pixel_radii'][0]-35*1280/908)<.01
+          assert abs(q['ring_size_input_output_pixel_radii'][1]-13*720/512)<.01
+          assert q['continuous_shot_bounded_floor_stabilization'] is True
+          for c in q['replay_order']:
+              assert q['camera_metrics'][c]['counters']['Sengun_v9_green_frames']>=20, c
+              assert q['camera_metrics'][c]['counters'].get('Durant_v9_green_frames',0)==0
+              for who in ('Durant','Sengun'):
+                  k=q['camera_metrics'][c]['stabilized_floor_qa'][who]
+                  assert k['max_step_native_px']<35, (c,who,k)
+          print('V9_FLOOR_CONTINUITY_AND_VERIFIED_REPLAY_BALL_CONTROL_QA_PASS')
           assert q['ring_original_local_ellipse_unwarped'] is True
           assert q['frozen_rotating_sector_count']==3
           assert q['frozen_rotation_deg_per_second']==72.0
@@ -160,16 +148,16 @@ jobs:
           assert (out/q['output_file']).stat().st_size>1000000
           print('REPLAY_V6_PLAYER_OPTICAL_QA_PASS',q['frames'],round(q['duration_s'],2),{c:{w:q['camera_metrics'][c]['counters'][w+'_ring_present'] for w in ('Durant','Sengun')} for c in q['replay_order']})
           PY
-          TAG=cpu-animate-min-ato-0181-frozen-rotating-pulsing-floor-v8c
+          TAG=cpu-animate-min-ato-0181-stable-floor-green-v9
           gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
             gh release create "$TAG" --repo timeedmonds-maker/104 \
-              --title 'Durant and Sengun V8C frozen HoopVision animated three-sector rotating pulsing ring under video shoes' \
-              --notes 'Authentic NBA clips: V7 bidirectional player identity retained; HoopVision v1.3 immutable ring shader, Houston Rockets original team primary red #CE1141 for both, approved HoopVision v1.3 unwarped local horseshoe geometry, anchored at player shoe-floor contact minus 4px and real player foreground occlusion. Green reserved for independently proven ball touch (not certified). Local court geometry approximated, not independently calibrated.' \
+              --title 'Durant and Sengun V9 smoothed floor tracking and visibly supported green Sengun ball-control rings' \
+              --notes 'V9 private research: preserves V7 source-video identity and frozen HoopVision three-sector rotating annulus, Houston red, fixed 35x13 design at 908x512 reference. Shot-bounded offline video-floor smoothing repairs gaps and frame jitter; official original source video contact sheets independently show Sengun controlling the live ball in the opening interval; ONLY Sengun pulses green for bounded replay-specific reviewed intervals. Actual hand-contact edges, floor homography and holdout foot precision are not certified.' \
               --latest=false >/dev/null || { echo PRIVATE_REPLAY_RELEASE_CREATE_FAILED; exit 5; }
           gh release upload "$TAG" \
-            "$ROOT/out/MIN_HOU_0181_HOOPVISION_PULSING_ROTATING_FLOOR_RING_V8C_3REPLAYS.mp4" \
-            "$ROOT/out/v8c_hoopvision_rotating_pulsing_floor_private_qa.json" \
-            "$ROOT/out"/v8c_*_rotating_ring_review.jpg \
+            "$ROOT/out/MIN_HOU_0181_HOOPVISION_V9_STABLE_FLOOR_GREEN_CONTROL_3REPLAYS.mp4" \
+            "$ROOT/out/v9_stable_floor_green_ball_control_private_qa.json" \
+            "$ROOT/out"/v9_*_stable_floor_green_review.jpg \
             --repo timeedmonds-maker/104 --clobber > "$ROOT/upload.log" 2>&1 || {
             echo PRIVATE_REPLAY_VIDEO_ASSET_UPLOAD_FAILED; exit 5; }
           gh release view "$TAG" --repo timeedmonds-maker/104 --json assets \
@@ -181,14 +169,14 @@ jobs:
           out=Path(sys.argv[1])
           # Publish only reduced, still-PRIVATE review JPEGs to the source branch.
           # No raw source video, signed URLs, tracking arrays or public artifacts.
-          for index,sec in ((1,4),(1,12),(2,4),(2,12),(3,4),(3,12)): # six proof frames, two per source camera
-              source=out/f'v8c_{index}_t{sec:02}_rotating_ring_review.jpg'
+          for index,sec in ((1,3),(1,4),(1,12),(2,3),(2,4),(2,12),(3,3),(3,4),(3,12)):
+              source=out/f'v9_{index}_t{sec:02}_stable_floor_green_review.jpg'
               im=Image.open(source);im.thumbnail((960,540))
               buff=io.BytesIO()
               im.save(buff,format='JPEG',quality=75,optimize=True)
               data=base64.b64encode(buff.getvalue())+b'\n'
               target=(f'repos/timeedmonds-maker/104/contents/docs/cpu_animate/'
-                f'private_min0181_hoopvision_rotating_floor_v8c_angle{index}_t{sec:02}.jpg.b64.txt')
+                f'private_min0181_hoopvision_stable_floor_green_v9_angle{index}_t{sec:02}.jpg.b64.txt')
               msg={'message':'qa(cpu-animate): private-only original-video foot/occlusion review frame',
                    'content':base64.b64encode(data).decode(),
                    'branch':'cpu-animate/min0181-v8-team-color-floor-ring-20261108'}
@@ -200,4 +188,4 @@ jobs:
               if p.returncode:raise RuntimeError('PRIVATE_STILL_REVIEW_TRANSFER_FAILED')
           print('PRIVATE_ORIGINAL_VIDEO_REVIEW_STILLS_SHA_READY')
           PY
-          echo CPU_ANIMATE_DURANT_SENGUN_HOOPVISION_ROTATING_PULSING_FLOOR_V8C_COMPLETE
+          echo CPU_ANIMATE_DURANT_SENGUN_STABLE_FLOOR_GREEN_V9_COMPLETE
