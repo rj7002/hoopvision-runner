@@ -237,9 +237,8 @@ jobs:
                       assert manifest["successful_windows"]==12 and manifest["observed"] is True
                       fh=tar.extractfile("frames.jsonl.gz")
                       for line in gzip.GzipFile(fileobj=fh):
-                          if not line.strip():
-                      continue
-                  frame=json.loads(line)
+                          if not line.strip():continue
+                          frame=json.loads(line)
                           ts=frame.get("timestamp")
                           pos=frame.get("positions",{})
                           if type(ts)!=int or not isinstance(pos,dict):continue
