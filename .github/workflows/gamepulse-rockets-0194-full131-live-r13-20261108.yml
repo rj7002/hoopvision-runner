@@ -1,3 +1,4 @@
+# Postgame 198/198 source-minute SHA archive ready; rerun exact Full131 R13 full-captured-source evaluation.
 # Approved public/private source-boundary allowlist installed; rerun live Full131 R13 source-grade analysis.
 name: Rockets Suns 0194 current live original XYZ Full131 R13 all available periods
 on:
@@ -15,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   source-backed-current-game:
-    if: github.event_name == 'workflow_run'
+    if: github.event_name == 'push' || github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     env:
