@@ -134,3 +134,89 @@ jobs:
           git commit -q -m 'data(igp): original Rockets companion NBA clock source'
           git push -q origin HEAD:refs/heads/research/rockets0194-full131-companion-clock-20261108
           echo ROCKETS_COMPANION_ORIGINAL_PRIVATE_SOURCE_SAVED
+
+  full131-r13-half-replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Source confidentiality and authenticated private Git
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Retrieve unchanged Full131 R13 v2 source and all 77 SHA-original minutes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --filter=blob:none --depth=1 --sparse -b analysis/full131-kd-frontcourt-passer-distance-20261108 \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/engine"
+          git -C "$RUNNER_TEMP/engine" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/*.py' '/gamepulse/fusion/analysis/*.py' \
+            '/gamepulse/fusion/qa/full131_0194/**'
+          git -C "$RUNNER_TEMP/engine" switch -q -c research/rockets0194-full131-r13-halftime-20261108
+          mkdir -p "$RUNNER_TEMP/halfsources"
+          for shard in firstA firstB firstC; do
+            git clone -q --depth=1 --filter=blob:none --sparse \
+              -b "research/rockets-0194-half-$shard-20261108" \
+              https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/halfsources/$shard"
+            git -C "$RUNNER_TEMP/halfsources/$shard" sparse-checkout set --no-cone \
+              "/gamepulse/live/halftime_sdk_0194/$shard/**"
+          done
+      - name: Fetch NBA official source when authorized and run real Full131 R13 first-half engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/nba" "$RUNNER_TEMP/engine/gamepulse/fusion/qa/full131_0194"
+          python3 - <<'PY'
+          import json,os,urllib.request
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])/"nba"
+          for kind in ("playbyplay","boxscore"):
+              url="https://cdn.nba.com/static/json/liveData/"+kind+"/"+kind+"_0022600194.json"
+              req=urllib.request.Request(url,headers={
+                "User-Agent":"Mozilla/5.0 (compatible; IntegratedPulse/1.0)",
+                "Accept":"application/json","Referer":"https://www.nba.com/"})
+              try:
+                  with urllib.request.urlopen(req,timeout=18) as r: body=r.read(3000000)
+                  doc=json.loads(body)
+                  if str(doc.get("game",{}).get("gameId"))!="0022600194":
+                      continue
+                  (root/(kind+".json")).write_bytes(body)
+                  print("NBA_OFFICIAL_R13_INPUT_READY",kind)
+              except Exception as e:
+                  print("NBA_OFFICIAL_R13_INPUT_NOT_YET_ACCESSIBLE",kind,type(e).__name__)
+          PY
+          cd "$RUNNER_TEMP/engine"
+          python3 -B -m py_compile gamepulse/fusion/analysis/igp_0194_full131_r13_halftime_20261108.py
+          set +e
+          python3 -B gamepulse/fusion/analysis/igp_0194_full131_r13_halftime_20261108.py \
+            --sources "$RUNNER_TEMP/halfsources" \
+            --official "$RUNNER_TEMP/nba" \
+            --out gamepulse/fusion/qa/full131_0194/firsthalf_r13_v2_source_report.json
+          outcome=$?
+          set -e
+          python3 - <<'PY'
+          import json
+          p='gamepulse/fusion/qa/full131_0194/firsthalf_r13_v2_source_report.json'
+          r=json.load(open(p))
+          print("FULL131_R13_SOURCE_REPLAY_STATUS",r["status"])
+          print("FULL131_R13_SOURCE_REPLAY_COMPLETED",r["full131_model_ran"])
+          print("FULL131_R13_HOU_PLAYER_ROWS",
+                sum(x["team"]=="HOU" for x in r.get("player_frontcourt_touch_table",[])))
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f gamepulse/fusion/qa/full131_0194/firsthalf_r13_v2_source_report.json
+          git diff --cached --check
+          git commit -q -m 'qa(igp): actual Full131 R13 v2 replay first-half 0194, provenance-graded'
+          git push -q origin HEAD:refs/heads/research/rockets0194-full131-r13-halftime-20261108
+          echo FULL131_R13_REPLAY_PRIVATE_QA_COMMITTED
+          if test "$outcome" -ne 0; then
+            echo FULL131_NEEDS_VALID_OFFICIAL_INPUTS_NOT_PROMOTED
+          fi
