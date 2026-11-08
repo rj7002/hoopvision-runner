@@ -1,0 +1,69 @@
+name: Opaque original Minnesota two-player video-track evidence
+on:
+  push:
+    branches: ['cpu-animate-opaque-private-cpu-20261108']
+    paths: ['.github/workflows/opaque-private-cpu-two-player-track-evidence.yml']
+permissions:
+  contents: read
+jobs:
+  source-locked-evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Original private video track sample evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN" || exit 4
+          ROOT="$(mktemp -d)"
+          trap 'rm -rf "$ROOT"' EXIT
+          gh auth setup-git >/dev/null 2>&1
+          git clone -q --depth=1 --filter=blob:none --sparse \
+            --branch req-0181-two-player-track-evidence-20261108 \
+            https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
+            > "$ROOT/clone.log" 2>&1 || exit 4
+          git -C "$ROOT/private" sparse-checkout set --no-cone \
+            cpu_animate/min_ato_0181_track_id_evidence.py \
+            docs/cpu_animate/private_two_player_track_evidence_request.json \
+            > "$ROOT/sparse.log" 2>&1 || exit 4
+          cd "$ROOT/private"
+          python3 - <<'PY'
+          import json,subprocess
+          from pathlib import Path
+          m=json.loads(Path('docs/cpu_animate/private_two_player_track_evidence_request.json').read_text())
+          if (m.get('schema')!='cpu-animate.private-0181-track-id-evidence.v1'
+              or not m.get('owner_authorized') or m.get('gpu') is not False
+              or m.get('game_id')!='0022600181'
+              or m.get('source_release')!='cpu-animate-min-ato-0181-durant-sengun-identity-scout'
+              or m.get('request_id')!='req-0181-two-player-track-evidence-20261108'
+              or m.get('target_output_path')!='docs/cpu_animate/private_mn0181_track_id_evidence.json'):
+               raise SystemExit(4)
+          if subprocess.check_output(['git','hash-object','cpu_animate/min_ato_0181_track_id_evidence.py'],text=True).strip()!=m['code_blob_sha1']:
+               raise SystemExit(4)
+          PY
+          mkdir -p "$ROOT/raw"
+          gh release download cpu-animate-min-ato-0181-durant-sengun-identity-scout \
+            --repo timeedmonds-maker/104 --dir "$ROOT/raw" \
+            --pattern 'identity-tracks-*.json' > "$ROOT/download.log" 2>&1 || exit 4
+          python3 -m cpu_animate.min_ato_0181_track_id_evidence \
+            --source "$ROOT/raw" --out "$ROOT/private-samples.json" \
+            > "$ROOT/provenance.log" 2>&1 || { echo PRIVATE_SOURCE_TRACK_EVIDENCE_BUILD_FAILED; exit 5; }
+          python3 - "$ROOT/private-samples.json" <<'PY'
+          import base64,json,subprocess,sys
+          raw=open(sys.argv[1],'rb').read()
+          body={'message':'qa(cpu-animate): original camera track evidence sampled for user-selected two-player ring test',
+           'content':base64.b64encode(raw).decode(),
+           'branch':'req-0181-two-player-track-evidence-20261108'}
+          run=subprocess.run(['gh','api','-X','PUT',
+            'repos/timeedmonds-maker/104/contents/docs/cpu_animate/private_mn0181_track_id_evidence.json',
+            '--input','-'],input=json.dumps(body),text=True,capture_output=True)
+          if run.returncode:raise SystemExit(5)
+          PY
+          echo ORIGINAL_NBA_PRIVATE_TRACK_ID_EVIDENCE_READY
