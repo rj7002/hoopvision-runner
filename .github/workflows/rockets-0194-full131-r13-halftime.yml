@@ -1,3 +1,4 @@
+# Full131 original SDK tarfile reader corrected; retrigger native R13 Q1+Q2 verified companion-clock replay.
 name: Rockets 0194 Full131 R13 original first-half touch processing
 on:
   push:
