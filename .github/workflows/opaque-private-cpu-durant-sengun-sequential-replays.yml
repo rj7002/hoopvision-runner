@@ -1,4 +1,4 @@
-name: CPU Animate Durant Sengun full-size three sequential original-camera replays
+name: CPU Animate Durant Sengun video-PTS foot segmentation occlusion v3 sequential replays
 # Security allowlist and private-only source provenance verified before this run
 on:
   push:
@@ -41,28 +41,30 @@ jobs:
           trap 'rm -rf "$ROOT"' EXIT
           gh auth setup-git >/dev/null 2>&1
           git clone -q --depth=1 --filter=blob:none --sparse \
-            --branch cpu-animate/durant-sengun-sequential-replay-20261108 \
+            --branch cpu-animate/durant-sengun-floor-occlusion-20261108 \
             https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
             > "$ROOT/clone.log" 2>&1 || { echo PRIVATE_CPU_ANIMATE_SOURCE_CLONE_FAILED; exit 4; }
           git -C "$ROOT/private" sparse-checkout set --no-cone \
             '/cpu_animate/' '/tools/locked_broadcast_screen_v5_rings.py' \
             > "$ROOT/sparse.log" 2>&1 || { echo PRIVATE_CPU_ANIMATE_SPARSE_CHECKOUT_FAILED; exit 4; }
           cd "$ROOT/private"
-          python3 -m pip install -q --disable-pip-version-check numpy opencv-python-headless pillow \
+          python3 -m pip install -q --disable-pip-version-check numpy opencv-python-headless pillow ultralytics \
             > "$ROOT/pip.log" 2>&1 || { echo VIDEO_CPU_DEPENDENCY_FAILED; exit 4; }
           if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
             sudo apt-get update -qq > "$ROOT/apt.log" 2>&1
             sudo apt-get install -y -qq ffmpeg > "$ROOT/ffmpeg.log" 2>&1
           fi
-          python3 -m py_compile cpu_animate/min_ato_0181_dual_sequential_replay.py
+          python3 -m py_compile cpu_animate/min_ato_0181_observed_floor_occlusion.py
           python3 - <<'PY'
           from pathlib import Path
           from cpu_animate.core import git_blob_sha
-          from cpu_animate.min_ato_0181_dual_sequential_replay import _ring_radii,REPLAY_ORDER,VIDEO_S,OUTPUT
+          from cpu_animate.min_ato_0181_observed_floor_occlusion import _ring_radii,REPLAY_ORDER,VIDEO_S,OUTPUT,visual_foot
           assert git_blob_sha(Path('tools/locked_broadcast_screen_v5_rings.py')) == '9fac8a8915b90bbd9bd1235532c297c35da77ca2'
           assert REPLAY_ORDER == ('Broadcast','Left Above Rim','Right Above Rim')
           assert VIDEO_S == 19.75 and OUTPUT == (1280,720)
           assert _ring_radii(340)[0] >= 60
+          foot,grade=visual_foot({'bbox':[50,40,110,190],'foot':[75,184],'ankle_min_conf':.9})
+          assert abs(foot[1]-189.3)<1 and grade=='VIDEO_SHOE_OUTSOLE_ANKLE_BOX'
           PY
           echo ORIGINAL_HOOPVISION_PRODUCTION_RING_BLOB_AND_FULLSIZE_POLICY_PASS
           mkdir -p "$ROOT/media" "$ROOT/scout" "$ROOT/motion" "$ROOT/out"
@@ -90,7 +92,7 @@ jobs:
           assert set(receipt['per_player'])=={'Durant','Sengun'}
           PY
           echo NBA_SOURCE_VIDEO_IDENTITY_AND_DERIVED_40HZ_SHA_PASS
-          if ! python3 -m cpu_animate.min_ato_0181_dual_sequential_replay \
+          if ! python3 -m cpu_animate.min_ato_0181_observed_floor_occlusion \
               --private "$ROOT/private" --media "$ROOT/media" \
               --scout "$ROOT/scout" \
               --motion "$ROOT/motion/durant_sengun_native10hz_coach40hz.json" \
@@ -104,28 +106,28 @@ jobs:
           import json,sys
           from pathlib import Path
           out=Path(sys.argv[1])
-          q=json.loads((out/'sequential_three_replays_dual_hoopvision_receipt.json').read_text())
-          assert q['camera_order']==['Broadcast','Left Above Rim','Right Above Rim']
+          q=json.loads((out/'min_ato_0181_floor_occlusion_replay_v3_receipt.json').read_text())
+          assert q['order']==['Broadcast','Left Above Rim','Right Above Rim']
           assert q['frames']>=1770 and len(q['review_stills'])==3
-          assert q['dimensions_px']==[1280,720]
-          assert q['frozen_ring_git_blob_sha1']=='9fac8a8915b90bbd9bd1235532c297c35da77ca2'
-          assert not q['absolute_video_UTC_independently_certified']
-          assert q['status']=='RESEARCH_PREVIEW_ONLY'
+          assert [q['width_px'],q['height_px']]==[1280,720]
+          assert q['frozen_HoopVision_ring_blob_sha1']=='9fac8a8915b90bbd9bd1235532c297c35da77ca2'
+          assert not q['unverified_NBA_to_video_UTC_used_for_ring_positions']
+          assert q['status']=='RESEARCH_PREVIEW_ONLY_NOT_GEOMETRY_OR_TOUCH_CERTIFIED'
           assert (out/q['output']).stat().st_size>1000000
           print('REPLAY_SOURCE_AND_OUTPUT_QA_PASS',q['frames'],round(q['total_duration_s'],2))
           PY
-          TAG=cpu-animate-min-ato-0181-durant-sengun-fullsize-three-sequential-v1
+          TAG=cpu-animate-min-ato-0181-durant-sengun-pts-floor-occlusion-v3
           gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
             gh release create "$TAG" --repo timeedmonds-maker/104 \
-              --title 'Durant and Sengun full-size frozen HoopVision rings — three sequential NBA camera replays' \
-              --notes 'Authentic NBA source: Broadcast, then Left Above Rim, then Right Above Rim. Full-size frozen HoopVision rings, only Kevin Durant and Alperen Sengun. 40Hz derives from original native NBA time samples. CPU-only private review; geometric/UTC/manual foot precision QA remains provisional.' \
+              --title 'Durant/Sengun native-frame shoe tracking and person-mask occlusion — three sequential NBA cameras' \
+              --notes 'Authentic NBA source-only CPU replay: Broadcast, Left Above Rim, Right Above Rim, with original HoopVision ring art. Each ring follows the actual same camera frame video shoe track, no unverified NBA/UTC clock correction. Real person segmentation occludes floor rings. Green only on detected video basketball-wrist contact, may abstain; this is not authoritative physical camera calibration or final ball touch certification.' \
               --latest=false >/dev/null || { echo PRIVATE_REPLAY_RELEASE_CREATE_FAILED; exit 5; }
           gh release upload "$TAG" \
-            "$ROOT/out/MIN_HOU_0181_DURANT_SENGUN_HOOPVISION_FULLSIZE_3REPLAYS_SEQUENTIAL.mp4" \
-            "$ROOT/out/sequential_three_replays_dual_hoopvision_receipt.json" \
-            "$ROOT/out"/sequential_camera_*_review.jpg \
+            "$ROOT/out/MIN_HOU_0181_DURANT_SENGUN_FLOOR_OCCLUSION_TIMING_V3_3SEQUENTIAL.mp4" \
+            "$ROOT/out/min_ato_0181_floor_occlusion_replay_v3_receipt.json" \
+            "$ROOT/out"/camera_*_floor_mask_review.jpg \
             --repo timeedmonds-maker/104 --clobber > "$ROOT/upload.log" 2>&1 || {
             echo PRIVATE_REPLAY_VIDEO_ASSET_UPLOAD_FAILED; exit 5; }
           gh release view "$TAG" --repo timeedmonds-maker/104 --json assets \
             --jq '.assets[]| [.name,.size]|@tsv'
-          echo CPU_ANIMATE_DURANT_SENGUN_FULLSIZE_THREE_BACK_TO_BACK_REPLAYS_PRIVATE_MP4_COMPLETE
+          echo CPU_ANIMATE_DURANT_SENGUN_FRAME_LOCKED_SHOE_OCCLUSION_PRIVATE_MP4_COMPLETE
