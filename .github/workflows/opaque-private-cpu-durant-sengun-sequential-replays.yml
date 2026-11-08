@@ -1,4 +1,4 @@
-name: CPU Animate V11 archive basketball-court keypoint source QA proof frames
+name: CPU Animate V11B original NBA Broadcast court-referenced KD/Sengun replay
 # Original pixel-anchor KD seed fix: source-video identity diagnostic V6 rerun
 on:
   push:
@@ -48,41 +48,117 @@ jobs:
             '/cpu_animate/' '/tools/locked_broadcast_screen_v5_rings.py' \
             > "$ROOT/sparse.log" 2>&1 || { echo PRIVATE_CPU_ANIMATE_SPARSE_CHECKOUT_FAILED; exit 4; }
           cd "$ROOT/private"
-          mkdir -p "$ROOT/out"
-          gh release download cpu-animate-min0181-basketball-specific-kpt-v11-research \
-             --repo timeedmonds-maker/104 --dir "$ROOT/out" \
-             --pattern 'v11_cpu_basketball_court_keypoint_evaluation.json' \
-             --pattern 'v11_court_kpt_1_pts*.jpg' \
-             --pattern 'v11_court_kpt_2_pts3p0.jpg' \
-             --pattern 'v11_court_kpt_3_pts3p0.jpg' \
-             --pattern 'v11_court_kpt_3_pts4p0.jpg'
+          mkdir -p "$ROOT/media" "$ROOT/scout" "$ROOT/out"
+          python3 -m py_compile cpu_animate/min0181_v11b_broadcast_court_locked_preview.py
+          # Public, revision-pinned basketball-specific 48 keypoint model.
+          # AGPL terms: research user review, not a product-shipping artefact.
+          COURT_SHA=68e5faf5fb5388cf83477238abe22e9824a69fb33a4cf34f79ab61858f410064
+          POSE_SHA=869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0
+          SEG_SHA=55ed65c56c91713d23e8402371c6c49a6fd84f257f7dce452e8d70e41dcbe152
+          function verified_weight {
+            url="$1"; dest="$2"; expected="$3"
+            for trial in 1 2 3; do
+              if curl -fL -sS --retry 2 --retry-all-errors \
+                 --connect-timeout 15 --max-time 120 \
+                 "$url" -o "$dest" && \
+                echo "$expected  $dest" | sha256sum -c - >/dev/null; then
+                echo SHA_VERIFIED_CPU_BASKETBALL_WEIGHT "$dest"
+                return 0
+              fi
+              rm -f "$dest"; sleep 2
+            done
+            echo MODEL_SHA_VERIFIED_DOWNLOAD_FAILED "$dest"
+            return 1
+          }
+          verified_weight \
+            https://huggingface.co/koppolusameer/yolo11n-basketball-court-keypoints/resolve/6cb899251439982067a81baa225b33f45f335981/best.pt \
+            "$ROOT/private/basketball_court_best.pt" "$COURT_SHA"
+          verified_weight \
+            https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11n-pose.pt \
+            "$ROOT/private/yolo11n-pose.pt" "$POSE_SHA"
+          verified_weight \
+            https://huggingface.co/Ultralytics/YOLO11/resolve/1fad642026e935ebf53c4d878b6fd844ad08de3f/yolo11n-seg.pt \
+            "$ROOT/private/yolo11n-seg.pt" "$SEG_SHA"
+          gh release download cpu-animate-min-ato-0022600181-653-original-cpu \
+             --repo timeedmonds-maker/104 --dir "$ROOT/media" \
+             --pattern 'angle-*.mp4' --pattern 'angle-*.json' \
+             > "$ROOT/source-media.log" 2>&1 || { echo ORIGINAL_NBA_ANGLE_DOWNLOAD_FAILED; exit 4; }
+          gh release download cpu-animate-min-ato-0181-durant-sengun-identity-scout \
+             --repo timeedmonds-maker/104 --dir "$ROOT/scout" \
+             --pattern 'identity-tracks-*.json' \
+             > "$ROOT/source-scout.log" 2>&1 || { echo ORIGINAL_VIDEO_IDENTITY_SCOUT_DOWNLOAD_FAILED; exit 4; }
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          p=Path('basketball_court_best.pt')
+          d={'model':'koppolusameer/yolo11n-basketball-court-keypoints',
+             'snapshot_commit_sha1':'6cb899251439982067a81baa225b33f45f335981',
+             'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
+             'license':'AGPL-3.0, evaluation only'}
+          Path('v11b_court_model_provenance.json').write_text(json.dumps(d,indent=2))
+          PY
+          env -u GH_TOKEN -u GITHUB_TOKEN -u GIT_ASKPASS \
+            python3 -m cpu_animate.min0181_v11b_broadcast_court_locked_preview \
+               --private "$ROOT/private" --media "$ROOT/media" \
+               --scout "$ROOT/scout" \
+               --modelcourt "$ROOT/private/basketball_court_best.pt" \
+               --modelpose "$ROOT/private/yolo11n-pose.pt" \
+               --manifest "$ROOT/private/v11b_court_model_provenance.json" \
+               --out "$ROOT/out" > "$ROOT/render.log" 2>&1 || {
+                  tail -c 12000 "$ROOT/render.log"
+                  echo V11B_BROADCAST_COURT_FLOOR_PREVIEW_REJECTED
+                  exit 5
+               }
+          tail -c 12000 "$ROOT/render.log"
+          python3 - "$ROOT/out" <<'PY'
+          import json,sys
+          from pathlib import Path
+          q=json.loads((Path(sys.argv[1])/'v11b_broadcast_court_floor_preview_receipt.json').read_text())
+          assert q['camera']=='Broadcast'
+          assert q['source_motion_fit_requires_no_NBA_XYZ']
+          assert q['cpu_basketball_court_model_sha256']=='68e5faf5fb5388cf83477238abe22e9824a69fb33a4cf34f79ab61858f410064'
+          assert q['pose_model_sha256']=='869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0'
+          assert q['camera_model_accepted_sampled_frames']/q['camera_model_total_sampled_frames']>=.65
+          assert q['camera_homography_available_video_frames']>=int(.70*q['frames'])
+          for who in ('Durant','Sengun'):
+              assert q['ring_frame_counts'].get(who+'_visible_ring_frames',0)>=35
+          assert q['ring_frame_counts']['Sengun_green_source_replay_frames']>15
+          print('V11B_ORIGINAL_NBA_SOURCE_COURT_REGISTERED_SHOE_RING_PREVIEW_QA_PASS',
+                {'frames':q['frames'],'camera_samples':q['camera_model_accepted_sampled_frames'],
+                 'pose':q['video_pose_pixels_included'],'rings':q['ring_frame_counts']})
+          PY
+          TAG=cpu-animate-min0181-broadcast-court-referenced-v11b
+          gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
+            gh release create "$TAG" --repo timeedmonds-maker/104 \
+              --title 'MIN 0181 Broadcast V11B: 48-landmark NBA court registered KD/Sengun floor rings - research preview' \
+              --notes 'Source original NBA 8-second Broadcast clip. Basketball 48-keypoint CPU registration, preserved V7 KD/Sengun original-video identities, V11n pose shoe measurements and frozen HoopVision rotating/pulsing team-red/ball-control-green rings, original person occlusion. Research-only; exact court landmark/foot p95 ground truth not independently accepted, AGPL checkpoint not redistributed.' \
+              --latest=false >/dev/null
+          gh release upload "$TAG" \
+             "$ROOT/out/MIN0181_DURANT_SENGUN_V11B_BROADCAST_COURT_REFERENCED_8SECONDS.mp4" \
+             "$ROOT/out/v11b_broadcast_court_floor_preview_receipt.json" \
+             "$ROOT/out"/v11b_broadcast_floor_ring_*.jpg \
+             --repo timeedmonds-maker/104 --clobber
           python3 - "$ROOT/out" <<'PY'
           import base64,json,subprocess,sys
           from pathlib import Path
-          out=Path(sys.argv[1])
-          targetbranch='cpu-animate/min0181-v10-ground-plane-diagnostic-20261108'
-          images=[out/f'v11_court_kpt_{idx}_pts{pt}.jpg' for idx,pt in
-              ((1,'0p8'),(1,'2p0'),(1,'3p0'),(1,'4p0'),(1,'5p0'),
-               (1,'6p0'),(1,'8p0'),(2,'3p0'),(3,'3p0'),(3,'4p0'))]
-          images=[p for p in images if p.exists()]
-          docs={f'docs/cpu_animate/{p.name}.b64.txt':
-                   base64.b64encode(p.read_bytes())+b'\n' for p in images}
-          docs['docs/cpu_animate/v11_cpu_basketball_court_keypoint_evaluation.json']=(
-                out/'v11_cpu_basketball_court_keypoint_evaluation.json').read_bytes()
-          for dest,payload in docs.items():
-              target='repos/timeedmonds-maker/104/contents/'+dest
-              prev=subprocess.run(['gh','api',target+'?ref='+targetbranch],
-                                 capture_output=True,text=True)
-              args={'branch':targetbranch,
-                    'message':'QA V11: archive original NBA source model-detected basketball court landmarks and evaluation',
-                    'content':base64.b64encode(payload).decode()}
-              if prev.returncode==0:args['sha']=json.loads(prev.stdout)['sha']
-              x=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],
-                         input=json.dumps(args),capture_output=True,text=True)
-              if x.returncode:raise RuntimeError(
-                    f'PRIVATE_NBA_COURT_QA_UPLOAD_FAILED {dest} {x.stderr[:250]}')
-          print('V11_PRIVATE_BASKETBALL_SOURCE_QA_ARCHIVED',len(images))
+          d=Path(sys.argv[1])
+          branch='cpu-animate/min0181-v10-ground-plane-diagnostic-20261108'
+          for sec in (2,3,4,5,6):
+              p=d/f'v11b_broadcast_floor_ring_t{sec:02}.jpg'
+              if not p.is_file():continue
+              data=(base64.b64encode(p.read_bytes())+b'\n')
+              dest=f'repos/timeedmonds-maker/104/contents/docs/cpu_animate/v11b_broadcast_floor_ring_t{sec:02}.jpg.b64.txt'
+              payload={'message':'QA v11b original NBA broadcast court-referenced ring frame',
+                       'branch':branch,'content':base64.b64encode(data).decode()}
+              existing=subprocess.run(['gh','api',dest+'?ref='+branch],
+                       capture_output=True,text=True)
+              if existing.returncode==0:payload['sha']=json.loads(existing.stdout)['sha']
+              result=subprocess.run(['gh','api','-X','PUT',dest,'--input','-'],
+                       input=json.dumps(payload),capture_output=True,text=True)
+              if result.returncode:raise RuntimeError('PRIVATE_BROADCAST_FRAME_QA_UPLOAD_FAILED')
+          print('V11B_PRIVATE_BROADCAST_VISUAL_QA_FRAMES_VERIFIED')
           PY
+          echo V11B_REAL_SOURCE_COURT_REGISTERED_BROADCAST_REVIEW_RELEASED
           exit 0
           gh release download cpu-animate-min-ato-0181-durant-sengun-identity-scout \
             --repo timeedmonds-maker/104 --dir "$ROOT/scout" \
