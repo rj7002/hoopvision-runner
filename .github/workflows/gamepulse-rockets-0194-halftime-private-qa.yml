@@ -1,3 +1,4 @@
+# 2026-11-08 UTC: rerun full source SHA/PBP readback after 74 consecutive first-half minute archives recovered.
 name: Rockets Suns SHA original first-half tracking and official-PBP private QA
 # Event-gated, source-first original NBA XYZ halftime post-analysis readiness.
 # Never publish licensed actor, ball or other private per-observation data in public artifacts/logs.
