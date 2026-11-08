@@ -1,4 +1,5 @@
 name: CPU Animate Durant Sengun full-size three sequential original-camera replays
+# Security allowlist and private-only source provenance verified before this run
 on:
   push:
     branches: ['cpu-animate-opaque-private-cpu-20261108']
