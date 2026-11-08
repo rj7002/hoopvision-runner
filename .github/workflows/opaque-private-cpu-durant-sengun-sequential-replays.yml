@@ -1,0 +1,130 @@
+name: CPU Animate Durant Sengun full-size three sequential original-camera replays
+on:
+  push:
+    branches: ['cpu-animate-opaque-private-cpu-20261108']
+    paths: ['.github/workflows/opaque-private-cpu-durant-sengun-sequential-replays.yml']
+permissions:
+  contents: read
+concurrency:
+  group: cpu-animate-0181-durant-sengun-sequential-v1
+  cancel-in-progress: false
+jobs:
+  authentic-single-view-replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 28
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+      OPENCV_OPENCL_RUNTIME: disabled
+      OMP_NUM_THREADS: '3'
+      OPENBLAS_NUM_THREADS: '3'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate private-source execution boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test ! -e /dev/nvidia0 && test ! -e /dev/kfd
+          echo ORIGINAL_NBA_PRIVATE_CPU_ONLY_SECURITY_PASS
+      - name: Render frozen HoopVision rings over Broadcast then Left Above Rim then Right Above Rim
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(mktemp -d)"
+          trap 'rm -rf "$ROOT"' EXIT
+          gh auth setup-git >/dev/null 2>&1
+          git clone -q --depth=1 --filter=blob:none --sparse \
+            --branch cpu-animate/durant-sengun-sequential-replay-20261108 \
+            https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
+            > "$ROOT/clone.log" 2>&1 || { echo PRIVATE_CPU_ANIMATE_SOURCE_CLONE_FAILED; exit 4; }
+          git -C "$ROOT/private" sparse-checkout set --no-cone \
+            '/cpu_animate/' '/tools/locked_broadcast_screen_v5_rings.py' \
+            > "$ROOT/sparse.log" 2>&1 || { echo PRIVATE_CPU_ANIMATE_SPARSE_CHECKOUT_FAILED; exit 4; }
+          cd "$ROOT/private"
+          python3 -m pip install -q --disable-pip-version-check numpy opencv-python-headless pillow \
+            > "$ROOT/pip.log" 2>&1 || { echo VIDEO_CPU_DEPENDENCY_FAILED; exit 4; }
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update -qq > "$ROOT/apt.log" 2>&1
+            sudo apt-get install -y -qq ffmpeg > "$ROOT/ffmpeg.log" 2>&1
+          fi
+          python3 -m py_compile cpu_animate/min_ato_0181_dual_sequential_replay.py
+          python3 - <<'PY'
+          from pathlib import Path
+          from cpu_animate.core import git_blob_sha
+          from cpu_animate.min_ato_0181_dual_sequential_replay import _ring_radii,REPLAY_ORDER,VIDEO_S,OUTPUT
+          assert git_blob_sha(Path('tools/locked_broadcast_screen_v5_rings.py')) == '9fac8a8915b90bbd9bd1235532c297c35da77ca2'
+          assert REPLAY_ORDER == ('Broadcast','Left Above Rim','Right Above Rim')
+          assert VIDEO_S == 19.75 and OUTPUT == (1280,720)
+          assert _ring_radii(340)[0] >= 60
+          PY
+          echo ORIGINAL_HOOPVISION_PRODUCTION_RING_BLOB_AND_FULLSIZE_POLICY_PASS
+          mkdir -p "$ROOT/media" "$ROOT/scout" "$ROOT/motion" "$ROOT/out"
+          gh release download cpu-animate-min-ato-0022600181-653-original-cpu \
+            --repo timeedmonds-maker/104 --dir "$ROOT/media" \
+            --pattern 'angle-*.mp4' --pattern 'angle-*.json' \
+            > "$ROOT/source-media.log" 2>&1 || { echo PRIVATE_ORIGINAL_THREE_VIDEO_DOWNLOAD_FAILED; exit 4; }
+          gh release download cpu-animate-min-ato-0181-durant-sengun-identity-scout \
+            --repo timeedmonds-maker/104 --dir "$ROOT/scout" \
+            --pattern 'identity-tracks-*.json' \
+            > "$ROOT/identity-scout.log" 2>&1 || { echo PRIVATE_IDENTITY_SCOUT_DOWNLOAD_FAILED; exit 4; }
+          gh release download cpu-animate-0181-durant-sengun-native10-coach40 \
+            --repo timeedmonds-maker/104 --dir "$ROOT/motion" \
+            --pattern 'durant_sengun_native10hz_coach40hz.json' \
+            --pattern 'durant_sengun_native_motion_qa.json' \
+            > "$ROOT/source-motion.log" 2>&1 || { echo PRIVATE_SOURCE_40HZ_DERIVATION_DOWNLOAD_FAILED; exit 4; }
+          python3 - "$ROOT/motion" <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          d=Path(sys.argv[1])
+          receipt=json.loads((d/'durant_sengun_native_motion_qa.json').read_text())
+          source=(d/'durant_sengun_native10hz_coach40hz.json').read_bytes()
+          assert receipt['game_id']=='0022600181'
+          assert hashlib.sha256(source).hexdigest()==receipt['private_motion_json_sha256']
+          assert set(receipt['per_player'])=={'Durant','Sengun'}
+          PY
+          echo NBA_SOURCE_VIDEO_IDENTITY_AND_DERIVED_40HZ_SHA_PASS
+          if ! python3 -m cpu_animate.min_ato_0181_dual_sequential_replay \
+              --private "$ROOT/private" --media "$ROOT/media" \
+              --scout "$ROOT/scout" \
+              --motion "$ROOT/motion/durant_sengun_native10hz_coach40hz.json" \
+              --out "$ROOT/out" > "$ROOT/render.log" 2>&1; then
+            tail -c 3000 "$ROOT/render.log" | sed -E 's#https?://[^ ]+#REDACTED_URL#g'
+            echo SEQUENTIAL_ORIGINAL_VIDEO_RENDER_FAILED
+            exit 5
+          fi
+          tail -c 2500 "$ROOT/render.log"
+          python3 - "$ROOT/out" <<'PY'
+          import json,sys
+          from pathlib import Path
+          out=Path(sys.argv[1])
+          q=json.loads((out/'sequential_three_replays_dual_hoopvision_receipt.json').read_text())
+          assert q['camera_order']==['Broadcast','Left Above Rim','Right Above Rim']
+          assert q['frames']>=1770 and len(q['review_stills'])==3
+          assert q['dimensions_px']==[1280,720]
+          assert q['frozen_ring_git_blob_sha1']=='9fac8a8915b90bbd9bd1235532c297c35da77ca2'
+          assert not q['absolute_video_UTC_independently_certified']
+          assert q['status']=='RESEARCH_PREVIEW_ONLY'
+          assert (out/q['output']).stat().st_size>1000000
+          print('REPLAY_SOURCE_AND_OUTPUT_QA_PASS',q['frames'],round(q['total_duration_s'],2))
+          PY
+          TAG=cpu-animate-min-ato-0181-durant-sengun-fullsize-three-sequential-v1
+          gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
+            gh release create "$TAG" --repo timeedmonds-maker/104 \
+              --title 'Durant and Sengun full-size frozen HoopVision rings — three sequential NBA camera replays' \
+              --notes 'Authentic NBA source: Broadcast, then Left Above Rim, then Right Above Rim. Full-size frozen HoopVision rings, only Kevin Durant and Alperen Sengun. 40Hz derives from original native NBA time samples. CPU-only private review; geometric/UTC/manual foot precision QA remains provisional.' \
+              --latest=false >/dev/null || { echo PRIVATE_REPLAY_RELEASE_CREATE_FAILED; exit 5; }
+          gh release upload "$TAG" \
+            "$ROOT/out/MIN_HOU_0181_DURANT_SENGUN_HOOPVISION_FULLSIZE_3REPLAYS_SEQUENTIAL.mp4" \
+            "$ROOT/out/sequential_three_replays_dual_hoopvision_receipt.json" \
+            "$ROOT/out"/sequential_camera_*_review.jpg \
+            --repo timeedmonds-maker/104 --clobber > "$ROOT/upload.log" 2>&1 || {
+            echo PRIVATE_REPLAY_VIDEO_ASSET_UPLOAD_FAILED; exit 5; }
+          gh release view "$TAG" --repo timeedmonds-maker/104 --json assets \
+            --jq '.assets[]| [.name,.size]|@tsv'
+          echo CPU_ANIMATE_DURANT_SENGUN_FULLSIZE_THREE_BACK_TO_BACK_REPLAYS_PRIVATE_MP4_COMPLETE
