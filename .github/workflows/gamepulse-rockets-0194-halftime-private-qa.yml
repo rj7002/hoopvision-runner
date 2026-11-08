@@ -176,3 +176,118 @@ jobs:
           print("FIRSTHALF_PBP_REQUIRED_MINUTES",len(required) if required else "UNKNOWN")
           print("FIRSTHALF_MISSING_SOURCE_MINUTES",len(missing) if required else "UNKNOWN")
           PY
+
+  private-native-half-analysis:
+    # Follow the three SHA-original private Git shards, not release-asset API.
+    if: github.event_name == 'workflow_run'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify public/private security boundary and source branches
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          for shard in firstA firstB firstC; do
+            if ! git ls-remote --exit-code https://github.com/timeedmonds-maker/104.git \
+               "refs/heads/research/rockets-0194-half-$shard-20261108" >/dev/null; then
+              echo "PRIVATE_HALFTIME_ORIGINAL_SHARD_NOT_YET_READY_$shard"
+              exit 0
+            fi
+          done
+      - name: Source-private original halftime XYZ and coverage QA
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/sources"
+          for shard in firstA firstB firstC; do
+            git clone -q --depth=1 --filter=blob:none --sparse \
+              -b "research/rockets-0194-half-$shard-20261108" \
+              https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/sources/$shard"
+            git -C "$RUNNER_TEMP/sources/$shard" sparse-checkout set --no-cone \
+              "gamepulse/live/halftime_sdk_0194/$shard/*"
+          done
+          git clone -q --depth=1 --filter=blob:none --sparse -b main \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/privateout"
+          git -C "$RUNNER_TEMP/privateout" sparse-checkout set --no-cone \
+            'gamepulse/live/halftime_sdk_0194/analysis/*'
+          git -C "$RUNNER_TEMP/privateout" switch -q -c "research/rockets-0194-h1-original-qa-20261108"
+          python3 - <<'PY'
+          import collections,gzip,hashlib,json,math,os,tarfile
+          from pathlib import Path
+          top=Path(os.environ["RUNNER_TEMP"])
+          all_frames={}
+          evidence={};unresolved=[]
+          for shard in ("firstA","firstB","firstC"):
+              directory=top/"sources"/shard/"gamepulse/live/halftime_sdk_0194"/shard
+              metadata=json.loads((directory/"index.json").read_bytes())
+              assert metadata["game_id"]=="0022600194" and metadata["source"]=="ORIGINAL_NBA_LICENSED_SDK"
+              unresolved.extend(metadata["unresolved_minutes"])
+              for record in metadata["source_rows"]:
+                  file=directory/record["archive"]
+                  assert file.is_file()
+                  assert hashlib.sha256(file.read_bytes()).hexdigest()==record["sha256"]
+                  with tarfile.open(file,"r:gz") as tar:
+                      manifest=json.loads(tar.extractfile("manifest.json").read())
+                      assert manifest["game_id"]=="0022600194" and manifest["imputed"] is False
+                      assert manifest["successful_windows"]==12 and manifest["observed"] is True
+                      fh=tar.extractfile("frames.jsonl.gz")
+                      for line in gzip.GzipFile(fileobj=fh):
+                          frame=json.loads(line)
+                          ts=frame.get("timestamp")
+                          pos=frame.get("positions",{})
+                          if type(ts)!=int or not isinstance(pos,dict):continue
+                          actors={k:v[:3] for k,v in pos.items() if isinstance(v,list)
+                              and len(v)>=3 and all(type(q) in (float,int) and math.isfinite(q) for q in v[:3])}
+                          if ts not in all_frames or len(actors)>len(all_frames[ts][0]):
+                              all_frames[ts]=(actors,frame.get("interpolated"),int(record["minute"]))
+                  evidence[str(record["minute"])]={
+                      "sha256":record["sha256"],"native_keyframes":record["native_keyframes"],
+                      "player_frames":record["player_xyz_frames"],
+                      "ball_frames":record["ball_xyz_frames"]}
+          counters=collections.Counter();by_player=collections.Counter();by_minute=collections.defaultdict(collections.Counter)
+          for ts,(p,flag,minute) in all_frames.items():
+              ids=[k for k in p if k!="ball"]
+              ball="ball" in p
+              counters["native_unique"]+=1
+              counters["with_player"]+=bool(ids)
+              counters["with_ball"]+=ball
+              counters["exact_ten_plus_ball"]+=len(ids)==10 and ball
+              counters["at_least_ten_plus_ball"]+=len(ids)>=10 and ball
+              counters["provider_interpolated_true"]+=flag is True
+              by_minute[str(minute)]["native_frames"]+=1
+              by_minute[str(minute)]["tenplus_ball"]+=len(ids)>=10 and ball
+              for pid in ids:by_player[pid]+=1
+          doc={"schema":"igp.rockets0194.h1.original-source-private-qa.v1",
+               "game_id":"0022600194",
+               "source":"ORIGINAL_NBA_SDK_PRIVATE_GIT_SHA_VERIFIED",
+               "native_source_frame_counts":dict(counters),
+               "source_max_timestamp_utc_ms":max(all_frames) if all_frames else None,
+               "source_min_timestamp_utc_ms":min(all_frames) if all_frames else None,
+               "source_minutes_with_authentic_archives":len(evidence),
+               "unresolved_source_minutes":sorted(set(unresolved)),
+               "source_minute_sha_metadata":evidence,
+               "per_minute_source_coverage":dict(by_minute),
+               "per_player_id_source_frame_counts":dict(by_player),
+               "nba_official_pbp_half_reconciled":False,
+               "official_ten_lineup_certified":False,
+               "full_firsthalf_physical_tracking_certified":False,
+               "notes":"Wall-clock minute scope 0..76 is not certified Q1+Q2. Join original NBA official PBP and clock before any period/team or possession conclusions. Original XYZ are private, unmodified, and not copied into this QA JSON."}
+          dest=top/"privateout"/"gamepulse/live/halftime_sdk_0194/analysis"
+          dest.mkdir(parents=True,exist_ok=True)
+          (dest/"native_half_source_qa.json").write_text(json.dumps(doc,sort_keys=True,indent=2)+"\n")
+          print("ORIGINAL_NBA_HALFTIME_SOURCE_QA",len(evidence),len(unresolved),
+                counters["native_unique"],counters["at_least_ten_plus_ball"])
+          PY
+          cd "$RUNNER_TEMP/privateout"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/live/halftime_sdk_0194/analysis/native_half_source_qa.json
+          git diff --cached --check
+          git commit -q -m 'qa(igp): private original HOU PHX halftime XYZ direct-source census'
+          git push -q origin HEAD:refs/heads/research/rockets-0194-h1-original-qa-20261108
+          echo "ROCKETS_FIRST_HALF_PRIVATE_XYZ_ANALYSIS_READY"
