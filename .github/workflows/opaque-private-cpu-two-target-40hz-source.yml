@@ -1,0 +1,90 @@
+name: Opaque private Minnesota target player native-to-40Hz coaching source
+on:
+  push:
+    branches: ['cpu-animate-opaque-private-cpu-20261108']
+    paths: ['.github/workflows/opaque-private-cpu-two-target-40hz-source.yml']
+permissions:
+  contents: read
+jobs:
+  native40:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Private original source SHA, two NBA player IDs and 40Hz candidate only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN" && test ! -e /dev/nvidia0 || exit 4
+          ROOT="$(mktemp -d)"
+          chmod 700 "$ROOT"
+          trap 'rm -rf "$ROOT"' EXIT
+          gh auth setup-git >/dev/null 2>&1
+          git clone -q --depth=1 --filter=blob:none --sparse \
+            --branch cpu-animate/durant-sengun-two-rings-20261108 \
+            https://github.com/timeedmonds-maker/104.git "$ROOT/code" \
+            > "$ROOT/code-clone.log" 2>&1 || { echo PRIVATE_REVIEWED_CODE_CLONE_FAILED; exit 4; }
+          git -C "$ROOT/code" sparse-checkout set --no-cone \
+             '/cpu_animate/' > "$ROOT/code-sparse.log" 2>&1 || exit 4
+          test "$(git -C "$ROOT/code" hash-object cpu_animate/min_ato_0181_source_dual_40hz.py)" = \
+            "3ce1e794f0672fc650387ef2c3c59a3c66889dc5" || {
+             echo PRIVATE_REVIEWED_DUAL_TARGET_CODE_SHA_CHANGED; exit 4; }
+          git clone -q --depth=1 --filter=blob:none --sparse \
+            --branch research/gamepulse-clock-boundary-integrity-20261025 \
+            https://github.com/timeedmonds-maker/104.git "$ROOT/original" \
+            > "$ROOT/source-clone.log" 2>&1 || { echo PRIVATE_NATIVE_ORIGINAL_CLONE_FAILED; exit 4; }
+          git -C "$ROOT/original" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/materialized/igp_all_original_xyz/0022600181/index.json' \
+            '/gamepulse/fusion/materialized/igp_all_original_xyz/0022600181/original-native-00014.jsonl.gz' \
+            > "$ROOT/source-sparse.log" 2>&1 || { echo PRIVATE_NATIVE_SPARSITY_FAILED; exit 4; }
+          cd "$ROOT/code"
+          python3 - "$ROOT/original" <<'PY'
+          import json,hashlib,sys
+          from pathlib import Path
+          root=Path(sys.argv[1])/'gamepulse/fusion/materialized/igp_all_original_xyz/0022600181'
+          idx=json.loads((root/'index.json').read_text())
+          if idx.get('game_id')!='0022600181':raise SystemExit(4)
+          name='original-native-00014.jsonl.gz'
+          expected='bebac2b1b7a331377d0f5879ebbc39fbfeed6d2e631287bbd36355e59bb0f157'
+          if not any(q['path']==name and q['sha256']==expected for q in idx['chunks']):
+              raise SystemExit(4)
+          if hashlib.sha256((root/name).read_bytes()).hexdigest()!=expected:raise SystemExit(4)
+          PY
+          mkdir -p "$ROOT/out"
+          python3 -m cpu_animate.min_ato_0181_source_dual_40hz \
+            --original "$ROOT/original" --out "$ROOT/out" > "$ROOT/native.log" 2>&1 || {
+            echo ORIGINAL_FULL_WINDOW_TWO_PLAYER_40HZ_MODEL_FAILED; exit 5; }
+          echo ORIGINAL_DURANT_SENGUN_SOURCE_40HZ_CANDIDATE_COMPLETE
+
+          tag="cpu-animate-min-ato-0181-source-40hz-two-player-v1"
+          if ! gh release view "$tag" --repo timeedmonds-maker/104 >/dev/null 2>&1; then
+            gh release create "$tag" --repo timeedmonds-maker/104 \
+              --title 'Original NBA Durant and Sengun 40Hz coaching motion source-only' \
+              --notes 'Original NBA native player XYZ SHA checked; 25ms resampling between observed timestamps only; UTC/video mapping candidate; private source, no implied native 40Hz observation.' \
+              --latest=false >/dev/null 2>&1 || { echo PRIVATE_DUAL_SOURCE_RELEASE_CREATE_FAILED; exit 5; }
+          fi
+          gh release upload "$tag" "$ROOT/out/min_ato_two_target_full131_derived40hz.json" \
+            --repo timeedmonds-maker/104 --clobber >/dev/null 2>&1 || {
+            echo PRIVATE_DUAL_SOURCE_UPLOAD_FAILED; exit 5; }
+          python3 - "$ROOT/out/min_ato_two_target_full131_derived40hz.json" <<'PY'
+          import base64,json,subprocess,sys
+          from pathlib import Path
+          j=json.loads(Path(sys.argv[1]).read_bytes())
+          if set(j['target_players'])!={'201142','1630578'}:raise SystemExit(4)
+          summary={k:j[k] for k in j if k!='timeline'}
+          payload={'message':'qa(cpu-animate): keep native Durant/Sengun source timing coverage and exact 40Hz derived motion flags private',
+            'content':base64.b64encode((json.dumps(summary,indent=2)+'\n').encode()).decode(),
+            'branch':'cpu-animate/durant-sengun-two-rings-20261108'}
+          r=subprocess.run(['gh','api','-X','PUT',
+            'repos/timeedmonds-maker/104/contents/docs/cpu_animate/private_0181_two_target_40hz_source_receipt.json',
+            '--input','-'],input=json.dumps(payload),capture_output=True,text=True)
+          if r.returncode:raise SystemExit(5)
+          print('PRIVATE_SOURCE_40HZ_RECEIPT_AND_RELEASE_COMPLETE')
+          PY
