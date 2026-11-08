@@ -39,9 +39,20 @@ jobs:
           git clone --quiet --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
             "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
           cd "$RUNNER_TEMP/private"
-          test "$(git rev-parse HEAD)" = "95c67b3acab1bf0b557551ee2eedce314f619066"
+          test "$(git rev-parse HEAD)" = "c9edcee18f481ee513d286a39c6fcb43c629445c"
           git sparse-checkout set --no-cone \
             "$SCRIPT" \
+            'gamepulse/fusion/analysis/igp_full131_kd_catch_spacing_ppp_correlation_20261108.py' \
+            'gamepulse/fusion/universal_possession_alignment_2026.py' \
+            'gamepulse/fusion/official_pbp_timing/games/0022600009.json' \
+            'gamepulse/fusion/official_pbp_timing/games/0022600021.json' \
+            'gamepulse/fusion/official_pbp_timing/games/0022600091.json' \
+            'gamepulse/fusion/official_pbp_timing/games/0022600107.json' \
+            'gamepulse/fusion/official_pbp_timing/games/0022600125.json' \
+            'gamepulse/fusion/official_pbp_timing/games/0022600138.json' \
+            'gamepulse/fusion/official_pbp_timing/games/0022600153.json' \
+            'gamepulse/fusion/official_pbp_timing/games/0022600167.json' \
+            'gamepulse/fusion/official_pbp_timing/games/0022600181.json' \
             'gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600009.json' \
             'gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600021.json' \
             'gamepulse/fusion/qa/r13_full123_touch_overlay_20261107/0022600091.json' \
@@ -67,6 +78,9 @@ jobs:
           cd "$RUNNER_TEMP/private"
           python3 -B -m py_compile "$SCRIPT"
           python3 -B "$SCRIPT" --root . --out "$RUNNER_TEMP/report.json"
+          mkdir -p "$(dirname "$TARGET")"
+          cp "$RUNNER_TEMP/report.json" "$TARGET"
+          python3 -B gamepulse/fusion/analysis/igp_full131_kd_catch_spacing_ppp_correlation_20261108.py --root . --out "$RUNNER_TEMP/ppp.json"
           python3 - <<'PY'
           import json,os,pathlib
           z=json.loads((pathlib.Path(os.environ['RUNNER_TEMP'])/'report.json').read_text())
@@ -75,7 +89,12 @@ jobs:
           assert z['overall_spacing_ft']['n']>0
           assert sum(x['n'] for x in z['passers_by_average_defender_distance'])==z['overall_spacing_ft']['n']
           assert len({x['catch_event_key'] for x in z['individual_catches']})==len(z['individual_catches'])
-          print("KD_FULL131_SOURCE_DISTANCE_ANALYSIS_QA_PASS")
+          p=json.loads((pathlib.Path(os.environ['RUNNER_TEMP'])/'ppp.json').read_text())
+          assert p['nine_games']==9
+          assert 0 < p['unique_chains_matched'] <= z['overall_spacing_ft']['n']
+          assert sum(x['receiving_possessions'] for x in p['binned_ppp']) == p['unique_chains_matched']
+          assert p['physical_possession_certified'] is False
+          print("KD_FULL131_SOURCE_DISTANCE_AND_PPP_QA_PASS")
           PY
       - name: Save private result and public aggregate receipt
         shell: bash
@@ -84,20 +103,25 @@ jobs:
           python3 - <<'PY'
           import os,base64,json,subprocess,time
           from pathlib import Path
-          data=(Path(os.environ['RUNNER_TEMP'])/'report.json').read_bytes()
-          assert len(data)<4000000
-          url='repos/'+os.environ['PRIVATE_REPO']+'/contents/'+os.environ['TARGET']
           branch=os.environ['PRIVATE_BRANCH']
-          for i in range(12):
-              old=subprocess.run(['gh','api',url+'?ref='+branch],capture_output=True,text=True)
-              body={'branch':branch,'message':'qa(private): Full131 KD frontcourt pass spacing exact-native census [skip ci]',
-                    'content':base64.b64encode(data).decode()}
-              if old.returncode==0:body['sha']=json.loads(old.stdout)['sha']
-              result=subprocess.run(['gh','api','-X','PUT',url,'--input','-'],
-                                    input=json.dumps(body),capture_output=True,text=True)
-              if result.returncode==0:
-                  print('KD_FULL131_PRIVATE_ANALYSIS_SAVED')
-                  break
-              time.sleep(i+2)
-          else:raise RuntimeError('PRIVATE_QA_SAVE_FAILED')
+          outputs=[
+              (Path(os.environ['RUNNER_TEMP'])/'report.json',os.environ['TARGET']),
+              (Path(os.environ['RUNNER_TEMP'])/'ppp.json',
+                 'gamepulse/fusion/qa/analysis/full131_kd_frontcourt_pass_spacing_ppp_20261108.json')]
+          for file,dest in outputs:
+              data=file.read_bytes()
+              assert 0<len(data)<4000000
+              url='repos/'+os.environ['PRIVATE_REPO']+'/contents/'+dest
+              for i in range(12):
+                  old=subprocess.run(['gh','api',url+'?ref='+branch],capture_output=True,text=True)
+                  body={'branch':branch,'message':'qa(private): Full131 KD catch source spacing and PBP scoring association [skip ci]',
+                        'content':base64.b64encode(data).decode()}
+                  if old.returncode==0:body['sha']=json.loads(old.stdout)['sha']
+                  result=subprocess.run(['gh','api','-X','PUT',url,'--input','-'],
+                                        input=json.dumps(body),capture_output=True,text=True)
+                  if result.returncode==0:
+                      print('KD_FULL131_PRIVATE_ANALYSIS_SAVED',file.name)
+                      break
+                  time.sleep(i+2)
+              else:raise RuntimeError('PRIVATE_QA_SAVE_FAILED_'+file.name)
           PY
