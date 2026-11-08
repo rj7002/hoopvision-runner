@@ -49,6 +49,12 @@ jobs:
             > "$ROOT/sparse.log" 2>&1 || { echo PRIVATE_CPU_ANIMATE_SPARSE_CHECKOUT_FAILED; exit 4; }
           cd "$ROOT/private"
           mkdir -p "$ROOT/media" "$ROOT/scout" "$ROOT/out"
+          python3 -m pip install -q --disable-pip-version-check numpy opencv-python-headless pillow ultralytics \
+            > "$ROOT/pip.log" 2>&1 || { tail -c 1500 "$ROOT/pip.log"; echo ORIGINAL_VIDEO_CPU_DEPENDENCY_INSTALL_FAILED; exit 4; }
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update -qq > "$ROOT/apt.log" 2>&1
+            sudo apt-get install -y -qq ffmpeg > "$ROOT/ffmpeg.log" 2>&1
+          fi
           python3 -m py_compile cpu_animate/min0181_v11b_broadcast_court_locked_preview.py
           # Public, revision-pinned basketball-specific 48 keypoint model.
           # AGPL terms: research user review, not a product-shipping artefact.
