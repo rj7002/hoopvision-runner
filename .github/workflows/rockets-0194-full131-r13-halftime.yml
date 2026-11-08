@@ -84,7 +84,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/qa/full131_0194
+          git add --sparse -f gamepulse/fusion/qa/full131_0194
           git diff --cached --check
           git commit -q -m 'qa(igp): original Rockets 0194 SDK inputs for Full131 R13'
           git push -q origin HEAD:refs/heads/research/rockets0194-full131-input-probe-20261108
