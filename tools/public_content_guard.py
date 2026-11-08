@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/rockets-0194-full131-r13-halftime.yml",  # original first-half NBA SDK source is read only in private 104; derived aggregated R13 counts private only
     ".github/workflows/gamepulse-rockets-0194-halftime-private-qa.yml",  # exact HOU PHX halftime original XYZ + official PBP private-only QA; no source coordinates in public logs
     ".github/workflows/gamepulse-rockets-0194-halftime-fast-priority.yml",  # isolated first-half only SDK minute shards; original NBA XYZ saved to private 104 release; public logs aggregate QA only
     ".github/workflows/gamepulse-live-rockets-0194-20261108.yml",  # verified existing private SDK capture writes only SHA-checked private original XYZ releases
