@@ -1,4 +1,4 @@
-name: CPU Animate V9 source-verified stable floor and green, SHA-pinned segmentation
+name: CPU Animate V10 court-only camera registration diagnostic before any new overlay
 # Original pixel-anchor KD seed fix: source-video identity diagnostic V6 rerun
 on:
   push:
@@ -41,7 +41,7 @@ jobs:
           trap 'rm -rf "$ROOT"' EXIT
           gh auth setup-git >/dev/null 2>&1
           git clone -q --depth=1 --filter=blob:none --sparse \
-            --branch cpu-animate/min0181-v9-stabilized-floor-possession-20261108 \
+            --branch cpu-animate/min0181-v10-ground-plane-diagnostic-20261108 \
             https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
             > "$ROOT/clone.log" 2>&1 || { echo PRIVATE_CPU_ANIMATE_SOURCE_CLONE_FAILED; exit 4; }
           git -C "$ROOT/private" sparse-checkout set --no-cone \
@@ -54,52 +54,46 @@ jobs:
             sudo apt-get update -qq > "$ROOT/apt.log" 2>&1
             sudo apt-get install -y -qq ffmpeg > "$ROOT/ffmpeg.log" 2>&1
           fi
-          # Fetch official, version-pinned Ultralytics YOLO11-seg weights from
-          # their own Hugging Face model repository; SHA verified before any
-          # unpickling/inference. Avoid runtime latest-release auto-download 504.
-          MODEL_SHA=55ed65c56c91713d23e8402371c6c49a6fd84f257f7dce452e8d70e41dcbe152
-          MODEL_URL=https://huggingface.co/Ultralytics/YOLO11/resolve/1fad642026e935ebf53c4d878b6fd844ad08de3f/yolo11n-seg.pt
-          for attempt in 1 2 3; do
-            if curl -fL --retry 2 --retry-all-errors \
-                 --connect-timeout 12 --max-time 90 -sS \
-                 "$MODEL_URL" -o yolo11n-seg.pt && \
-               echo "$MODEL_SHA  yolo11n-seg.pt" | sha256sum -c - >/dev/null; then
-              echo FROZEN_ORIGINAL_YOLO11_SEGMENTATION_WEIGHT_SHA256_PASS
-              break
-            fi
-            rm -f yolo11n-seg.pt
-            if [ "$attempt" = 3 ]; then
-              echo PRIVATE_CPU_SEGMENTATION_MODEL_SHA_RETRIEVAL_FAILED
-              exit 4
-            fi
-            sleep 2
-          done
-          python3 -m py_compile cpu_animate/min_ato_0181_bidirectional_player_lock_v6.py
-          python3 -m cpu_animate.v9_stable_floor_paths
-          python3 - <<'PY'
-          from pathlib import Path
-          from cpu_animate.core import git_blob_sha
-          from cpu_animate.min_ato_0181_bidirectional_player_lock_v6 import _ring_radii,REPLAY_ORDER,VIDEO_S,OUTPUT,seed_features,optical_step
-          import cv2,numpy as np
-          assert git_blob_sha(Path('tools/locked_broadcast_screen_v5_rings.py')) == '9fac8a8915b90bbd9bd1235532c297c35da77ca2'
-          assert REPLAY_ORDER == ('Broadcast','Left Above Rim','Right Above Rim')
-          assert VIDEO_S == 19.75 and OUTPUT == (1280,720)
-          assert _ring_radii(340)[0] >= 60
-          x=np.zeros((100,100),np.uint8)
-          cv2.rectangle(x,(25,26),(65,75),255,2)
-          x[32:70:7,32:65:7]=135
-          pts=seed_features(x,[45,45,140,150])
-          assert pts is not None and len(pts)>=4
-          y=np.roll(x,3,axis=1)
-          flow,px=optical_step(x,y,pts)
-          assert flow is not None and abs(flow[0]-6)<3.5
-          PY
+          python3 -m py_compile cpu_animate/min0181_v10_court_motion_diagnostic.py
+          echo V10_SOURCE_COURT_MOTION_CAMERA_DIAGNOSTIC_CODE_COMPILED
           echo ORIGINAL_HOOPVISION_PRODUCTION_RING_BLOB_AND_FULLSIZE_POLICY_PASS
           mkdir -p "$ROOT/media" "$ROOT/scout" "$ROOT/motion" "$ROOT/out"
           gh release download cpu-animate-min-ato-0022600181-653-original-cpu \
             --repo timeedmonds-maker/104 --dir "$ROOT/media" \
             --pattern 'angle-*.mp4' --pattern 'angle-*.json' \
             > "$ROOT/source-media.log" 2>&1 || { echo PRIVATE_ORIGINAL_THREE_VIDEO_DOWNLOAD_FAILED; exit 4; }
+          python3 -m cpu_animate.min0181_v10_court_motion_diagnostic \
+             --media "$ROOT/media" --out "$ROOT/out" \
+             > "$ROOT/court-diagnostic.log" 2>&1 || {
+              tail -c 5000 "$ROOT/court-diagnostic.log"
+              echo V10_ORIGINAL_CAMERA_COURT_MOTION_DIAGNOSTIC_FAILED
+              exit 5
+             }
+          tail -c 12000 "$ROOT/court-diagnostic.log"
+          python3 - "$ROOT/out" <<'PY'
+          import json,sys
+          from pathlib import Path
+          q=json.loads((Path(sys.argv[1])/'v10_original_camera_court_motion_QA.json').read_text())
+          assert q['original_source_NBA_XYZ_not_used'] is True
+          assert q['player_foot_position_not_used_for_court_fit'] is True
+          assert q['uncertified_video_to_NBA_UTC_not_used'] is True
+          assert set(q['cameras'])=={'Broadcast','Left Above Rim','Right Above Rim'}
+          assert all(x['total_court_samples']>=12 for x in q['cameras'].values())
+          print('V10_ORIGINAL_COURT_HOMOGRAPHY_EVIDENCE_ARCHIVED',
+                {c:{"valid":v["valid_court_samples"],"samples":v["total_court_samples"],
+                    "holdout_p95":v["holdout_video_court_feature_p95_of_p95_px"]}
+                 for c,v in q['cameras'].items()})
+          PY
+          TAG=cpu-animate-min0181-court-motion-diagnostic-v10
+          gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
+            gh release create "$TAG" --repo timeedmonds-maker/104 \
+              --title 'MIN 0181 original-video court camera registration QA — V10 no new player overlay' \
+              --notes 'Private source-only diagnostic: disjoint held-out original-video floor SIFT feature reprojection by camera and cut. No original NBA XYZ/UTC/body positions were used to fit camera. Engineering feature agreement is NOT independent annotated court landmarks and does not authorize a player-ring release.' \
+              --latest=false >/dev/null
+          gh release upload "$TAG" "$ROOT/out/v10_original_camera_court_motion_QA.json" \
+              "$ROOT/out"/v10_court_*.jpg --repo timeedmonds-maker/104 --clobber
+          echo V10_SOURCE_VIDEO_COURT_REGISTRATION_DIAGNOSTIC_COMPLETE
+          exit 0
           gh release download cpu-animate-min-ato-0181-durant-sengun-identity-scout \
             --repo timeedmonds-maker/104 --dir "$ROOT/scout" \
             --pattern 'identity-tracks-*.json' \
