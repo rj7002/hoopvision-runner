@@ -1,0 +1,152 @@
+name: Rockets-Suns private original XYZ readback
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/gamepulse-rockets-suns-private-xyz-readback-20261108.yml
+permissions:
+  contents: read
+concurrency:
+  group: rockets-suns-private-source-xyz-readback
+  cancel-in-progress: false
+jobs:
+  readback:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate public-private boundary
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+      - name: Fetch and SHA-verify private original NBA SDK checkpoints
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/rockets-source"
+          gh release download gamepulse-live-sdk-0022600194 \
+            --repo timeedmonds-maker/104 \
+            --pattern 'live-*' --dir "$RUNNER_TEMP/rockets-source"
+          test "$(find "$RUNNER_TEMP/rockets-source" -maxdepth 1 -name 'live-*.tar.gz' | wc -l)" -ge 1
+      - name: Private source-coordinate readback and reproducible frame census
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,gzip,hashlib,json,math,os,subprocess,tarfile,time
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])/"rockets-source"
+          arches=sorted(root.glob("live-*.tar.gz"))
+          assert arches,"no_source_archives"
+          frames={}
+          minutes=[]
+          for archive in arches:
+              side=archive.with_name(archive.name.replace(".tar.gz",".json"))
+              assert side.exists(),"missing_source_sidecar"
+              original=archive.read_bytes()
+              digest=hashlib.sha256(original).hexdigest()
+              note=json.loads(side.read_text())
+              assert note.get("archive_sha256")==digest,"sha_integrity_error"
+              with tarfile.open(archive,"r:gz") as tar:
+                  manifest=json.load(tar.extractfile("manifest.json"))
+                  assert manifest.get("game_id")=="0022600194"
+                  assert manifest.get("observed") is True and manifest.get("imputed") is False
+                  assert manifest.get("successful_windows")==12
+                  zipped=tar.extractfile("frames.jsonl.gz")
+                  assert zipped is not None
+                  rows=list(gzip.GzipFile(fileobj=zipped))
+                  assert len(rows)==manifest.get("unique_keyframes"),"source_frame_count_mismatch"
+                  for raw in rows:
+                      row=json.loads(raw)
+                      stamp=row.get("timestamp")
+                      if type(stamp)!=int:continue
+                      pos=row.get("positions")
+                      if not isinstance(pos,dict):continue
+                      good={}
+                      for actor,values in pos.items():
+                          if not isinstance(values,list) or len(values)<3:continue
+                          if not all(type(n) in (int,float) and math.isfinite(n) for n in values[:3]):continue
+                          good[str(actor)]=values[:3]
+                      source={
+                          "timestamp_utc_ms":stamp,
+                          "source_xyz":good,
+                          "sdk_interpolated":row.get("interpolated"),
+                          "archive":archive.name,
+                          "archive_sha256":digest
+                      }
+                      if stamp not in frames or len(good)>len(frames[stamp]["source_xyz"]):
+                          frames[stamp]=source
+              minutes.append({"start_ms":manifest["start_ms"],"filename":archive.name,
+                              "archive_sha256":digest,"unique_source_keyframes":manifest["unique_keyframes"],
+                              "frames_with_players":manifest["frames_with_players"],
+                              "frames_with_ball":manifest["frames_with_ball"]})
+          arr=sorted(frames.values(),key=lambda r:r["timestamp_utc_ms"])
+          assert arr,"no_xyz_source_frames"
+          ball=lambda r:"ball" in r["source_xyz"]
+          nplayers=lambda r:sum(pid!="ball" for pid in r["source_xyz"])
+          have_players=[r for r in arr if nplayers(r)>0]
+          have_ball=[r for r in arr if ball(r)]
+          tenball=[r for r in arr if nplayers(r)==10 and ball(r)]
+          tenplusball=[r for r in arr if nplayers(r)>=10 and ball(r)]
+          selected=tenplusball if tenplusball else [r for r in arr if nplayers(r)>0 and ball(r)]
+          assert selected,"no_simultaneous_player_and_ball"
+          picks=sorted(set(round(i*(len(selected)-1)/min(5,len(selected)-1)) for i in range(min(5,len(selected)-1)+1)))
+          samples=[selected[i] for i in picks]
+          if have_players and have_ball and arr[-1]["timestamp_utc_ms"]!=samples[-1]["timestamp_utc_ms"]:
+              samples.append(arr[-1])
+          out={
+              "schema":"gamepulse.live.original-sdk-xyz-readback.v1",
+              "game_id":"0022600194",
+              "source":"ORIGINAL_NBA_SDK_ARCHIVES_SHA256_VERIFIED",
+              "record_scope":"captured NBA SDK source windows, not certified whole game",
+              "source_coordinates_units":"original SDK units, unmodified",
+              "coordinate_conversion_reference":"12 source court units per foot; raw values preserved",
+              "official_ten_identity_certified":False,
+              "physical_possessions_certified":False,
+              "source_windows":len(arches)*12,
+              "minute_segments":minutes,
+              "coverage":{
+                  "original_unique_native_timestamps":len(arr),
+                  "frames_with_any_player_xyz":len(have_players),
+                  "frames_with_ball_xyz":len(have_ball),
+                  "frames_with_exactly_ten_actor_ids_and_ball":len(tenball),
+                  "frames_with_at_least_ten_actor_ids_and_ball":len(tenplusball),
+                  "earliest_native_timestamp_utc_ms":arr[0]["timestamp_utc_ms"],
+                  "latest_native_timestamp_utc_ms":arr[-1]["timestamp_utc_ms"],
+                  "provider_interpolated_true_frames":sum(r["sdk_interpolated"] is True for r in arr),
+                  "provider_interpolated_false_frames":sum(r["sdk_interpolated"] is False for r in arr)
+              },
+              "selected_sample_basis":"ten_or_more_source_player_ids_plus_ball" if tenplusball else "player_plus_ball",
+              "samples":[dict(r,source_player_actor_count=nplayers(r),
+                              has_ball_xyz=ball(r)) for r in samples],
+              "warning":"Raw source actor co-occurrence is not proof of official ten. Do not infer source missing positions or physical possession. Sampling for readback only; original full archives remain in private release."
+          }
+          payload=(json.dumps(out,sort_keys=True,separators=(",",":"))+"\n").encode()
+          assert len(payload)<950000,"private_snapshot_too_big"
+          endpoint="repos/timeedmonds-maker/104/contents/gamepulse/live/xyz_samples/0022600194.json"
+          for attempt in range(12):
+              prev=subprocess.run(["gh","api",endpoint],capture_output=True,text=True)
+              body={"branch":"main","message":"data(igp): private SHA-verified HOU PHX original player-ball XYZ readback [skip ci]",
+                    "content":base64.b64encode(payload).decode("ascii")}
+              if prev.returncode==0:body["sha"]=json.loads(prev.stdout)["sha"]
+              p=subprocess.run(["gh","api","-X","PUT",endpoint,"--input","-"],
+                               input=json.dumps(body),capture_output=True,text=True)
+              if p.returncode==0:break
+              time.sleep(2+attempt)
+          else:raise RuntimeError("private_source_xyz_readback_commit_failed")
+          test=subprocess.check_output(["gh","api",endpoint])
+          stored=json.loads(test)
+          assert base64.b64decode(stored["content"])==payload,"private_readback_sha_failed"
+          print("PRIVATE_SOURCE_XYZ_READBACK_SAVED")
+          print("GAME_ID",out["game_id"])
+          print("SOURCE_MINUTE_PARTS",len(minutes))
+          print("ORIGINAL_UNIQUE_TIMESTAMPS",len(arr))
+          print("ORIGINAL_SOURCE_EXACT_TEN_PLUS_BALL",len(tenball))
+          print("ORIGINAL_SOURCE_ATLEAST_TEN_PLUS_BALL",len(tenplusball))
+          print("SOURCE_TIMESTAMP_MAX_UTC_MS",arr[-1]["timestamp_utc_ms"])
+          print("PRIVATE_SAMPLES_RECORDED",len(samples))
+          PY
