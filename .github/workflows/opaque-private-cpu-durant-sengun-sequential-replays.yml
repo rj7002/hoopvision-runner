@@ -1,4 +1,4 @@
-name: CPU Animate Durant Sengun v6 original-video bidirectional player-first optical lock
+name: CPU Animate V6 original-video player identity optical diagnostic
 # Security allowlist and private-only source provenance verified before this run
 on:
   push:
@@ -48,7 +48,7 @@ jobs:
             '/cpu_animate/' '/tools/locked_broadcast_screen_v5_rings.py' \
             > "$ROOT/sparse.log" 2>&1 || { echo PRIVATE_CPU_ANIMATE_SPARSE_CHECKOUT_FAILED; exit 4; }
           cd "$ROOT/private"
-          python3 -m pip install -q --disable-pip-version-check numpy opencv-python-headless pillow ultralytics \
+          python3 -m pip install -q --disable-pip-version-check numpy opencv-python-headless pillow \
             > "$ROOT/pip.log" 2>&1 || { echo VIDEO_CPU_DEPENDENCY_FAILED; exit 4; }
           if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
             sudo apt-get update -qq > "$ROOT/apt.log" 2>&1
@@ -103,11 +103,14 @@ jobs:
               --private "$ROOT/private" --media "$ROOT/media" \
               --scout "$ROOT/scout" \
               --motion "$ROOT/motion/durant_sengun_native10hz_coach40hz.json" \
-              --out "$ROOT/out" > "$ROOT/render.log" 2>&1; then
+              --out "$ROOT/out" --diagnose-only > "$ROOT/render.log" 2>&1; then
             tail -c 3000 "$ROOT/render.log" | sed -E 's#https?://[^ ]+#REDACTED_URL#g'
             echo SEQUENTIAL_ORIGINAL_VIDEO_RENDER_FAILED
             exit 5
           fi
+          tail -c 14500 "$ROOT/render.log"
+          echo OPTICAL_DIAGNOSTIC_FINISHED_WITHOUT_MP4_RELEASE
+          exit 0
           tail -c 2500 "$ROOT/render.log"
           python3 - "$ROOT/out" <<'PY'
           import json,sys
