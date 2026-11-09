@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full139-ball-screen-sourcefree-20261109.yml",  # reviewed SHA-pinned PR1069 Python tests plus immutable Full139 aggregate manifest; no native XYZ read, artifacts, or private rows in public logs
     ".github/workflows/igp-full139-sourcegraded-qa-20261109.yml",  # audited read-only 139-game private SHA FGA QA and immutable Full121 readback; public aggregate PASS/FAIL only, no NBA source rows
     ".github/workflows/rockets-fred-heatcheck-next-fga-20261109.yml",  # audited public NBA official game boxscore/PBP only; aggregate same-shooter next-FGA rates, no tracking, licensed XYZ or raw private rows
 
