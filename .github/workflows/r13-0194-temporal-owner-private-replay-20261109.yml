@@ -100,7 +100,7 @@ jobs:
           out=gamepulse/fusion/qa/analysis/r13_0194_temporal_source_replay_v1.json
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f "$out"
+          git add --sparse -f "$out"
           git diff --cached --check
           if git diff --cached --quiet; then echo PRIVATE_RESEARCH_RECEIPT_ALREADY_SAVED; exit 0; fi
           git commit -q -m 'qa(r13): 0194 temporal ownership shadow source replay [skip ci]'
