@@ -1,4 +1,4 @@
-name: CourtCoder V14 offline bidirectional KD video-ID floor relock; preserves Sengun
+name: CourtCoder V15 fresh video person detector KD floor correction with bidirectional identity
 # Original pixel-anchor KD seed fix: source-video identity diagnostic V6 rerun
 on:
   push:
@@ -114,7 +114,7 @@ jobs:
           python3 - "$ROOT/out" <<'PY'
           import json,sys
           from pathlib import Path
-          q=json.loads((Path(sys.argv[1])/'v14_bidirectional_kd_floor_reassociation_QA.json').read_text())
+          q=json.loads((Path(sys.argv[1])/'v15_fresh_video_kd_floor_reassociation_QA.json').read_text())
           assert q['frames']>=235
           assert q['original_NBA_source_mutated'] is False
           assert q['camera_cuts_are_hard_resets'] is True
@@ -132,6 +132,11 @@ jobs:
           assert q['source_video_identity_appearance_qa']['Durant'].get(
                       'team_kit_repaired_from_verified_teammate',0)==1
           assert q['offline_bidirectional_player_reid_qa']['returned_real_person_boxes']>=80
+          assert q['fresh_original_video_person_detector_qa']['frames_with_fresh_person_candidates']>=180
+          assert q['fresh_original_video_person_detector_qa']['fresh_source_person_candidates']>=500
+          assert q['offline_bidirectional_player_reid_qa'].get(
+                     'fresh_video_compatible_player_candidate',0)>=70
+          assert q['fresh_source_video_player_candidates_identity_unassigned_before_reid'] is True
           assert q['existing_sengun_identity_tracking_preserved'] is True
           assert len(q['original_video_reviewed_two_sided_identity_anchors'])>=4
           for who in ('Durant','Sengun'):
@@ -145,16 +150,16 @@ jobs:
                  'floor':q['floor_filter_qa'],
                  'ring':q['ring_frame_dynamics']})
           PY
-          TAG=cpu-animate-min0181-bidirectional-kd-video-floor-v14
+          TAG=cpu-animate-min0181-fresh-video-person-floor-v15
           gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
             gh release create "$TAG" --repo timeedmonds-maker/104 \
-              --title 'CPU Animate V14 KD two-sided source-video identity shoe relock with frozen HoopVision' \
-              --notes 'V14 NBA source-video eight-second private research. Original V12 KD ring drifted to opponent and painted floor; V13 corrected team kit yet still lost KD in 4–6s motion. Universal offline two-sided video identity graph now links original video detector person tracklets against multiple reviewed shoe anchors and matching Houston uniform, excludes already known Sengun from candidates, and feeds V12 RTS floor tracker. Original frozen HoopVision red/pulsing-green style and Sengun source tracker unchanged. Not independently accuracy-certified; CPU basketball-court checkpoint AGPL-3.0 research only.' \
+              --title 'CPU Animate V15 KD fresh original-video body/foot detector plus bidirectional floor relock' \
+              --notes 'V15 private eight-second NBA Broadcast research. V14 diagnosed an original scout coverage failure: only 14 team-compatible KD candidate frames of 239. V15 segments actual video with CPU YOLO11n on every source frame, produces body/shoe candidates without invented identities, and links them using offline 2-sided source frame anchors, verified Houston kit, motion continuity and exclusion of Sengun. Frozen rotating red/green HoopVision untouched; Sengun successful path preserved. Independent native-foot p95 and physical court calibration not certified; research-only AGPL source court model.' \
               --latest=false >/dev/null
           gh release upload "$TAG" \
-             "$ROOT/out/MIN0181_V14_BIDIRECTIONAL_KD_SOURCE_VIDEO_FLOOR_BROADCAST_8S.mp4" \
-             "$ROOT/out/v14_bidirectional_kd_floor_reassociation_QA.json" \
-             "$ROOT/out"/v14_floor_review_t*.jpg \
+             "$ROOT/out/MIN0181_V15_FRESH_VIDEO_PERSON_KD_FLOOR_BROADCAST_8S.mp4" \
+             "$ROOT/out/v15_fresh_video_kd_floor_reassociation_QA.json" \
+             "$ROOT/out"/v15_floor_review_t*.jpg \
              --repo timeedmonds-maker/104 --clobber
           python3 - "$ROOT/out" <<'PY'
           import base64,json,subprocess,sys
@@ -162,10 +167,10 @@ jobs:
           out=Path(sys.argv[1])
           branch='cpu-animate/universal-team-kit-foot-lock-v13-20261109'
           for sec in (2,3,4,5,6):
-              p=out/f'v14_floor_review_t{sec:02}.jpg'
+              p=out/f'v15_floor_review_t{sec:02}.jpg'
               if not p.is_file():continue
               data=base64.b64encode(p.read_bytes())+b'\n'
-              dest=f'repos/timeedmonds-maker/104/contents/docs/cpu_animate/v14_kd_bidirectional_video_floor_t{sec:02}.jpg.b64.txt'
+              dest=f'repos/timeedmonds-maker/104/contents/docs/cpu_animate/v15_kd_fresh_video_person_floor_t{sec:02}.jpg.b64.txt'
               item={'message':'qa(V12): original NBA source real frame floor ring for technical review',
                     'branch':branch,'content':base64.b64encode(data).decode()}
               old=subprocess.run(['gh','api',dest+'?ref='+branch],capture_output=True,text=True)
@@ -173,9 +178,9 @@ jobs:
               result=subprocess.run(['gh','api','-X','PUT',dest,'--input','-'],
                             input=json.dumps(item),capture_output=True,text=True)
               if result.returncode:raise RuntimeError('V12_PRIVATE_REAL_VIDEO_FRAME_ARCHIVAL_FAILED')
-          print('V14_ORIGINAL_NBA_REAL_FRAMES_ARCHIVED')
+          print('V15_ORIGINAL_NBA_REAL_FRAMES_ARCHIVED')
           PY
-          echo V14_KD_BIDIRECTIONAL_VIDEO_COURT_FLOOR_PREVIEW_COMPLETE
+          echo V15_KD_FRESH_VIDEO_COURT_FLOOR_PREVIEW_COMPLETE
           exit 0
           gh release download cpu-animate-min-ato-0181-durant-sengun-identity-scout \
              --repo timeedmonds-maker/104 --dir "$ROOT/scout" \
