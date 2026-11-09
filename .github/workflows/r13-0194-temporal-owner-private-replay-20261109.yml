@@ -20,6 +20,7 @@ jobs:
       IGP_PRIVATE_CAPTURE_DIR: /tmp/r13-0194-temporal-companion
       IGP_CAPTURE_ZERO_SHOT_FULL_EVENTS: 'true'
       BRANCH: research/r13-0194-frontcourt-official-reconcile-20261109
+      PINNED_PRIVATE_SHA: 'a84908f58414ab5457bd10aaac7156511871b671'
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -34,6 +35,9 @@ jobs:
           gh auth setup-git
           git clone -q --depth 1 --filter=blob:none --sparse -b "$BRANCH" \
             https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private-r13"
+          git -C "$RUNNER_TEMP/private-r13" fetch -q --depth=1 origin "$PINNED_PRIVATE_SHA"
+          git -C "$RUNNER_TEMP/private-r13" checkout -q --detach "$PINNED_PRIVATE_SHA"
+          test "$(git -C "$RUNNER_TEMP/private-r13" rev-parse HEAD)" = "$PINNED_PRIVATE_SHA"
           git -C "$RUNNER_TEMP/private-r13" sparse-checkout set --no-cone \
             '/gamepulse/fusion/*.py' \
             '/gamepulse/fusion/analysis/*.py' \
