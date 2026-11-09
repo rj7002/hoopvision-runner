@@ -20,7 +20,7 @@ jobs:
       IGP_PRIVATE_CAPTURE_DIR: /tmp/r13-0194-temporal-companion
       IGP_CAPTURE_ZERO_SHOT_FULL_EVENTS: 'true'
       BRANCH: research/r13-0194-frontcourt-official-reconcile-20261109
-      PINNED_PRIVATE_SHA: '47eceb564622abcc7a6956f0dbce4da718c450c9'
+      PINNED_PRIVATE_SHA: '5a213ea05a94924c97bcddfffca68d5eb1721cd4'
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -49,6 +49,7 @@ jobs:
           PYTHONPATH=.:gamepulse/fusion:gamepulse/fusion/analysis \
             python3 -m unittest gamepulse.fusion.analysis.test_r13_hybrid_temporal_anchor_v1 -v
           python3 -m py_compile gamepulse/fusion/analysis/r13_hybrid_temporal_anchor_v1.py
+          python3 -m py_compile gamepulse/fusion/analysis/r13_0194_roster_coverage_audit_v1.py
           python3 -m py_compile gamepulse/fusion/analysis/r13_0194_source_replay_v1.py
           echo TEMPORAL_R13_SOURCE_FREE_QA_PASS
       - name: Retrieve original 198 SHA-minute archives and companion SDK events
@@ -103,6 +104,13 @@ jobs:
           print('HYBRID_0194_PLAYER_ABSERR_HOU_PHX',
                 d['anchored_hybrid_official_score_posthoc']['HOU']['hybrid_player_absolute_error'],
                 d['anchored_hybrid_official_score_posthoc']['PHX']['hybrid_player_absolute_error'])
+          a=d['roster_coverage_audit']
+          print('R13_0194_OFFICIAL_BOX_ROSTER_STATUS',d['official_box_grade_for_roster_audit'])
+          print('R13_0194_MISSING_ONCOURT_BOX_PLAYERS',len(a['official_players_missing_companion_oncourt_roster']))
+          print('R13_0194_SOURCE_QUALIFIED_ROSTER_ADDITIONS',
+                len(a['strict_source_qualified_official_roster_additions']))
+          print('R13_0194_AUGMENTED_TEAM_COUNTS',
+                a['augmented_R13_frontcourt_by_team'])
           print('R13_0194_NO_AUTOMATIC_PRODUCTION_PROMOTION')
           PY
       - name: Preserve source-private aggregate receipt only in 104
