@@ -1,3 +1,4 @@
+# 2026-11-10 NZ repeat source-approved native companion/Blueprint recovery on Full146 true gaps 0022600142 and 0022600143; do not promote absent ShotDetails.
 name: IGP targeted missing original shot biomechanics 0142 0143 and Blueprint recheck
 on:
   push:
