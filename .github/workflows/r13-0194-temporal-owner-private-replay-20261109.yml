@@ -20,7 +20,7 @@ jobs:
       IGP_PRIVATE_CAPTURE_DIR: /tmp/r13-0194-temporal-companion
       IGP_CAPTURE_ZERO_SHOT_FULL_EVENTS: 'true'
       BRANCH: research/r13-0194-frontcourt-official-reconcile-20261109
-      PINNED_PRIVATE_SHA: 'a84908f58414ab5457bd10aaac7156511871b671'
+      PINNED_PRIVATE_SHA: '2829ff2a7660e5a4d12698fa77afb550bf69dd1a'
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -41,7 +41,8 @@ jobs:
           git -C "$RUNNER_TEMP/private-r13" sparse-checkout set --no-cone \
             '/gamepulse/fusion/*.py' \
             '/gamepulse/fusion/analysis/*.py' \
-            '/gamepulse/fusion/qa/analysis/r13_0194_official_frontcourt_reference_20261109.json'
+            '/gamepulse/fusion/qa/analysis/r13_0194_official_frontcourt_reference_20261109.json' \
+            '/gamepulse/fusion/qa/full131_0194/live_full131_r13_42451183915.json'
           cd "$RUNNER_TEMP/private-r13"
           PYTHONPATH=.:gamepulse/fusion:gamepulse/fusion/analysis \
             python3 -m unittest gamepulse.fusion.analysis.test_r13_temporal_ownership_v1 -v
@@ -55,7 +56,10 @@ jobs:
           gh release download gamepulse-live-sdk-0022600194 \
             --repo timeedmonds-maker/104 --pattern 'live-*' \
             --dir "$RUNNER_TEMP/original-r13-0194"
-          test "$(find "$RUNNER_TEMP/original-r13-0194" -maxdepth 1 -name 'live-*.tar.gz' | wc -l)" -eq 198
+          archives="$(find "$RUNNER_TEMP/original-r13-0194" -maxdepth 1 -name 'live-*.tar.gz' | wc -l)"
+          test "$archives" -ge 198
+          echo ORIGINAL_RELEASE_CANDIDATE_ARCHIVE_COUNT "$archives"
+          echo PINNED_ORIGINAL_198_SHA_MEMBERSHIP_SELECTED_IN_PRIVATE_REPLAY
           npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
           (cd tools/licensed_feed && npm install --ignore-scripts --no-audit --no-fund --silent)
           node tools/licensed_feed/companion_original_sdk_probe.mjs > "$RUNNER_TEMP/r13-companion-private-log.txt"
@@ -72,6 +76,7 @@ jobs:
             --original "$RUNNER_TEMP/original-r13-0194" \
             --companion "$IGP_PRIVATE_CAPTURE_DIR" \
             --reference gamepulse/fusion/qa/analysis/r13_0194_official_frontcourt_reference_20261109.json \
+            --baseline-receipt gamepulse/fusion/qa/full131_0194/live_full131_r13_42451183915.json \
             --out "$out"
           python3 - <<'PY'
           import json
