@@ -159,7 +159,7 @@ jobs:
           gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
             gh release create "$TAG" --repo timeedmonds-maker/104 \
               --title 'CPU Animate V16 KD verified source-video body-anchored floor, no empty court ghosts' \
-              --notes 'V16 authentic 8s NBA Broadcast private comparison. V15 full-frame segmentation and two-sided Houston-jersey KD identity preserved. New reusable original-video body-underfoot gate: KD ring must sit inside verified KD shoe zone, or interpolate only with two-sided source body evidence; empty-court ghost paths rejected. Sengun original successful V15 floor/green path remains unmodified. Frozen HoopVision rotating/pulsing rings unchanged. Research-only: no independent human labelled foot p95, third-party court model AGPL.'
+              --notes 'V16 authentic 8s NBA Broadcast private comparison. V15 full-frame segmentation and two-sided Houston-jersey KD identity preserved. New reusable original-video body-underfoot gate: KD ring must sit inside verified KD shoe zone, or interpolate only with two-sided source body evidence; empty-court ghost paths rejected. Sengun original successful V15 floor/green path remains unmodified. Frozen HoopVision rotating/pulsing rings unchanged. Research-only: no independent human labelled foot p95, third-party court model AGPL.' \
               --latest=false >/dev/null
           gh release upload "$TAG" \
              "$ROOT/out/MIN0181_V16_KD_VERIFIED_BODY_FLOOR_BROADCAST_8S.mp4" \
