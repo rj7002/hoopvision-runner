@@ -15,7 +15,6 @@ jobs:
     timeout-minutes: 35
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      IGP_60HZ_PRIVATE_TEMP_CAPTURE: ${{ runner.temp }}/igp60-sdk-capture-private.json
       PRIVATE_BRANCH: research/igp-60hz-source-provenance-20261110
       PRIVATE_SHA: 8f4008fd83ff2116a8f1c21927808c248e248148
     steps:
@@ -25,6 +24,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "IGP_60HZ_PRIVATE_TEMP_CAPTURE=$RUNNER_TEMP/igp60-sdk-capture-private.json" >> "$GITHUB_ENV"
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
           gh auth setup-git
