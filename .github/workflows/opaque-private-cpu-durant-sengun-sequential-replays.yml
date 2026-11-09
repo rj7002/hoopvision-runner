@@ -1,4 +1,4 @@
-name: CourtCoder V16 source video KD body foot floor lock (Sengun preserved)
+name: CourtCoder V17 source-anchored KD floor under body through video detections
 # Original pixel-anchor KD seed fix: source-video identity diagnostic V6 rerun
 on:
   push:
@@ -41,7 +41,7 @@ jobs:
           trap 'rm -rf "$ROOT"' EXIT
           gh auth setup-git >/dev/null 2>&1
           git clone -q --depth=1 --filter=blob:none --sparse \
-            --branch cpu-animate/min0181-kd-body-gated-floor-v16-20261109 \
+            --branch cpu-animate/min0181-foot-anchors-fused-v17-20261109 \
             https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
             > "$ROOT/clone.log" 2>&1 || { echo PRIVATE_CPU_ANIMATE_SOURCE_CLONE_FAILED; exit 4; }
           git -C "$ROOT/private" sparse-checkout set --no-cone \
@@ -59,9 +59,11 @@ jobs:
           python3 -m cpu_animate.test_appearance_identity_v12
           python3 -m cpu_animate.test_bidirectional_video_reid_v14
           python3 -m cpu_animate.test_body_floor_anchor_v16
+          python3 -m cpu_animate.test_source_anchor_floor_fusion_v17
           echo V12_CPU_APPEARANCE_KIT_SWAP_AND_REACQUISITION_PASS
           echo CPU_ANIMATE_UNIVERSAL_FLOOR_LOCK_V12_SYNTHETIC_REGRESSION_COMPLETE
           python3 -m py_compile cpu_animate/body_floor_anchor_v16.py
+          python3 -m py_compile cpu_animate/source_anchor_floor_fusion_v17.py
           python3 -m py_compile cpu_animate/floor_lock_v12.py \
              cpu_animate/shoe_evidence_v12.py \
              cpu_animate/min0181_v12_universal_floor_real_video.py
@@ -116,7 +118,7 @@ jobs:
           python3 - "$ROOT/out" <<'PY'
           import json,sys
           from pathlib import Path
-          q=json.loads((Path(sys.argv[1])/'v16_kd_under_verified_body_floor_QA.json').read_text())
+          q=json.loads((Path(sys.argv[1])/'v17_kd_source_anchor_fusion_floor_QA.json').read_text())
           assert q['frames']>=235
           assert q['original_NBA_source_mutated'] is False
           assert q['camera_cuts_are_hard_resets'] is True
@@ -145,7 +147,10 @@ jobs:
           assert q['sengun_frozen_v15_floor_source_untouched'] is True
           assert q['kd_body_tether_original_video_qa']['body_tethered_renderable_frames']>=80
           assert q['kd_body_tether_original_video_qa']['max_accepted_body_envelope_error_px']<=3.5
-          assert q['ring_output_qa'].get('Durant_visible_ring_frames',0)>=80
+          assert q['kd_fused_floor_intervals_have_two_sided_camera_shot_support'] is True
+          assert q['kd_fused_original_camera_source_qa']['accepted_floor_frames']>=145
+          assert len(q['kd_video_source_manual_anchor_evidence'])>=4
+          assert q['ring_output_qa'].get('Durant_visible_ring_frames',0)>=140
           assert q['ring_output_qa'].get('Sengun_visible_ring_frames',0)>=125
           assert q['ring_output_qa'].get('Sengun_green_reviewed_frames',0)>60
           assert (Path(sys.argv[1])/q['video_file']).stat().st_size>1000000
@@ -155,28 +160,28 @@ jobs:
                  'floor':q['floor_filter_qa'],
                  'ring':q['ring_frame_dynamics']})
           PY
-          TAG=cpu-animate-min0181-kd-source-body-underfoot-v16
+          TAG=cpu-animate-min0181-camera-verified-foot-fusion-v17
           gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
             gh release create "$TAG" --repo timeedmonds-maker/104 \
-              --title 'CPU Animate V16 KD verified source-video body-anchored floor, no empty court ghosts' \
-              --notes 'V16 authentic 8s NBA Broadcast private comparison. V15 full-frame segmentation and two-sided Houston-jersey KD identity preserved. New reusable original-video body-underfoot gate: KD ring must sit inside verified KD shoe zone, or interpolate only with two-sided source body evidence; empty-court ghost paths rejected. Sengun original successful V15 floor/green path remains unmodified. Frozen HoopVision rotating/pulsing rings unchanged. Research-only: no independent human labelled foot p95, third-party court model AGPL.' \
+              --title 'CPU Animate V17 video foot anchors and person floor fusion, KD ring coverage rescue' \
+              --notes 'V17 real NBA Broadcast 8s proof-of-method. Reusable original-video KD verified BODY and independent source-inspected sparse foot anchor fusion in basketball court reference coordinates; bounded two-sided interpolation fills V16 body detector gaps without trusting stale optical wrong-player IDs. Same V15 jersey-aware re-ID, CPU court model, pose/seg source, frozen rotating/pulsing HoopVision and green Sengun state. Original source immutable. This clip is a research review, not independent human frame-by-frame shoe p95 or physical floor calibration. Third party court model AGPL.' \
               --latest=false >/dev/null
           gh release upload "$TAG" \
-             "$ROOT/out/MIN0181_V16_KD_VERIFIED_BODY_FLOOR_BROADCAST_8S.mp4" \
-             "$ROOT/out/v16_kd_under_verified_body_floor_QA.json" \
-             "$ROOT/out"/v16_floor_review_t*.jpg \
-             "$ROOT/out"/v16_kd_body_foot_debug_t*.jpg \
+             "$ROOT/out/MIN0181_V17_KD_VIDEO_ANCHORED_COURT_FLOOR_BROADCAST_8S.mp4" \
+             "$ROOT/out/v17_kd_source_anchor_fusion_floor_QA.json" \
+             "$ROOT/out"/v17_floor_review_t*.jpg \
+             "$ROOT/out"/v17_kd_body_foot_debug_t*.jpg \
              --repo timeedmonds-maker/104 --clobber
           python3 - "$ROOT/out" <<'PY'
           import base64,json,subprocess,sys
           from pathlib import Path
           out=Path(sys.argv[1])
-          branch='cpu-animate/min0181-kd-body-gated-floor-v16-20261109'
+          branch='cpu-animate/min0181-foot-anchors-fused-v17-20261109'
           for sec in (2,3,4,5,6):
-              p=out/f'v16_floor_review_t{sec:02}.jpg'
+              p=out/f'v17_floor_review_t{sec:02}.jpg'
               if not p.is_file():continue
               data=base64.b64encode(p.read_bytes())+b'\n'
-              dest=f'repos/timeedmonds-maker/104/contents/docs/cpu_animate/v16_kd_body_underfoot_t{sec:02}.jpg.b64.txt'
+              dest=f'repos/timeedmonds-maker/104/contents/docs/cpu_animate/v17_kd_source_anchor_floor_t{sec:02}.jpg.b64.txt'
               item={'message':'qa(V12): original NBA source real frame floor ring for technical review',
                     'branch':branch,'content':base64.b64encode(data).decode()}
               old=subprocess.run(['gh','api',dest+'?ref='+branch],capture_output=True,text=True)
@@ -184,10 +189,10 @@ jobs:
               result=subprocess.run(['gh','api','-X','PUT',dest,'--input','-'],
                             input=json.dumps(item),capture_output=True,text=True)
               if result.returncode:raise RuntimeError('V12_PRIVATE_REAL_VIDEO_FRAME_ARCHIVAL_FAILED')
-              dimg=out/f'v16_kd_body_foot_debug_t{sec:02}.jpg'
+              dimg=out/f'v17_kd_body_foot_debug_t{sec:02}.jpg'
               if dimg.is_file():
                   raw=base64.b64encode(dimg.read_bytes())+b'\n'
-                  target=f'repos/timeedmonds-maker/104/contents/docs/cpu_animate/v16_kd_body_debug_t{sec:02}.jpg.b64.txt'
+                  target=f'repos/timeedmonds-maker/104/contents/docs/cpu_animate/v17_kd_body_debug_t{sec:02}.jpg.b64.txt'
                   item2={'message':'QA V16: verified source KD body bbox and foot-anchor ring',
                          'branch':branch,'content':base64.b64encode(raw).decode()}
                   prior=subprocess.run(['gh','api',target+'?ref='+branch],
@@ -196,9 +201,9 @@ jobs:
                   status=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],
                          input=json.dumps(item2),capture_output=True,text=True)
                   if status.returncode:raise RuntimeError('V16_KD_BODY_QA_FRAME_SAVE_FAILED')
-          print('V16_ORIGINAL_NBA_REAL_FRAMES_ARCHIVED')
+          print('V17_ORIGINAL_NBA_REAL_FRAMES_ARCHIVED')
           PY
-          echo V16_KD_VERIFIED_SOURCE_BODY_UNDERFOOT_REPLAY_COMPLETE
+          echo V17_KD_SOURCE_VIDEO_COURT_ANCHORED_REPLAY_COMPLETE
           exit 0
           gh release download cpu-animate-min-ato-0181-durant-sengun-identity-scout \
              --repo timeedmonds-maker/104 --dir "$ROOT/scout" \
