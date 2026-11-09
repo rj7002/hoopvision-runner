@@ -1,0 +1,107 @@
+# Research-only SHA-original game 0194 replay. Public logs never carry raw licensed XYZ or event rows.
+name: R13 0194 temporal ownership independent-source challenger
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/r13-0194-temporal-owner-private-replay-20261109.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: r13-0194-temporal-owner-source-replay-20261109
+  cancel-in-progress: false
+jobs:
+  original-source-replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      NBA_GAME_ID: '0022600194'
+      NBA_TIPOFF_UTC: '2026-11-08T02:00:00Z'
+      IGP_PRIVATE_CAPTURE_DIR: /tmp/r13-0194-temporal-companion
+      IGP_CAPTURE_ZERO_SHOT_FULL_EVENTS: 'true'
+      BRANCH: research/r13-0194-frontcourt-official-reconcile-20261109
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate public boundary and clone exact private research branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth 1 --filter=blob:none --sparse -b "$BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private-r13"
+          git -C "$RUNNER_TEMP/private-r13" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/*.py' \
+            '/gamepulse/fusion/analysis/*.py' \
+            '/gamepulse/fusion/qa/analysis/r13_0194_official_frontcourt_reference_20261109.json'
+          cd "$RUNNER_TEMP/private-r13"
+          PYTHONPATH=.:gamepulse/fusion:gamepulse/fusion/analysis \
+            python3 -m unittest gamepulse.fusion.analysis.test_r13_temporal_ownership_v1 -v
+          python3 -m py_compile gamepulse/fusion/analysis/r13_0194_source_replay_v1.py
+          echo TEMPORAL_R13_SOURCE_FREE_QA_PASS
+      - name: Retrieve original 198 SHA-minute archives and companion SDK events
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/original-r13-0194" "$IGP_PRIVATE_CAPTURE_DIR"
+          gh release download gamepulse-live-sdk-0022600194 \
+            --repo timeedmonds-maker/104 --pattern 'live-*' \
+            --dir "$RUNNER_TEMP/original-r13-0194"
+          test "$(find "$RUNNER_TEMP/original-r13-0194" -maxdepth 1 -name 'live-*.tar.gz' | wc -l)" -eq 198
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          (cd tools/licensed_feed && npm install --ignore-scripts --no-audit --no-fund --silent)
+          node tools/licensed_feed/companion_original_sdk_probe.mjs > "$RUNNER_TEMP/r13-companion-private-log.txt"
+          test -s "$IGP_PRIVATE_CAPTURE_DIR/companion_original_sdk_response.json"
+          echo ORIGINAL_198_MINUTES_AND_COMPANION_ACQUIRED_PRIVATE
+      - name: Execute paired original R13 and structural state ownership research
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private-r13"
+          export PYTHONPATH=.:gamepulse/fusion:gamepulse/fusion/analysis
+          out="gamepulse/fusion/qa/analysis/r13_0194_temporal_source_replay_v1.json"
+          python3 -m gamepulse.fusion.analysis.r13_0194_source_replay_v1 \
+            --original "$RUNNER_TEMP/original-r13-0194" \
+            --companion "$IGP_PRIVATE_CAPTURE_DIR" \
+            --reference gamepulse/fusion/qa/analysis/r13_0194_official_frontcourt_reference_20261109.json \
+            --out "$out"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('gamepulse/fusion/qa/analysis/r13_0194_temporal_source_replay_v1.json')
+          d=json.loads(p.read_text())
+          assert d['baseline_frontcourt_total']=={'HOU':213,'PHX':200}
+          assert d['baseline_accepted_touch_episodes']==756
+          assert d['original_source']['native_unique_timestamps']==29638
+          assert d['promotion_allowed'] is False
+          assert d['original_xyz_unmodified'] is True
+          print('R13_0194_SHADOW_QUALIFIED_NATIVE_FRAMES',d['original_source']['native_unique_timestamps'])
+          print('R13_0194_SHADOW_BOTH_TEAMS_EVALUATED')
+          print('R13_0194_NO_AUTOMATIC_PRODUCTION_PROMOTION')
+          PY
+      - name: Preserve source-private aggregate receipt only in 104
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private-r13"
+          out=gamepulse/fusion/qa/analysis/r13_0194_temporal_source_replay_v1.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$out"
+          git diff --cached --check
+          if git diff --cached --quiet; then echo PRIVATE_RESEARCH_RECEIPT_ALREADY_SAVED; exit 0; fi
+          git commit -q -m 'qa(r13): 0194 temporal ownership shadow source replay [skip ci]'
+          for attempt in 1 2 3 4 5; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo PRIVATE_R13_0194_SOURCE_RECEIPT_COMMITTED
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 27
