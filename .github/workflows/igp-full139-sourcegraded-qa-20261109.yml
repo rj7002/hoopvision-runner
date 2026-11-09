@@ -33,6 +33,8 @@ jobs:
           git sparse-checkout set --no-cone \
             /gamepulse/fusion/igp_full121_shot_default_v1.py \
             /gamepulse/fusion/igp_full139_sourcegraded_query_v1.py \
+            /gamepulse/fusion/igp_default_database.py \
+            /gamepulse/fusion/igp_full121_source_default_v1.py \
             /gamepulse/fusion/qa/igp_progress_20261030/igp_full121_default_source_release_v1.json \
             /gamepulse/fusion/qa/igp_progress_20261030/igp_full121_default_shot_release_v1.json \
             /gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL121_10062426c559_v2.json \
@@ -46,6 +48,7 @@ jobs:
           from pathlib import Path
           from igp_full121_shot_default_v1 import shot
           from igp_full139_sourcegraded_query_v1 import query as full139_query
+          from igp_default_database import full139_sourcegraded_query as default_full139_query
           base=Path('gamepulse/fusion')
           summary=shot('.')
           assert summary['indexed_games']==121
@@ -83,6 +86,7 @@ jobs:
                 'missing_game_0189_xfg_explicit_null')
           api=full139_query('.')
           assert api['games']==139 and api['official_fga']==24526
+          assert default_full139_query('.')['shot_release_sha256']==api['shot_release_sha256']
           pergame=full139_query('.', game_id='0022600189')
           assert pergame['counts']['official_fga']==188
           result=full139_query('.', game_id='0022600189',
