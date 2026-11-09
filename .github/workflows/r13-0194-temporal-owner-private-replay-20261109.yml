@@ -57,9 +57,18 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/original-r13-0194" "$IGP_PRIVATE_CAPTURE_DIR"
-          gh release download gamepulse-live-sdk-0022600194 \
-            --repo timeedmonds-maker/104 --pattern 'live-*' \
-            --dir "$RUNNER_TEMP/original-r13-0194"
+          downloaded=false
+          for attempt in 1 2 3 4 5; do
+            if gh release download gamepulse-live-sdk-0022600194 \
+                --repo timeedmonds-maker/104 --pattern 'live-*' \
+                --dir "$RUNNER_TEMP/original-r13-0194" --clobber; then
+              downloaded=true
+              break
+            fi
+            echo ORIGINAL_ASSET_DOWNLOAD_RETRY "$attempt"
+            sleep "$((attempt * 4))"
+          done
+          test "$downloaded" = true
           archives="$(find "$RUNNER_TEMP/original-r13-0194" -maxdepth 1 -name 'live-*.tar.gz' | wc -l)"
           test "$archives" -ge 198
           echo ORIGINAL_RELEASE_CANDIDATE_ARCHIVE_COUNT "$archives"
