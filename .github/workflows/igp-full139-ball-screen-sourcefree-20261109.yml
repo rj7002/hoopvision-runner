@@ -1,4 +1,5 @@
 # Public runner executes private SHA-pinned source-free tests only.
+# Security-reviewed allowlist in tools/public_content_guard.py.
 # Never print / upload original NBA player/ball positions or original source files.
 name: IGP Full139 ball screen source-free and frozen release gate
 on:
