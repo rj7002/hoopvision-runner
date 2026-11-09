@@ -1,0 +1,64 @@
+# Public runner executes private SHA-pinned source-free tests only.
+# Never print / upload original NBA player/ball positions or original source files.
+name: IGP Full139 ball screen source-free and frozen release gate
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full139-ball-screen-sourcefree-20261109.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full139-ball-screen-sourcefree-20261109
+  cancel-in-progress: false
+jobs:
+  private-snapshot-read-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Review public/private source boundary
+        run: python3 tools/public_content_guard.py
+      - name: Run PR1069 research adversarial tests and real Full139 SHA metadata gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse \
+            -b research/igp-ball-screen-evidence-v1-20261109 \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          test "$(git rev-parse HEAD)" = "2f676699fcbbb0bd411bb5cca8432b5dc6bdd9be"
+          git sparse-checkout set --no-cone \
+            /gamepulse/fusion/analysis/igp_ball_screen_research_v1.py \
+            /gamepulse/fusion/analysis/test_igp_ball_screen_research_v1.py \
+            /gamepulse/fusion/analysis/igp_full139_ball_screen_validation_v1.py \
+            /gamepulse/fusion/analysis/test_igp_full139_ball_screen_validation_v1.py \
+            /gamepulse/fusion/igp_full139_sourcegraded_query_v1.py \
+            /gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL139_a428c641034d_v2.json
+          export PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion
+          python3 -B -m py_compile \
+            gamepulse/fusion/analysis/igp_ball_screen_research_v1.py \
+            gamepulse/fusion/analysis/test_igp_ball_screen_research_v1.py \
+            gamepulse/fusion/analysis/igp_full139_ball_screen_validation_v1.py \
+            gamepulse/fusion/analysis/test_igp_full139_ball_screen_validation_v1.py \
+            gamepulse/fusion/igp_full139_sourcegraded_query_v1.py
+          python3 -B -m unittest -v \
+            test_igp_ball_screen_research_v1 \
+            test_igp_full139_ball_screen_validation_v1
+          python3 -B - <<'PY'
+          from igp_full139_ball_screen_validation_v1 import source_preflight
+          result=source_preflight('.')
+          assert result['full139_games']==139
+          assert result['original_native_eligible_games']==138
+          assert result['excluded_missing_native']==['0022600189']
+          assert result['official_actions']==84192
+          assert result['official_fga']==24526
+          assert result['screen_accuracy'] is None and not result['promotion_allowed']
+          print('FULL139_SHA_PINNED_SOURCE_PREFLIGHT_PASS',result['full139_games'],
+                result['original_native_eligible_games'],result['official_actions'])
+          PY
+          echo FULL139_BALL_SCREEN_SOURCE_FREE_AND_SHA_SOURCE_GATE_PASS
