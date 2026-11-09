@@ -1,4 +1,4 @@
-name: CourtCoder V12 universal floor/foot continuity source NBA Broadcast review
+name: CourtCoder V12 jersey colour ReID CPU universal ablation and tests
 # Original pixel-anchor KD seed fix: source-video identity diagnostic V6 rerun
 on:
   push:
@@ -56,6 +56,9 @@ jobs:
             sudo apt-get install -y -qq ffmpeg > "$ROOT/ffmpeg.log" 2>&1
           fi
           python3 -m cpu_animate.test_floor_lock_v12
+          python3 -m cpu_animate.test_appearance_identity_v12
+          echo V12_CPU_APPEARANCE_KIT_SWAP_AND_REACQUISITION_PASS
+          exit 0
           echo CPU_ANIMATE_UNIVERSAL_FLOOR_LOCK_V12_SYNTHETIC_REGRESSION_COMPLETE
           python3 -m py_compile cpu_animate/floor_lock_v12.py \
              cpu_animate/shoe_evidence_v12.py \
