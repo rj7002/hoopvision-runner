@@ -14,7 +14,7 @@ concurrency:
 jobs:
   private-snapshot-read-only:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
     steps:
@@ -32,7 +32,7 @@ jobs:
             -b research/igp-ball-screen-evidence-v1-20261109 \
             https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           cd "$RUNNER_TEMP/private"
-          test "$(git rev-parse HEAD)" = "939900ae872115959d79af159bb85aeec5d365f1"
+          test "$(git rev-parse HEAD)" = "bb441a23bfeb9e4d65a07bbcca253cd875a720c1"
           git sparse-checkout set --no-cone \
             /gamepulse/fusion/analysis/igp_ball_screen_research_v1.py \
             /gamepulse/fusion/analysis/test_igp_ball_screen_research_v1.py \
@@ -42,8 +42,14 @@ jobs:
             /gamepulse/fusion/igp_full139_sourcegraded_query_v1.py \
             /gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL139_a428c641034d_v2.json \
             /gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600138.json \
+            /gamepulse/fusion/official_pbp_timing/games/0022600187.json \
             /gamepulse/fusion/official_pbp_timing/games/0022600188.json \
+            /gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600138/boxscore.json \
+            /gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600187/boxscore.json \
             /gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600188/boxscore.json \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600138/ \
+            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600187/ \
             /gamepulse/fusion/materialized/igp_all_original_xyz/0022600188/
           export PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion
           python3 -B -m py_compile \
@@ -69,5 +75,7 @@ jobs:
                 result['original_native_eligible_games'],result['official_actions'])
           PY
           echo FULL139_BALL_SCREEN_SOURCE_FREE_AND_SHA_SOURCE_GATE_PASS
-          python3 -B gamepulse/fusion/analysis/igp_full139_ball_screen_source_pilot_v1.py --root . --game-id 0022600188
-          echo FULL139_SOURCE_NATIVE_SINGLE_GAME_PILOT_COMPLETE
+          for gid in 0022600138 0022600187 0022600188; do
+            python3 -B gamepulse/fusion/analysis/igp_full139_ball_screen_source_pilot_v1.py --root . --game-id "$gid"
+          done
+          echo FULL139_SOURCE_NATIVE_THREE_GAME_PILOT_COMPLETE
