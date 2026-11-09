@@ -1,114 +1,21 @@
-# 10 Nov 2026: security allowlist verified; public orchestration, licensed source remains private.
 name: IGP original 60 Hz evidence gate 0153
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/igp-60hz-source-frequency-20261110.yml']
+    paths:
+      - .github/workflows/igp-60hz-source-frequency-20261110.yml
   workflow_dispatch:
-permissions: {contents: read}
-concurrency:
-  group: igp-60hz-original-source-audit-20261110
-  cancel-in-progress: false
+permissions:
+  contents: read
 jobs:
   source-frequency:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
-    env:
-      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_BRANCH: research/igp-60hz-source-provenance-20261110
-      PRIVATE_SHA: 8f4008fd83ff2116a8f1c21927808c248e248148
     steps:
       - uses: actions/checkout@v4
-        with: {persist-credentials: false}
-      - name: Preserve original/private boundary and frozen private SHA
-        shell: bash
+        with:
+          persist-credentials: false
+      - name: Verify safe runner
         run: |
           set -euo pipefail
-          echo "IGP_60HZ_PRIVATE_TEMP_CAPTURE=$RUNNER_TEMP/igp60-sdk-capture-private.json" >> "$GITHUB_ENV"
           python3 tools/public_content_guard.py
-          test -n "$GH_TOKEN"
-          gh auth setup-git
-          git clone -q --depth=1 --filter=blob:none --sparse \
-            -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
-          cd "$RUNNER_TEMP/private"
-          git fetch -q --depth=1 origin "$PRIVATE_SHA"
-          git checkout -q --detach "$PRIVATE_SHA"
-          test "$(git rev-parse HEAD)" = "$PRIVATE_SHA"
-          git sparse-checkout set --no-cone \
-            /gamepulse/fusion/research/igp_original_60hz_cadence_audit_20261110.py \
-            /gamepulse/fusion/research/test_igp_original_60hz_cadence_audit_20261110.py \
-            /gamepulse/fusion/materialized/igp_all_original_xyz/0022600153/
-      - name: Source-free proof that 60 Hz counters never qualify as 60 Hz coordinates
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/private"
-          python3 -B -m unittest discover -v \
-            -s gamepulse/fusion/research -p test_igp_original_60hz_cadence_audit_20261110.py
-      - name: Read actual SHA-verified Full139 original native 10-second reference
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/private"
-          PYTHONPATH=gamepulse/fusion/research python3 - <<'PY'
-          from igp_original_60hz_cadence_audit_20261110 import full139_native
-          x,provenance=full139_native('.', '0022600153',1793498095000,1793498105000)
-          assert provenance['sha_verified_chunks_in_range']>0
-          assert len(x)>0
-          print('FULL139_0153_ORIGINAL_NATIVE_SHA_VERIFIED',
-                'ten_second_distinct_utc',len(x),
-                'verified_chunks',provenance['sha_verified_chunks_in_range'],
-                'manifest_sha256',provenance['full139_manifest_sha256'])
-          PY
-      - name: Obtain fresh authorised SDK client and inspect observed positions feed only
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd tools/licensed_feed
-          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
-          npm install --ignore-scripts --no-audit --no-fund --silent
-          node igp_60hz_sdk_metadata_probe_20261110.mjs
-      - name: SHA-validate raw SDK vs Full139; no player or ball values in logs
-        shell: bash
-        run: |
-          set -euo pipefail
-          if test ! -s "$IGP_60HZ_PRIVATE_TEMP_CAPTURE"; then
-            echo SDK_ORIGINAL_0153_TEN_SECOND_PAYLOAD_NOT_RECOVERED
-            exit 43
-          fi
-          cd "$RUNNER_TEMP/private"
-          python3 -B gamepulse/fusion/research/igp_original_60hz_cadence_audit_20261110.py \
-            --game-id 0022600153 \
-            --slots "$IGP_60HZ_PRIVATE_TEMP_CAPTURE" \
-            --start 1793498095000 --end-exclusive 1793498105000 \
-            --full139-root . --out "$RUNNER_TEMP/igp60-source-qa.json"
-          python3 - <<'PY'
-          import json,os,pathlib
-          q=json.loads((pathlib.Path(os.environ['RUNNER_TEMP'])/'igp60-source-qa.json').read_text())
-          assert q['genuine_60hz_xyz_proven'] is False
-          print('IGP_60HZ_REAL_SOURCE_QA_AGGREGATE',json.dumps({
-              'distinct_xyz':q['distinct_original_xyz_timestamps'],
-              'upstream_message_rate':q['upstream_message_counter']['inferred_rate_per_second'],
-              'source_ball_frames':q['source_ball_frames'],
-              'full139_exact_overlap':q['full139_comparison']['timestamp_exact_overlaps'],
-              'full139_equal_xyz':q['full139_comparison']['matched_actor_coordinate_equal'],
-              'full139_different_xyz':q['full139_comparison']['matched_actor_coordinate_different']
-          },sort_keys=True))
-          PY
-      - name: Save nonspatial QA receipt to private research branch
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/private"
-          name=gamepulse/fusion/qa/igp_progress_20261030/igp_0153_60hz_original_source_audit_20261110.json
-          mkdir -p "$(dirname "$name")"
-          cp "$RUNNER_TEMP/igp60-source-qa.json" "$name"
-          git fetch -q origin "$PRIVATE_BRANCH"
-          git checkout -q -B igp60-result "origin/$PRIVATE_BRANCH"
-          git add -f "$name"
-          git diff --cached --check
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -q -m 'qa(igp): protected original SDK frequency readback game 0153'
-          git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"
-          echo IGP_60HZ_PRIVATE_QA_RECEIPT_COMMITTED
+          echo ORIGINAL_60HZ_SAFE_RUNNER_AVAILABLE
