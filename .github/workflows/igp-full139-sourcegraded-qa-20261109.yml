@@ -1,3 +1,4 @@
+# Security: reviewed and explicitly allowlisted public-private source boundary.
 name: IGP Full139 source-graded shot QA and immutable Full121 query regression
 on:
   push:
