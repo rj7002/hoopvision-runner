@@ -20,7 +20,7 @@ jobs:
       IGP_PRIVATE_CAPTURE_DIR: /tmp/r13-0194-temporal-companion
       IGP_CAPTURE_ZERO_SHOT_FULL_EVENTS: 'true'
       BRANCH: research/r13-0194-frontcourt-official-reconcile-20261109
-      PINNED_PRIVATE_SHA: '2829ff2a7660e5a4d12698fa77afb550bf69dd1a'
+      PINNED_PRIVATE_SHA: '47eceb564622abcc7a6956f0dbce4da718c450c9'
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -46,6 +46,9 @@ jobs:
           cd "$RUNNER_TEMP/private-r13"
           PYTHONPATH=.:gamepulse/fusion:gamepulse/fusion/analysis \
             python3 -m unittest gamepulse.fusion.analysis.test_r13_temporal_ownership_v1 -v
+          PYTHONPATH=.:gamepulse/fusion:gamepulse/fusion/analysis \
+            python3 -m unittest gamepulse.fusion.analysis.test_r13_hybrid_temporal_anchor_v1 -v
+          python3 -m py_compile gamepulse/fusion/analysis/r13_hybrid_temporal_anchor_v1.py
           python3 -m py_compile gamepulse/fusion/analysis/r13_0194_source_replay_v1.py
           echo TEMPORAL_R13_SOURCE_FREE_QA_PASS
       - name: Retrieve original 198 SHA-minute archives and companion SDK events
@@ -90,6 +93,16 @@ jobs:
           assert d['original_xyz_unmodified'] is True
           print('R13_0194_SHADOW_QUALIFIED_NATIVE_FRAMES',d['original_source']['native_unique_timestamps'])
           print('R13_0194_SHADOW_BOTH_TEAMS_EVALUATED')
+          h=d['anchored_hybrid']
+          assert h['baseline_R13_episodes_preserved']==756
+          assert h['baseline_original_events_modified'] is False
+          print('HYBRID_0194_STRICT_NOVEL_FRONTCOURT',h['novel_strict_frontcourt'])
+          print('HYBRID_0194_HOU_PHX_COUNTS',
+                d['anchored_hybrid_official_score_posthoc']['HOU']['hybrid_frontcourt'],
+                d['anchored_hybrid_official_score_posthoc']['PHX']['hybrid_frontcourt'])
+          print('HYBRID_0194_PLAYER_ABSERR_HOU_PHX',
+                d['anchored_hybrid_official_score_posthoc']['HOU']['hybrid_player_absolute_error'],
+                d['anchored_hybrid_official_score_posthoc']['PHX']['hybrid_player_absolute_error'])
           print('R13_0194_NO_AUTOMATIC_PRODUCTION_PROMOTION')
           PY
       - name: Preserve source-private aggregate receipt only in 104
