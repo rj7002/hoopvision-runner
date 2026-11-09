@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-60hz-source-frequency-20261110.yml",  # source SHA-pinned protected original game0153 frequency audit, SDK bytes ephemeral, public nonspatial aggregate only
+    "tools/licensed_feed/igp_60hz_sdk_metadata_probe_20261110.mjs",  # reviewed SDK browser client only; no URL replay, no token or original XYZ logs, raw response stays private runner temp
     ".github/workflows/igp-full139-ball-screen-sourcefree-20261109.yml",  # reviewed SHA-pinned PR1069 Python tests plus immutable Full139 aggregate manifest; no native XYZ read, artifacts, or private rows in public logs
     ".github/workflows/igp-full139-sourcegraded-qa-20261109.yml",  # audited read-only 139-game private SHA FGA QA and immutable Full121 readback; public aggregate PASS/FAIL only, no NBA source rows
     ".github/workflows/rockets-fred-heatcheck-next-fga-20261109.yml",  # audited public NBA official game boxscore/PBP only; aggregate same-shooter next-FGA rates, no tracking, licensed XYZ or raw private rows
