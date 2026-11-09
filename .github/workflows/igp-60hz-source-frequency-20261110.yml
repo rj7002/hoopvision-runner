@@ -1,4 +1,4 @@
-# 10 Nov 2026: public orchestration, licensed source remains private.
+# 10 Nov 2026: security allowlist verified; public orchestration, licensed source remains private.
 name: IGP original 60 Hz evidence gate 0153
 on:
   push:
