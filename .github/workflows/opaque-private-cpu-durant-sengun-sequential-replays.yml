@@ -1,4 +1,4 @@
-name: CourtCoder V12B jersey-aware identity + court-plane floor-ring validation
+name: CourtCoder V13 KD team-verified jersey floor relock and frozen HoopVision proof
 # Original pixel-anchor KD seed fix: source-video identity diagnostic V6 rerun
 on:
   push:
@@ -41,7 +41,7 @@ jobs:
           trap 'rm -rf "$ROOT"' EXIT
           gh auth setup-git >/dev/null 2>&1
           git clone -q --depth=1 --filter=blob:none --sparse \
-            --branch cpu-animate/universal-floor-lock-v12-20261109 \
+            --branch cpu-animate/universal-team-kit-foot-lock-v13-20261109 \
             https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
             > "$ROOT/clone.log" 2>&1 || { echo PRIVATE_CPU_ANIMATE_SOURCE_CLONE_FAILED; exit 4; }
           git -C "$ROOT/private" sparse-checkout set --no-cone \
@@ -113,7 +113,7 @@ jobs:
           python3 - "$ROOT/out" <<'PY'
           import json,sys
           from pathlib import Path
-          q=json.loads((Path(sys.argv[1])/'v12b_jersey_identity_floor_lock_real_video_QA.json').read_text())
+          q=json.loads((Path(sys.argv[1])/'v13_team_confirmed_kd_floor_relock_QA.json').read_text())
           assert q['frames']>=235
           assert q['original_NBA_source_mutated'] is False
           assert q['camera_cuts_are_hard_resets'] is True
@@ -123,6 +123,13 @@ jobs:
           assert q['topdown_pose_model_sha256']=='869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0'
           assert set(q['source_video_identity_appearance_qa'])=={'Durant','Sengun'}
           assert all(q['original_video_reference_jersey_signatures'][who] is not None for who in ('Durant','Sengun'))
+          assert q['team_roster_kit_calibration_active'] is True
+          assert all(q['original_video_reference_jersey_signatures'][w][0]>.35
+                     for w in ('Durant','Sengun'))
+          assert all(q['original_video_reference_jersey_signatures'][w][2]<.40
+                     for w in ('Durant','Sengun'))
+          assert q['source_video_identity_appearance_qa']['Durant'].get(
+                      'team_kit_repaired_from_verified_teammate',0)==1
           for who in ('Durant','Sengun'):
               n=q['ring_output_qa'].get(who+'_visible_ring_frames',0)
               assert n>=125,(who,n)
@@ -134,27 +141,27 @@ jobs:
                  'floor':q['floor_filter_qa'],
                  'ring':q['ring_frame_dynamics']})
           PY
-          TAG=cpu-animate-min0181-universal-appearance-floor-v12b
+          TAG=cpu-animate-min0181-team-verified-kd-floor-v13
           gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
             gh release create "$TAG" --repo timeedmonds-maker/104 \
-              --title 'CPU Animate V12B universal floor and jersey-appearance guarded ID research preview' \
-              --notes 'Authentic NBA Broadcast eight second private research clip. Universal camera-reference Kalman RTS shoe tracker, independently source-uniform appearance verified player ID and conservative re-acquisition, topdown CPU person pose, segmented shoes and optical evidence, shot resets, separate ring visibility hysteresis and segmentation-mask persistence. Original frozen rotating/pulsing HoopVision styling. The source court model is AGPL-3.0 research only. No independent real video foot p95 or physical court calibration certified.' \
+              --title 'CPU Animate V13 KD identity-ground shoe repair using source-verified teammate kit' \
+              --notes 'V13 original NBA Broadcast eight-second private research. Direct video QA exposed a false KD kit descriptor (93.7% court-red instead of original Rockets white), making KD ring follow painted floor and a defender. New universal roster-confirmed teammate kit correction blocks this identity error before pose-shoe tracking. Sengun identity/HoopVision frozen rotating red/green rings preserved; model foot precision and physical homography remain unverified, court checkpoint AGPL-3.0 evaluation only.' \
               --latest=false >/dev/null
           gh release upload "$TAG" \
-             "$ROOT/out/MIN0181_V12B_TEAM_AWARE_FLOOR_LOCK_BROADCAST_8S.mp4" \
-             "$ROOT/out/v12b_jersey_identity_floor_lock_real_video_QA.json" \
-             "$ROOT/out"/v12b_floor_review_t*.jpg \
+             "$ROOT/out/MIN0181_V13_TEAM_CONFIRMED_KD_FLOOR_RELOCK_BROADCAST_8S.mp4" \
+             "$ROOT/out/v13_team_confirmed_kd_floor_relock_QA.json" \
+             "$ROOT/out"/v13_floor_review_t*.jpg \
              --repo timeedmonds-maker/104 --clobber
           python3 - "$ROOT/out" <<'PY'
           import base64,json,subprocess,sys
           from pathlib import Path
           out=Path(sys.argv[1])
-          branch='cpu-animate/universal-floor-lock-v12-20261109'
+          branch='cpu-animate/universal-team-kit-foot-lock-v13-20261109'
           for sec in (2,3,4,5,6):
-              p=out/f'v12b_floor_review_t{sec:02}.jpg'
+              p=out/f'v13_floor_review_t{sec:02}.jpg'
               if not p.is_file():continue
               data=base64.b64encode(p.read_bytes())+b'\n'
-              dest=f'repos/timeedmonds-maker/104/contents/docs/cpu_animate/v12b_universal_floor_t{sec:02}.jpg.b64.txt'
+              dest=f'repos/timeedmonds-maker/104/contents/docs/cpu_animate/v13_kd_team_verified_floor_t{sec:02}.jpg.b64.txt'
               item={'message':'qa(V12): original NBA source real frame floor ring for technical review',
                     'branch':branch,'content':base64.b64encode(data).decode()}
               old=subprocess.run(['gh','api',dest+'?ref='+branch],capture_output=True,text=True)
@@ -162,9 +169,9 @@ jobs:
               result=subprocess.run(['gh','api','-X','PUT',dest,'--input','-'],
                             input=json.dumps(item),capture_output=True,text=True)
               if result.returncode:raise RuntimeError('V12_PRIVATE_REAL_VIDEO_FRAME_ARCHIVAL_FAILED')
-          print('V12B_ORIGINAL_NBA_REAL_FRAMES_ARCHIVED')
+          print('V13_ORIGINAL_NBA_REAL_FRAMES_ARCHIVED')
           PY
-          echo V12B_JERSEY_IDENTITY_COURT_RELATIVE_FLOOR_PREVIEW_COMPLETE
+          echo V13_KD_TEAM_CONFIRMED_COURT_FLOOR_PREVIEW_COMPLETE
           exit 0
           gh release download cpu-animate-min-ato-0181-durant-sengun-identity-scout \
              --repo timeedmonds-maker/104 --dir "$ROOT/scout" \
