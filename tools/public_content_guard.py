@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-rockets-0208-archive-forensics.yml",  # reviewed private SHA-only original SDK archive field audit, raw source values never public
     ".github/workflows/gamepulse-rockets-0208-original-10hz-cpu-20261110.yml",  # reviewed private licensed 13-part raw XYZ SHA extraction plus deterministic 10Hz CPU resampling, coordinates remain private 104 only
     ".github/workflows/gamepulse-rockets-nuggets-0208-native-13part-20261110.yml",  # reviewed original SDK 13-part private SHA archive, free CPU only; no private XYZ in public logs or artifacts
     ".github/workflows/gamepulse-rockets-0208-companion-final-20261110.yml",  # reviewed fixed-game licensed companion events: ephemeral original response, SHA-verified private 104 preservation, aggregate-only public logs
