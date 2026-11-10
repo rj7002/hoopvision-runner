@@ -1,0 +1,41 @@
+name: CPU Animate 0208 V23.2 source image inspection
+on:
+  push:
+    branches: ['cpu-animate-0208-event73-pbp-v22-20261110']
+    paths: ['.github/workflows/cpu-animate-0208-v23-2-source-visual-qa.yml']
+permissions:
+  contents: read
+jobs:
+  archive-private-source-and-output:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - name: Store source-authentic ring QA and audited review frames (private)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN" && test ! -e /dev/nvidia0
+          OUT="$(mktemp -d)"
+          export OUT
+          gh release download cpu-animate-0208-73-playbyplay-v23-2-size-stability-lifecycle \
+            --repo timeedmonds-maker/104 --dir "$OUT" \
+            --pattern '0208_v23_2_ring_review_f*.jpg' \
+            --pattern '0208_v23_2_video_only_three_player_qa.json' >/dev/null
+          test "$(find "$OUT" -name '0208_v23_2_ring_review_f*.jpg' | wc -l)" -eq 20
+          for file in "$OUT"/*.jpg "$OUT"/*.json; do
+            export SRC="$file"
+            python3 - <<'PY' | gh api -X PUT \
+              "repos/timeedmonds-maker/104/contents/docs/cpu_animate/v23_2_final_$(basename "$SRC").b64.txt" \
+              --input - >/dev/null
+          import base64,json,os
+          from pathlib import Path
+          p=Path(os.environ["SRC"])
+          raw=(base64.b64encode(p.read_bytes())+b'\n') if p.suffix=='.jpg' else p.read_bytes()
+          print(json.dumps({'branch':'cpu-animate/0208-v23-2-ring-geometry-stability-20261111',
+           'message':'qa: V23.2 real source-video resized rings and QA evidence',
+           'content':base64.b64encode(raw).decode()}))
+          PY
+          done
+          echo V23_2_REAL_SOURCE_20_FRAME_VISUAL_QA_ARCHIVED
