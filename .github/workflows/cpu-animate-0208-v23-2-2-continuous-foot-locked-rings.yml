@@ -1,0 +1,121 @@
+name: CPU Animate 0208 V23.2.2 persistent feet rings CPU-only
+on:
+  push:
+    branches: ['cpu-animate-0208-event73-pbp-v22-20261110']
+    paths: ['.github/workflows/cpu-animate-0208-v23-2-2-continuous-foot-locked-rings.yml']
+permissions:
+  contents: read
+concurrency:
+  group: cpu-animate-0208-v23-2-2-persistent-feet
+  cancel-in-progress: false
+jobs:
+  original-playbyplay-three-rings:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+      OPENCV_OPENCL_RUNTIME: disabled
+      OMP_NUM_THREADS: '3'
+      MKL_NUM_THREADS: '3'
+      OPENBLAS_NUM_THREADS: '2'
+      TOKENIZERS_PARALLELISM: 'false'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - name: Validate private source and produce real 19s three-player ring MP4 without XYZ
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN" && test ! -e /dev/nvidia0 && test ! -e /dev/kfd
+          ROOT="$(mktemp -d)"
+          export ROOT
+          trap 'rm -rf "$ROOT"' EXIT
+          mkdir -p "$ROOT/media" "$ROOT/scout" "$ROOT/out"
+          gh auth setup-git >/dev/null 2>&1
+          git clone -q --depth=1 --filter=blob:none --sparse \
+            --branch cpu-animate/0208-v23-2-2-persistent-footlocked-rings-20261111 \
+            https://github.com/timeedmonds-maker/104.git "$ROOT/private"
+          git -C "$ROOT/private" sparse-checkout set --no-cone \
+            '/cpu_animate/' '/tools/locked_broadcast_screen_v5_rings.py' >/dev/null
+          cd "$ROOT/private"
+          python3 -m pip install -q --disable-pip-version-check numpy opencv-python-headless pillow ultralytics
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq >/dev/null
+            sudo apt-get install -y -qq ffmpeg >/dev/null
+          fi
+          python3 -m py_compile \
+            cpu_animate/video_only_render_0208_v23.py \
+            cpu_animate/v22_multiplayer_floor_adapter.py \
+            cpu_animate/video_only_floor_engine_v23_2.py
+          python3 -m cpu_animate.test_v22_multiplayer_floor_adapter
+          python3 -m cpu_animate.test_video_only_floor_engine_v23_2
+          gh release download cpu-animate-0208-73-pbp-original-source-v1 \
+            --repo timeedmonds-maker/104 --dir "$ROOT/media" \
+            --pattern '0208_0073_play-by-play.mp4' \
+            --pattern '0208_0073_play-by-play_pts_and_source.json' >/dev/null
+          gh release download cpu-animate-0208-73-video-only-scout-v23 \
+            --repo timeedmonds-maker/104 --dir "$ROOT/scout" \
+            --pattern 'scout_0208_73_videoonly_595.json.gz' \
+            --pattern 'scout_0208_73_videoonly_qa.json' >/dev/null
+          echo '506606517d547d0be048c2d6306f324b6c77271ae4d5a3de436a596fe32f6ff4  '$ROOT'/media/0208_0073_play-by-play.mp4' | sha256sum -c -
+          curl --fail --location --silent --show-error --retry 2 --max-time 120 \
+            https://huggingface.co/Ultralytics/YOLO11/resolve/1fad642026e935ebf53c4d878b6fd844ad08de3f/yolo11n-seg.pt \
+            -o "$ROOT/private/yolo11n-seg.pt"
+          echo '55ed65c56c91713d23e8402371c6c49a6fd84f257f7dce452e8d70e41dcbe152  '$ROOT'/private/yolo11n-seg.pt' | sha256sum -c -
+          env -u GH_TOKEN -u GITHUB_TOKEN -u GIT_ASKPASS \
+            python3 -m cpu_animate.video_only_render_0208_v23 \
+              --media "$ROOT/media/0208_0073_play-by-play.mp4" \
+              --manifest "$ROOT/media/0208_0073_play-by-play_pts_and_source.json" \
+              --scout "$ROOT/scout/scout_0208_73_videoonly_595.json.gz" \
+              --anchors "$ROOT/private/cpu_animate/video_only_0208_v23_source_identity_anchors.json" \
+              --model "$ROOT/private/yolo11n-seg.pt" \
+              --out "$ROOT/out"
+          mkdir -p "$ROOT/baseline"
+          gh release download cpu-animate-0208-73-playbyplay-v23-2-1-continuity-repaired \
+            --repo timeedmonds-maker/104 --dir "$ROOT/baseline" \
+            --pattern '0208_v23_2_1_video_only_three_player_qa.json' >/dev/null
+          python3 - "$ROOT/out" "$ROOT/baseline" <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          d=Path(sys.argv[1])
+          q=json.loads((d/"0208_v23_2_2_video_only_three_player_qa.json").read_text())
+          old=json.loads((Path(sys.argv[2])/"0208_v23_2_1_video_only_three_player_qa.json").read_text())
+          assert q["source_xyz_used"] is False
+          assert q["original_NBA_source_video_frames"]==595
+          assert q["original_NBA_source_sha256"]=="506606517d547d0be048c2d6306f324b6c77271ae4d5a3de436a596fe32f6ff4"
+          assert q["ring_artwork_original_frozen_git_blob_sha"]=="9fac8a8915b90bbd9bd1235532c297c35da77ca2"
+          assert q["schema"]=="cpu-animate.0208.v23.2.2.real-source-video-only-qa"
+          assert q["ring_lifecycle"]=="FULL_ALPHA_LOCKED_OR_TWO_SIDED_SHORT_HOLD"
+          assert q["no_ring_fade_cycles"] and q["visual_ring_scale"]==1.10
+          assert q["source_audio_preserved"] and q["source_pts_used_for_art_animation"]
+          assert set(q["ring_frames"])=={"Durant","Sengun","Smart"}
+          assert 552 not in q["ring_video_frame_indices"]["Smart"], "Wrong-player Smart ring on Denver #32"
+          assert q["source_video_shoe_mask_qa"].get("two_foot_bottom_contour",0)>0
+          for person in ("Durant","Sengun","Smart"):
+              r=q["ring_radius_px_by_player"][person]
+              before=old["ring_radius_px_by_player"][person]
+              assert 44.0<=r["min"]<r["median"]<=66.0,(person,r)
+              assert r["median"]>=before["median"]*1.055,(person,before,r)
+              assert q["ring_frames"][person]>=old["ring_frames"][person],(person,old["ring_frames"][person],q["ring_frames"][person])
+              assert q["ring_opacity_by_player"][person]["frames_below_full_alpha"]==0,person
+              assert q["per_player_video_accepted_floor_qa"][person]["ring_size_scale"]==1.10
+          p=d/q["output_file"]
+          assert p.stat().st_size>500000
+          assert hashlib.sha256(p.read_bytes()).hexdigest()==q["output_sha256"]
+          print("CPU_V23_2_2_REAL_SOURCE_VIDEO_FULL_ALPHA_STABLE_SIZE_ACCEPTED",
+                q["ring_frames"],q["output_sha256"],flush=True)
+          print("V23_2_1_BASELINE_COVERAGE",old["ring_frames"],flush=True)
+          PY
+          TAG=cpu-animate-0208-73-playbyplay-v23-2-2-persistent-feet
+          gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
+            gh release create "$TAG" --repo timeedmonds-maker/104 \
+              --title 'CPU Animate V23.2.2 — full-opacity 110% smoother rings — Durant Sengun Smart' \
+              --notes 'V23.2.2: full alpha throughout identity-accepted spans; guarded same-person video holes up to 6 frames; tighter camera-relative foot RTS smoothing and 8px source residual cap; 10 percent larger stabilized V22 ring artwork; same immutable source clip. Coverage compared with V23.2.1, offscreen/unidentified frames still abstain; real independent foot error not certified. CPU ONLY.' \
+              --latest=false >/dev/null
+          gh release upload "$TAG" \
+            "$ROOT/out/0208_0073_PLAY_BY_PLAY_DURANT_SENGUN_SMART_V23_2_2_VIDEO_ONLY_19S.mp4" \
+            "$ROOT/out/0208_v23_2_2_video_only_three_player_qa.json" \
+            "$ROOT/out"/0208_v23_2_2_ring_review_f*.jpg \
+            --repo timeedmonds-maker/104 --clobber >/dev/null
+          echo CPU_0208_V23_2_2_REAL_VIDEO_FULL_ALPHA_FOOT_LOCKED_RENDER_SUCCEEDED
