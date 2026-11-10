@@ -362,3 +362,87 @@ jobs:
             sleep "$n"
           done
           exit 23
+
+  unified-game-index:
+    needs: [companion, official-blueprint, partial-native-xyz]
+    if: always() && needs.companion.result == 'success' && needs.official-blueprint.result == 'success' && needs.partial-native-xyz.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+      GID: '0022600208'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Build full-source-graded Rockets game entry inside existing Integrated Pulse index
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private-unified-0208"
+          git -C "$RUNNER_TEMP/private-unified-0208" sparse-checkout set gamepulse/fusion data/extensions/nba_blueprint_2026_27
+          cd "$RUNNER_TEMP/private-unified-0208"
+          export PYTHONPATH=gamepulse/fusion
+          python3 gamepulse/fusion/igp_auto_extend_unified_season_2026.py --root .
+          python3 gamepulse/fusion/igp_post56_original_companion_index_v1.py --root .
+          python3 gamepulse/fusion/igp_post56_blueprint_original_index_v1.py --root .
+          python3 gamepulse/fusion/igp_post56_official_logical_chain_index_v1.py --root .
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          root=Path('gamepulse/fusion')
+          primary=root/'materialized/igp_2026_27_unified_season_v3/index.json'
+          master=json.loads(primary.read_bytes())
+          extra=Path(master['post56_additive_oct28']['index'])
+          index=json.loads(extra.read_bytes())
+          gid=os.environ['GID']
+          assert gid in index['games'],'OFFICIAL_SOURCE_NOT_IN_UNIFIED_INDEX'
+          x=index['games'][gid]
+          assert x['official_pbp_path'] and x['original_nba_pbp_sha256']
+          assert x['original_companion_shots_count']==171
+          assert x['published_blueprint_shot_events']==169
+          assert x['nba_logical_chain_original_index_sha256']
+          source=root/'materialized/igp_original_xyz_partial_0022600208/index.json'
+          raw=json.loads(source.read_bytes())
+          assert raw['original_live_archives_sha_verified']==8 and raw['unique_native_timestamps']==251
+          assert raw['original_full13part_archive_available'] is False
+          x['original_native_xyz_partial_index']=str(source)
+          x['original_native_xyz_partial_sha256']=hashlib.sha256(source.read_bytes()).hexdigest()
+          x['source_capture_grades']={
+             'official_nba_pbp_box':'SHA_VERIFIED',
+             'original_full_event_companion':'FULL_1222_EVENTS_SHA_VERIFIED',
+             'original_blueprint_report':'SHA_VERIFIED_169_SHOTS',
+             'official_logical_possession_chains':'SOURCE_LINKED_NOT_PHYSICAL_CUSTODY',
+             'original_native_xyz':'PARTIAL_8_LIVE_ARCHIVES_251_UNIQUE_TIMESTAMPS',
+             'full13part_xyz_certified':False,
+             'original_direct_positions_not_imputed':True,
+             'physical_trajectory_accuracy_certified':False}
+          x['status']='OFFICIAL_COMPANION_BLUEPRINT_COMPLETE__NATIVE_XYZ_PARTIAL'
+          extra.write_text(json.dumps(index,sort_keys=True,indent=2)+'\n')
+          from query_igp_unified_2026_27_season_v1 import query
+          result=query('.',gid,period=1,clock_second=700,include_positions=False)
+          assert result['game_id']==gid and not result.get('physical_custody_certified',False)
+          print('IGP_0208_UNIFIED_SOURCE_GRADED_GAME_ACCEPTED',
+                master['total_indexed_games_including_additive'],171,169,251)
+          PY
+      - name: Commit integrated evidence and immutable source grades privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private-unified-0208"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/materialized/igp_2026_27_unified_season_v3 gamepulse/fusion/qa/igp_progress_20261030
+          git diff --cached --check
+          if git diff --cached --quiet; then echo IGP_0208_UNIFIED_ALREADY_CURRENT; exit 0; fi
+          git commit -q -m "data(igp): source-graded Rockets 0208 PBP+companion+Blueprint+partial original XYZ"
+          for n in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then echo IGP_0208_UNIFIED_PRIVATE_COMMITTED; exit 0; fi
+            sleep "$n"
+          done
+          exit 23
