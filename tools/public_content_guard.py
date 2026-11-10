@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-rockets-nuggets-0208-native-13part-20261110.yml",  # reviewed original SDK 13-part private SHA archive, free CPU only; no private XYZ in public logs or artifacts
     ".github/workflows/gamepulse-rockets-0208-companion-final-20261110.yml",  # reviewed fixed-game licensed companion events: ephemeral original response, SHA-verified private 104 preservation, aggregate-only public logs
     ".github/workflows/igp-full146-sourcegraded-qa-20261110.yml",  # reviewed frozen private 146-game SHA shot index query and public aggregate QA only; no original licensed rows or assets emitted
     ".github/workflows/igp-60hz-source-frequency-20261110.yml",  # source SHA-pinned protected original game0153 frequency audit, SDK bytes ephemeral, public nonspatial aggregate only
