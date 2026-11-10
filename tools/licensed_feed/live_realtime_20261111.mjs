@@ -1,0 +1,168 @@
+/**
+ * Original NBA player/ball positions captured as the game unfolds.
+ * Store ONLY genuine SDK-observed authenticated slot response bodies in private Release assets.
+ * Live clock only; no replay-seek window recovery, credentials rewriting, or fabricated XYZ.
+ */
+import puppeteer from 'puppeteer-core';
+import {build} from 'esbuild';
+import {createServer} from 'node:http';
+import {readFileSync,writeFileSync,mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {execFileSync,spawnSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
+import {gzipSync} from 'node:zlib';
+
+const ROOT=import.meta.dirname;
+const GAME=process.env.GAMEPULSE_LIVE_ID;
+const START=Date.parse(process.env.GAMEPULSE_LIVE_TIPOFF||'');
+const REPO='timeedmonds-maker/104';
+const TOKEN=process.env.GH_TOKEN;
+const sleep=ms=>new Promise(done=>setTimeout(done,ms));
+const sha=b=>createHash('sha256').update(b).digest('hex');
+function gh(args){
+ const p=spawnSync('gh',args,{encoding:'utf8',timeout:60000,maxBuffer:4*1024*1024,
+  stdio:['ignore','pipe','pipe'],env:{...process.env,GH_TOKEN:TOKEN}});
+ if(p.status!==0)throw Error('private_github_operation_failed');
+ return p.stdout;
+}
+function ensureRelease(tag){
+ try{gh(['release','view',tag,'--repo',REPO,'--json','tagName']);return;}
+ catch{}
+ try{gh(['release','create',tag,'--repo',REPO,'--target','main','--title',tag,
+  '--notes','Private authorised live NBA original player-ball source','--latest=false']);}
+ catch{gh(['release','view',tag,'--repo',REPO,'--json','tagName']);}
+}
+function chrome(){
+ for(const name of ['google-chrome','google-chrome-stable','chromium']){
+  try{return execFileSync('which',[name],{encoding:'utf8'}).trim();}catch{}
+ }
+ throw Error('chromium_unavailable');
+}
+function countSource(rows){
+ const ts=new Map(),windows=new Set();
+ for(const row of rows){
+  windows.add(row.from);
+  for(const ev of row.events){
+   for(const f of ev?.metadata?.keyframes||[]){
+    if(!Number.isSafeInteger(f?.timestamp))continue;
+    const p=Object.keys(f?.positions||{}),old=ts.get(f.timestamp)||{player:false,ball:false};
+    ts.set(f.timestamp,{player:old.player||p.some(k=>k!=='ball'),ball:old.ball||p.includes('ball')});
+   }
+  }
+ }
+ const frames=[...ts.values()];
+ return {source_windows:windows.size,source_responses:rows.length,
+  native_timestamps:frames.length,player_timestamps:frames.filter(f=>f.player).length,
+  ball_timestamps:frames.filter(f=>f.ball).length,
+  player_and_ball_timestamps:frames.filter(f=>f.player&&f.ball).length};
+}
+function uploadedAndReadback(tag,name,data,dir){
+ const path=join(dir,name),verify=join(dir,'readback');
+ writeFileSync(path,data);
+ gh(['release','upload',tag,path,'--repo',REPO]);
+ gh(['release','download',tag,'--repo',REPO,'--pattern',name,'--dir',verify]);
+ if(sha(readFileSync(join(verify,name)))!==sha(data))throw Error('private_source_sha_readback_failed');
+}
+async function main(){
+ if(process.env.GITHUB_REPOSITORY!=='timeedmonds-maker/hoopvision-runner'
+  ||process.env.GITHUB_REF!=='refs/heads/main'
+  ||!['schedule','workflow_dispatch','push'].includes(process.env.GITHUB_EVENT_NAME)
+  ||!/^00226\d{5}$/.test(GAME||'')||!Number.isSafeInteger(START)
+  ||!TOKEN||TOKEN.length<30)throw Error('unauthorized_live_collection');
+ const now=Date.now();
+ if(now<START-2*60000||now>START+5*3600000){
+  console.log('REALTIME_OUTSIDE_SOURCE_WINDOW',GAME);return;
+ }
+ // Keep GitHub storage secrets away from the browser and SDK bundle.
+ delete process.env.GH_TOKEN;
+ await build({entryPoints:[join(ROOT,'browser.js')],bundle:true,platform:'browser',
+  format:'iife',outfile:join(ROOT,'bundle.js'),logLevel:'silent'});
+ const server=createServer((req,res)=>{
+  const file=req.url==='/'?'index.html':req.url==='/bundle.js'?'bundle.js':null;
+  if(!file){res.writeHead(404).end();return;}
+  res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript':'text/html');
+  res.end(readFileSync(join(ROOT,file)));
+ });
+ await new Promise(ok=>server.listen(0,'127.0.0.1',ok));
+ const seen=new Set(),pending=new Set(),buffer=new Map();
+ const tag='gamepulse-live-sdk-'+GAME;
+ let browser,saved=0,playerFrames=0,ballFrames=0;
+ async function flush(){
+  await Promise.allSettled([...pending]);
+  const entries=[...buffer.entries()].sort((a,b)=>a[1].from-b[1].from);
+  if(!entries.length)return;
+  const rows=entries.map(e=>e[1]),stats=countSource(rows);
+  const zipped=gzipSync(Buffer.from(rows.map(r=>JSON.stringify(r)).join('\n')+'\n'));
+  const digest=sha(zipped);
+  const base='realtime-'+GAME+'-'+rows[0].from+'-'+digest.slice(0,16);
+  const meta={schema:'igp.original-sdk-realtime-response.v1',game_id:GAME,
+   original_source_grade:'SDK_OBSERVED_NOT_FULLGAME',
+   source_observed_at_utc:new Date().toISOString(),...stats,
+   original_blob_sha256:digest,imputed:false,physical_possessions_certified:0};
+  const dir=mkdtempSync(join(tmpdir(),'igp-live-original-'));
+  try{
+   uploadedAndReadback(tag,base+'.jsonl.gz',zipped,dir);
+   uploadedAndReadback(tag,base+'.json',Buffer.from(JSON.stringify(meta)+'\n'),dir);
+   for(const [key] of entries)buffer.delete(key);
+   saved+=stats.source_responses;playerFrames+=stats.player_timestamps;ballFrames+=stats.ball_timestamps;
+   console.log('IGP_REALTIME_ORIGINAL_SOURCE_SHA_READBACK',JSON.stringify({
+    game_id:GAME,...stats,archive_sha256:digest}));
+  }finally{rmSync(dir,{recursive:true,force:true});}
+ }
+ try{
+  browser=await puppeteer.launch({headless:true,executablePath:chrome(),
+   args:['--no-sandbox','--disable-dev-shm-usage']});
+  const page=await browser.newPage();
+  page.on('response',response=>{
+   try{
+    const u=new URL(response.url());
+    if(response.status()!==200||u.protocol!=='https:'
+     ||u.hostname!=='nba-cdn.cloud.easelive.tv'
+     ||!u.pathname.includes('/companion-'+GAME+'-positions/')
+     ||!u.pathname.endsWith('/events/slot'))return;
+    const from=Number(u.searchParams.get('from'));
+    if(!Number.isSafeInteger(from)||from%5000!==0
+     ||from<START-20*60000||from>START+5*3600000)return;
+    const p=response.json().then(events=>{
+     if(!Array.isArray(events))return;
+     const body=JSON.stringify(events),key=from+':'+sha(body);
+     if(seen.has(key))return;
+     seen.add(key);buffer.set(key,{from,to:from+4999,events});
+    }).catch(()=>{});
+    pending.add(p);p.finally(()=>pending.delete(p));
+   }catch{}
+  });
+  await page.goto('http://127.0.0.1:'+server.address().port+'/',
+   {waitUntil:'domcontentloaded',timeout:12000});
+  await page.waitForFunction(()=>typeof window.ephemeralFeed?.initialize==='function',
+   {timeout:10000});
+  const init=await page.evaluate(gameId=>window.ephemeralFeed.initialize({
+   accountId:'nba',programId:'companion-'+gameId+'-positions',timeoutMs:20000}),GAME);
+  console.log('IGP_REALTIME_SDK_INIT',GAME,init);
+  if(init==='error')throw Error('sdk_initialization_failed');
+  ensureRelease(tag);
+  let nextFlush=Date.now()+40000;
+  const deadline=Date.now()+185000;
+  while(Date.now()<deadline){
+   // Emit actual advancing live player time, not arbitrary post-final seeks.
+   const liveMs=Date.now()-1500;
+   await page.evaluate(t=>window.ephemeralFeed.seek(t),liveMs);
+   await sleep(1000);
+   if(Date.now()>=nextFlush){
+    await flush();nextFlush=Date.now()+40000;
+   }
+  }
+  await flush();
+  console.log('IGP_REALTIME_SESSION_RESULT',JSON.stringify({game_id:GAME,
+   archived_source_responses:saved,player_timestamps:playerFrames,
+   ball_timestamps:ballFrames,verified_source:saved>0}));
+ }finally{
+  // Even after errors, preserve any authentic source responses already received.
+  try{await flush();}catch(e){console.error('IGP_REALTIME_FINAL_CHECKPOINT_FAILED',e.message);}
+  if(browser)await browser.close();
+  await new Promise(ok=>server.close(ok));
+ }
+}
+main().catch(e=>{const message=/^[a-z_]+$/.test(e?.message||'')?e.message:'source_unavailable';
+ console.error('IGP_REALTIME_CAPTURE_FAILED',GAME,message);process.exitCode=2;});
