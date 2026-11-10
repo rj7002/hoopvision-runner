@@ -1,3 +1,4 @@
+# 2026-11-10 exact HOU–DEN 0022600208 postfinal source-gated timeout recovery, public CPU only, preserve original SHA.
 name: Game Pulse NBA all-game live-first private capture
 # 2026-11-08 NZ recovery retrigger: re-discover US Nov 7 games 0022600190-0022600195, resume authentic missing SDK slots and private QA; do not certify incomplete originals.
 # Manual source-capture prompt for HOU @ PHX 0022600194 on 2026-11-08 UTC; preserve SHA-original private XYZ.
@@ -38,7 +39,7 @@ jobs:
           node-version: '22'
       - name: Verify concurrent slate selection and original SDK integrity
         run: |
-          node --test tools/licensed_feed/live_discovery.test.mjs tools/licensed_feed/live_capture_cycle.test.mjs tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs
+          node --test tools/licensed_feed/live_discovery.test.mjs tools/licensed_feed/live_capture_cycle.test.mjs tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs tools/licensed_feed/capture.test.mjs
       - name: Select every currently active or recently final NBA fixture
         id: active
         run: node tools/licensed_feed/live_discovery.mjs
