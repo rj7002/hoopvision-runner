@@ -7,6 +7,7 @@ import {createHash} from 'node:crypto';
 import {appendFileSync,copyFileSync,mkdtempSync,rmSync,readFileSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {gunzipSync} from 'node:zlib';
 import {planGame} from './season_core.mjs';
 
 const PRIV='timeedmonds-maker/104',PUB='timeedmonds-maker/hoopvision-runner';
@@ -95,11 +96,81 @@ function uploadImmutable(tag,file,name,digest){
   if(asset.digest!=='sha256:'+digest)throw Error('private_existing_source_sha_conflict');
   return false;
  }
- gh(['release','upload',tag,file,'--repo',PRIV]);
- const check=getAssets(tag)?.get(name);
- if(!check||check.digest!=='sha256:'+digest)
-  throw Error('private_live_source_sha_readback_failed');
- return true;
+ try{gh(['release','upload',tag,file,'--repo',PRIV]);}
+ catch(e){
+  // Upload can succeed on the server but lose the response. Only accept
+  // that outcome after independent SHA readback from the private Release.
+  const after=getAssets(tag)?.get(name);
+  if(!after||after.digest!=='sha256:'+digest)throw e;
+  return false;
+ }
+ for(let attempt=0;attempt<6;attempt++){
+  const check=getAssets(tag)?.get(name);
+  if(check){
+   if(check.digest!=='sha256:'+digest)
+    throw Error('private_live_source_sha_readback_failed');
+   return true;
+  }
+  if(attempt<5)spawnSync('sleep',[String(1+attempt)],{stdio:'ignore'});
+ }
+ throw Error('private_live_source_sha_readback_failed');
+}
+export function restoreOriginalSourceSidecar(job,manifest,rawSlots,digest,grade){
+ if(!/^[0-9a-f]{64}$/.test(digest)||!Array.isArray(rawSlots)
+  ||manifest?.successful_windows!==rawSlots.length)
+  throw Error('orphan_original_source_invalid');
+ const completed=grade==='FULL_5S_SOURCE_COVERAGE';
+ if(!completed&&grade!=='PARTIAL_5S_SOURCE_COVERAGE')
+  throw Error('orphan_source_grade_invalid');
+ if(rawSlots.some(row=>!row||!Array.isArray(row.events)
+  ||row.to!==row.from+4999))
+  throw Error('orphan_source_slot_invalid');
+ const restored={...manifest,expected_windows:job.count,
+  capture_complete:rawSlots.length===job.count,
+  source_window_starts_ms:rawSlots.map(row=>row.from),
+  archive_sha256:digest,source_grade:grade};
+ validateLiveManifest(job,restored);
+ if(restored.capture_complete!==completed)throw Error('orphan_source_grade_conflict');
+ return restored;
+}
+function tarMember(archive,name){
+ const p=spawnSync('tar',['-xOf',archive,name],{maxBuffer:64*1024*1024});
+ if(p.status!==0||!p.stdout)throw Error('private_archive_member_invalid');
+ return p.stdout;
+}
+function repairOrphanedAssets(tag,assets,game,fullPlan){
+ let repaired=0;
+ for(const [name,remote] of assets){
+  const standard=/^live-(\d{13})\.tar\.gz$/.exec(name);
+  const partial=/^partial-observed-(\d{13})-[a-f0-9]{20}\.tar\.gz$/.exec(name);
+  const match=standard||partial;
+  if(!match||assets.has(name.replace('.tar.gz','.json')))continue;
+  const from=Number(match[1]);
+  const dir=mkdtempSync(join(tmpdir(),'gp-repair-'));
+  try{
+   gh(['release','download',tag,'--pattern',name,'--dir',dir,'--repo',PRIV]);
+   const path=join(dir,name),digest=sha(readFileSync(path));
+   if(remote.digest!=='sha256:'+digest)
+    throw Error('private_orphan_archive_sha_conflict');
+   const manifest=JSON.parse(tarMember(path,'manifest.json').toString('utf8'));
+   const rows=gunzipSync(tarMember(path,'raw-slots.jsonl.gz'))
+     .toString('utf8').split('\n').filter(Boolean).map(x=>JSON.parse(x));
+   const job={game_id:game,part:Math.floor((from-fullPlan.begin)/(300*5000)),
+    start_ms:from,count:12};
+   const grade=standard?'FULL_5S_SOURCE_COVERAGE':'PARTIAL_5S_SOURCE_COVERAGE';
+   const sidecar=restoreOriginalSourceSidecar(job,manifest,rows,digest,grade);
+   const dest=join(dir,name.replace('.tar.gz','.json'));
+   writeFileSync(dest,JSON.stringify(sidecar)+'\n');
+   uploadImmutable(tag,dest,name.replace('.tar.gz','.json'),sha(readFileSync(dest)));
+   repaired++;
+  }catch(e){
+   const safe=/^[a-z_]+$/.test(e?.message||'')?e.message:'orphan_repair_unavailable';
+   console.log('PRIVATE_LIVE_ORPHAN_NEEDS_REVIEW',JSON.stringify({
+    game_id:game,source_asset:name,category:safe}));
+  }finally{rmSync(dir,{recursive:true,force:true});}
+ }
+ if(repaired)console.log('PRIVATE_LIVE_ORPHAN_SOURCE_SHA_REPAIRED',game,repaired);
+ return repaired;
 }
 async function main() {
  const id=process.env.GAMEPULSE_LIVE_ID;
@@ -114,6 +185,9 @@ async function main() {
  const tag='gamepulse-live-sdk-'+id;
  ensure(tag);
  const fullPlan=planGame({id,start});
+ // Complete any immutable two-asset write interrupted by a prior run before
+ // scheduling a new capture. SHA verify the original tar, 5s rows and game.
+ repairOrphanedAssets(tag,getAssets(tag)||new Map(),id,fullPlan);
  const deadline=Date.now()+215000;
  let fullSaved=0,partialSaved=0,failed=0;
  const attempted=new Set();
