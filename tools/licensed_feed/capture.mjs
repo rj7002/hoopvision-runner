@@ -99,9 +99,8 @@ async function launchClient(job,received,pending){
    stage_counts:lifecycle.event_counts,app_status:lifecycle.latest_app_status,
    app_status_counts:lifecycle.app_status_counts,
    warning_count:lifecycle.error_type_counts?.warning||0}));
-  if(!sdkInitCanSeek(result))throw Error('sdk_initialization_failed');
-  if(result==='timeout' && lifecycle.latest_app_status==='disabled' &&
-     !observedSlotUrl && received.size===0)throw Error('sdk_app_disabled');
+  const gate=sdkInitSourceGate(result,lifecycle,!!observedSlotUrl,received.size);
+  if(gate!=='SEEK_SOURCE_REQUIRED')throw Error(gate);
   return {page,observedUrl:()=>observedSlotUrl,
    close:async()=>{await browser.close();await new Promise(ok=>server.close(ok));}};
  }catch(e){
@@ -111,6 +110,12 @@ async function launchClient(job,received,pending){
  }
 }
 export function sdkInitCanSeek(state){return state==='ready'||state==='timeout';}
+export function sdkInitSourceGate(state,lifecycle,hasSourceSlotUrl=false,observedWindows=0){
+ if(!sdkInitCanSeek(state))return 'sdk_initialization_failed';
+ if(state==='timeout'&&lifecycle?.latest_app_status==='disabled'&&
+   !hasSourceSlotUrl&&observedWindows===0)return 'sdk_app_disabled';
+ return 'SEEK_SOURCE_REQUIRED';
+}
 
 export async function initializeWithRetry(factory,wait=sleep){
  for(let attempt=0;attempt<3;attempt++){
