@@ -1,0 +1,33 @@
+name: CPU Animate V23 0208 rendering run status receipt
+on:
+  push:
+    branches: ['cpu-animate-0208-event73-pbp-v22-20261110']
+    paths: ['.github/workflows/cpu-animate-0208-v23-run-monitor.yml']
+permissions:
+  contents: read
+jobs:
+  status:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - name: Publish exact authenticated rendering run status
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          export CPU_RENDER_RUN="$(gh api 'repos/timeedmonds-maker/hoopvision-runner/actions/workflows/cpu-animate-0208-v23-full-video-only-rings.yml/runs?per_page=5' \
+            --jq '.workflow_runs[0] | {id,status,conclusion,created_at,updated_at,html_url,head_sha}')"
+          echo "$CPU_RENDER_RUN"
+          python3 - <<'PY' | gh api -X PUT \
+            repos/timeedmonds-maker/104/contents/docs/cpu_animate/v23_0208_render_run_status.json \
+            --input - >/dev/null
+          import base64,json,os
+          d=json.loads(os.environ['CPU_RENDER_RUN'])
+          d['status_description']='Live Github Actions workflow status snapshot; not a rendered video receipt'
+          p={'branch':'cpu-animate/0208-v23-cpu-video-only-20261111',
+             'message':'qa(cpu-animate): exact v23 0208 real source video render workflow status',
+             'content':base64.b64encode(json.dumps(d,indent=2).encode()).decode()}
+          print(json.dumps(p))
+          PY
