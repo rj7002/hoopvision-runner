@@ -28,3 +28,13 @@ test('preflight arms official scheduled games 30m before tipoff but not before t
  assert.deepEqual(activeGames(d,t).map(g=>g.id),[id]);
  assert.equal(activeGames(d,t-1).length,0);
 });
+
+test('live-first scheduler does not recycle stale final programmes for hours',()=>{
+ const oldFinal={leagueSchedule:{gameDates:[{games:[
+  {gameId:'0022600208',gameStatus:3,gameDateTimeUTC:new Date(t-7*3600000).toISOString()},
+  {gameId:'0022600209',gameStatus:3,gameDateTimeUTC:new Date(t-4*3600000).toISOString()},
+  {gameId:'0022600210',gameStatus:2,gameDateTimeUTC:new Date(t-90*60000).toISOString()}
+ ]}]}};
+ assert.deepEqual(new Set(activeGames(oldFinal,t).map(g=>g.id)),
+  new Set(['0022600209','0022600210']));
+});
