@@ -11,9 +11,11 @@ export function activeGames(schedule,now=Date.now()) {
   if(!GAME.test(id)||!Number.isFinite(start))continue;
   const status=Number(row.gameStatus);
   // Include recently completed games to resume missing live windows after final.
+  // Start observing the official slate before tipoff. No source slot is
+  // requested until its entire five-second interval and settle guard elapse.
   const eligible=(status===2&&now>=start-15*60000&&now<=start+8*3600000)
     ||(status===3&&now>=start&&now<=start+8*3600000)
-    ||(status===1&&now>=start&&now<=start+5*3600000);
+    ||(status===1&&now>=start-30*60000&&now<=start+5*3600000);
   if(eligible)found.set(id,{id,tipoff:new Date(start).toISOString()});
  }
  return [...found.values()].sort((a,b)=>a.tipoff.localeCompare(b.tipoff)).slice(0,LIMIT);
