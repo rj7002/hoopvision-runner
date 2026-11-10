@@ -1,0 +1,77 @@
+name: CPU Animate 0208 video-only source jersey identity crop audit
+on:
+  push:
+    branches: ['cpu-animate-0208-event73-pbp-v22-20261110']
+    paths: ['.github/workflows/cpu-animate-0208-jersey-review-v23.yml']
+permissions:
+  contents: read
+jobs:
+  source-kit-crops:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+    steps:
+      - name: Verify original media and archive genuine jersey crops in private source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN" && test ! -e /dev/nvidia0
+          python3 -m pip install -q --disable-pip-version-check opencv-python-headless
+          ROOT="$(mktemp -d)"
+          export ROOT
+          mkdir -p "$ROOT/src" "$ROOT/crops"
+          gh release download cpu-animate-0208-73-pbp-original-source-v1 \
+              --repo timeedmonds-maker/104 --dir "$ROOT/src" --pattern '0208_0073_play-by-play.mp4' >/dev/null
+          echo '506606517d547d0be048c2d6306f324b6c77271ae4d5a3de436a596fe32f6ff4  '$ROOT'/src/0208_0073_play-by-play.mp4' | sha256sum -c -
+          python3 - <<'PY'
+          import cv2,os
+          from pathlib import Path
+          root=Path(os.environ['ROOT'])
+          src=cv2.VideoCapture(str(root/'src/0208_0073_play-by-play.mp4'))
+          crops={
+            'durant_candidate_late_f462':(462,(0,165,125,400)),
+            'durant_candidate_late_f492':(492,(45,160,149,415)),
+            'durant_candidate_late_f522':(522,(98,170,204,420)),
+            'durant_candidate_late_f552':(552,(55,145,148,400)),
+            'durant_candidate_late_f582':(582,(105,145,213,420)),
+            'sengun_candidate_f522':(522,(333,145,430,385)),
+            'sengun_candidate_f552':(552,(485,130,599,375)),
+            'sengun_candidate_f582':(582,(475,110,584,345)),
+            'smart_candidate_f582':(582,(587,170,680,405)),
+            'smart_earlier_f372':(372,(100,100,218,346)),
+            'sengun_earlier_f372':(372,(190,205,300,468)),
+            'smart_f162':(162,(422,65,479,211)),
+            'smart_f192':(192,(537,45,610,198)),
+            'sengun_f222':(222,(457,100,544,263)),
+            'durant_f192':(192,(94,94,192,280))
+          }
+          for name,(j,(x0,y0,x1,y1)) in crops.items():
+              src.set(cv2.CAP_PROP_POS_FRAMES,j)
+              ok,frame=src.read()
+              assert ok
+              crop=frame[y0:y1,x0:x1]
+              assert crop.size
+              scale=3
+              crop=cv2.resize(crop,None,fx=scale,fy=scale,interpolation=cv2.INTER_CUBIC)
+              cv2.imwrite(str(root/'crops'/(name+'.jpg')),crop,[int(cv2.IMWRITE_JPEG_QUALITY),95])
+          src.release()
+          print('CPU_0208_SOURCE_KIT_JERSEY_CROPS_SHA_VERIFIED',len(crops),flush=True)
+          PY
+          for file in "$ROOT"/crops/*.jpg; do
+            export CROP_FILE="$file"
+            python3 - <<'PY' | gh api -X PUT \
+              "repos/timeedmonds-maker/104/contents/docs/cpu_animate/v23_kitcrop_$(basename "$CROP_FILE").b64.txt" \
+              --input - >/dev/null
+          import os,json,base64
+          from pathlib import Path
+          p=Path(os.environ["CROP_FILE"])
+          b=base64.b64encode(p.read_bytes())+b'\n'
+          print(json.dumps({'branch':'cpu-animate/0208-v23-cpu-video-only-20261111',
+            'message':'qa(video-only): original NBA source-frame jersey identification crop',
+            'content':base64.b64encode(b).decode()}))
+          PY
+          done
+          echo CPU_0208_ORIGINAL_SOURCE_PLAYER_KIT_15_CROPS_PRIVATE_COMPLETE
