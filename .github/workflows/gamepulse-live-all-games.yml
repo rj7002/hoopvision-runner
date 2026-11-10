@@ -31,6 +31,36 @@ on:
 permissions:
   contents: read
 jobs:
+  original-source-contracts:
+    # Run the SDK-bearing regression suite only after npm install and only on
+    # code changes, not on every five-minute scheduled discovery.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify original source privacy contract
+        run: python3 tools/public_content_guard.py
+      - name: Install the pinned licensed SDK for synthetic collector tests
+        working-directory: tools/licensed_feed
+        run: |
+          set -euo pipefail
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Run deterministic complete/partial source and lifecycle regressions
+        run: |
+          set -euo pipefail
+          node --check tools/licensed_feed/browser.js
+          node --check tools/licensed_feed/companion_original_sdk_probe.mjs
+          node --check tools/licensed_feed/capture.mjs
+          node --test tools/licensed_feed/capture.test.mjs \
+            tools/licensed_feed/live_capture_cycle.test.mjs \
+            tools/licensed_feed/live_discovery.test.mjs \
+            tools/licensed_feed/sdk_slot.test.mjs \
+            tools/licensed_feed/season_core.test.mjs
   discover:
     runs-on: ubuntu-24.04
     timeout-minutes: 7
