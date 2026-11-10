@@ -1,3 +1,4 @@
+# 2026-11-10 NZ: restore SHA-identical previously verified SDK archives from immutable Nov08 catalog; retire transient scan failures; no XYZ published.
 # 2026-10-26 NZ: verified 36 NBA final fixtures through 2026-10-24 US and eight complete private SDK releases; refresh only provisional index.
 name: Game Pulse private team game player search refresh
 # Licensed source and generated catalog remain PRIVATE. This public workflow
