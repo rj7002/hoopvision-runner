@@ -1,3 +1,4 @@
+# 2026-11-10 NZ: restore >1 MiB private season catalog reads using SHA-addressed Git blobs; no source data change.
 name: Game Pulse Blueprint private fusion searchable x-man warehouse
 # Original SDK season catalog may grow beyond 36 games; preserve source QA and existing validated snapshots.
 # Recheck SHA-safe GitHub private archive writes and ON/OFF WOWY source-gated PPP.
@@ -39,7 +40,9 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
-          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27-auto-refresh-provisional.json?ref=main' --jq .content | base64 -d > "$RUNNER_TEMP/season36-catalog.json"
+          CAT_SHA="$(gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27-auto-refresh-provisional.json?ref=main' --jq .sha)"
+          gh api "repos/timeedmonds-maker/104/git/blobs/$CAT_SHA" --jq .content | base64 -d > "$RUNNER_TEMP/season36-catalog.json"
+          test -s "$RUNNER_TEMP/season36-catalog.json"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/index.json?ref=main' --jq .content | base64 -d > "$RUNNER_TEMP/season36-existing.json"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tracking_onoff/index.json?ref=main' --jq .content | base64 -d > "$RUNNER_TEMP/season-onoff-existing.json"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/status.json?ref=main' --jq .content | base64 -d > "$RUNNER_TEMP/season-fusion-status.json"
@@ -82,8 +85,9 @@ jobs:
             base64 -d > "$ROOT/build.py"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_fusion.py?ref=main' --jq .content |
             base64 -d > "$ROOT/tests/test_fusion.py"
-          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27-auto-refresh-provisional.json?ref=main' --jq .content |
-            base64 -d > "$ROOT/gamepulse-catalog.json"
+          CAT_SHA="$(gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27-auto-refresh-provisional.json?ref=main' --jq .sha)"
+          gh api "repos/timeedmonds-maker/104/git/blobs/$CAT_SHA" --jq .content | base64 -d > "$ROOT/gamepulse-catalog.json"
+          test -s "$ROOT/gamepulse-catalog.json"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/materialize.py?ref=main' --jq .content |
             base64 -d > "$ROOT/materialize.py"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_materialize.py?ref=main' --jq .content |
