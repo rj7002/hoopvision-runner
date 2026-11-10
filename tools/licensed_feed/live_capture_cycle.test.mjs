@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {eligibleSlot} from './live_capture_cycle.mjs';
+import {eligibleSlot,validateLiveManifest} from './live_capture_cycle.mjs';
 const tipoff=Date.parse('2026-10-23T01:30:00Z');
 test('live-first selects latest elapsed slot, not oldest backlog',()=>{
  assert.equal(eligibleSlot(tipoff,tipoff+41*60000+31000),50);
@@ -15,4 +15,21 @@ test('does not request an incomplete current minute',()=>{
 test('ends once all due slots are already archived',()=>{
  const s=new Set(Array.from({length:41},(_,i)=>tipoff+i*60000));
  assert.equal(eligibleSlot(tipoff,tipoff+41*60000+31000,s),null);
+});
+
+test('live-first accepts exact original full and partial five-second receipts, never confuses coverage',()=>{
+ const j={game_id:'0022600208',part:1,start_ms:1794272400000,count:12};
+ const m={schema:'nba-gamepulse-sdk-chunk.v1',game_id:j.game_id,part:1,
+  start_ms:j.start_ms,expected_windows:12,successful_windows:8,capture_complete:false,
+  source_window_starts_ms:[0,1,2,3,4,5,8,9].map(i=>j.start_ms+i*5000),
+  observed:true,imputed:false,frames_with_players:7,frames_with_ball:6,empty_windows:1};
+ assert.equal(validateLiveManifest(j,m),'PARTIAL_5S_SOURCE_COVERAGE');
+ const full={...m,successful_windows:12,capture_complete:true,source_window_starts_ms:
+  Array.from({length:12},(_,i)=>j.start_ms+i*5000)};
+ assert.equal(validateLiveManifest(j,full),'FULL_5S_SOURCE_COVERAGE');
+ for(const bad of [{...m,successful_windows:12},{...m,imputed:true},
+  {...m,source_window_starts_ms:[...m.source_window_starts_ms.slice(0,7),m.source_window_starts_ms[0]]},
+  {...m,source_window_starts_ms:[...m.source_window_starts_ms.slice(0,7),j.start_ms+60000]},
+  {...m,source_window_starts_ms:m.source_window_starts_ms.slice(1)}])
+  assert.throws(()=>validateLiveManifest(j,bad));
 });
