@@ -1,3 +1,4 @@
+# 2026-11-10 23:15 NZ: classifying producer disabled status on entire US Nov 9 slate, source-free public aggregate QA only.
 # Control-vs-missing lifecycle investigation: SDK 1.22.0 event counts and safe HTTP classifications; source response bodies never printed.
 # Reviewed: remaining six official 2026-11-09 US slate games; CPU-only SDK authorised programme discovery, no source XYZ artifacts.
 name: IGP Full154 original positions SDK diagnostic (CPU only)
@@ -19,8 +20,14 @@ jobs:
       max-parallel: 3
       matrix:
         include:
-          - {game_id: '0022600007', tipoff: '2026-10-23T01:30:00.000Z'}
+          - {game_id: '0022600203', tipoff: '2026-11-10T00:00:00.000Z'}
+          - {game_id: '0022600204', tipoff: '2026-11-10T00:00:00.000Z'}
+          - {game_id: '0022600205', tipoff: '2026-11-10T00:00:00.000Z'}
+          - {game_id: '0022600206', tipoff: '2026-11-10T00:30:00.000Z'}
+          - {game_id: '0022600207', tipoff: '2026-11-10T01:00:00.000Z'}
           - {game_id: '0022600208', tipoff: '2026-11-10T01:30:00.000Z'}
+          - {game_id: '0022600209', tipoff: '2026-11-10T02:00:00.000Z'}
+          - {game_id: '0022600210', tipoff: '2026-11-10T03:00:00.000Z'}
     env:
       NBA_GAME_ID: ${{ matrix.game_id }}
       NBA_TIPOFF_UTC: ${{ matrix.tipoff }}
