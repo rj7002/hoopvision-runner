@@ -79,9 +79,8 @@ jobs:
             'source_ready_for_capture':ready},sort_keys=True))
           PY
   recover:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [preflight, source-ready]
-    if: needs.source-ready.outputs.genuine_positions == 'true'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.source-ready.outputs.genuine_positions == 'true'
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -112,8 +111,8 @@ jobs:
           GAMEPULSE_PRIORITY_PART: ${{ matrix.part }}
         run: node season_private_release.mjs
   certify-source:
-    if: always() && github.event_name == 'push' && needs.preflight.result == 'success'
     needs: [preflight, recover]
+    if: needs.preflight.result == 'success' && needs.recover.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 130
     steps:
