@@ -1,0 +1,48 @@
+name: CPU Animate 0208 three-player V22 source-method regression (CPU only)
+on:
+  push:
+    branches: ['cpu-animate-0208-event73-pbp-v22-20261110']
+    paths: ['.github/workflows/cpu-animate-0208-v22-multiplayer-tests.yml']
+permissions:
+  contents: read
+jobs:
+  video-identity-foot-abstention-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+    steps:
+      - name: Verify V22 adapter preserved and synthetic identity gates pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN" && test ! -e /dev/nvidia0
+          python3 -m pip install -q --disable-pip-version-check numpy
+          gh auth setup-git >/dev/null 2>&1
+          DIR="$(mktemp -d)"
+          git clone -q --depth=1 --branch cpu-animate/0208-pbp-three-rings-v22-20261110 \
+            https://github.com/timeedmonds-maker/104.git "$DIR/private"
+          cd "$DIR/private"
+          python3 -m cpu_animate.test_v22_multiplayer_floor_adapter
+          echo V22_THREE_PLAYER_SOURCE_FOOT_IDENTITY_SYNTHETIC_PASS
+      - name: Record synthetic CPU test result
+        if: always()
+        shell: bash
+        env:
+          FINAL_JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | gh api -X PUT \
+            repos/timeedmonds-maker/104/contents/docs/cpu_animate/0208_v22_three_player_synthetic_status.json \
+            --input - >/dev/null
+          import json,base64,os
+          data={"test":"v22_multiplayer_floor_adapter","game_id":"0022600208",
+            "status":os.environ.get("FINAL_JOB_STATUS"),
+            "run_id":os.environ.get("GITHUB_RUN_ID"),
+            "CPU_only":True,"independent_source_video_ring_validation":False}
+          print(json.dumps({"message":"qa: three-player v22 synthetic regression",
+             "branch":"cpu-animate/0208-pbp-three-rings-v22-20261110",
+             "content":base64.b64encode(json.dumps(data,indent=2).encode()).decode()}))
+          PY
