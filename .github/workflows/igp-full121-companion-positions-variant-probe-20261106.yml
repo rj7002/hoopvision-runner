@@ -1,3 +1,4 @@
+# 2026-11-10 HOU-DEN 0208 source programme not ready vs verified ready control 0186: retry with maximal SDK init wait; only genuine first-party slot responses count.
 # Public original SDK probe. The original event bodies never leave ephemeral runner.
 name: IGP Full121 alternate licensed companion SDK program period recovery probe
 on:
@@ -17,14 +18,12 @@ jobs:
         include:
           - {gid: '0022600208', tipoff: '2026-11-10T01:30:00Z'}
           - {gid: '0022600186', tipoff: '2026-11-05T03:30:00Z'}
-          - {gid: '0022600179', tipoff: '2026-11-05T01:00:00Z'}
-          - {gid: '0022600175', tipoff: '2026-11-05T00:30:00Z'}
     env:
       NBA_GAME_ID: ${{ matrix.gid }}
       NBA_TIPOFF_UTC: ${{ matrix.tipoff }}
       IGP_SDK_SOURCE_VARIANT: positions
       IGP_PRIVATE_CAPTURE_DIR: /tmp/igp-full121-source-variant-probe
-      IGP_SDK_INIT_TIMEOUT_MS: '22000'
+      IGP_SDK_INIT_TIMEOUT_MS: '45000'
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
