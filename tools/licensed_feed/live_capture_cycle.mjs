@@ -259,6 +259,8 @@ async function main() {
  if(process.env.GITHUB_OUTPUT)
   appendFileSync(process.env.GITHUB_OUTPUT,'new_capture='+
    String(fullSaved+partialSaved>0)+'\n');
+  appendFileSync(process.env.GITHUB_OUTPUT,'new_full_capture='+
+   String(fullSaved>0)+'\n');
  if(failed>0&&fullSaved+partialSaved===0)process.exitCode=2;
 }
 if(process.argv[1]?.endsWith('live_capture_cycle.mjs')){
