@@ -1,7 +1,7 @@
 name: Public NBA defensive matchup readback 2026-11-11
 on:
   push:
-    branches: [research/nba-matchup-probe-20261111]
+    branches: [research/nba-matchup-gleague-probe-20261111]
   workflow_dispatch:
 permissions:
   contents: read
@@ -16,7 +16,7 @@ jobs:
           python - <<'PY'
           import json, urllib.request, urllib.error, time
           gid="0022600208"
-          base="https://stats.nba.com/stats/boxscorematchupsv3?GameID="+gid
+          base="https://stats.gleague.nba.com/stats/boxscorematchupsv3?GameID="+gid
           headers={
             "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
             "Referer":"https://www.nba.com/",
