@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     env:
-      GH_TOKEN: \${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       CUDA_VISIBLE_DEVICES: '-1'
       NVIDIA_VISIBLE_DEVICES: none
     steps:
@@ -110,4 +110,51 @@ jobs:
             gh release upload "$TAG" "$RUNNER_TEMP/cpu-0208/source/0208_0073_official_pbp_event.json" \
               --repo timeedmonds-maker/104 --clobber >/dev/null
           fi
+          python3 - <<'PY'
+          import base64,json,subprocess,os
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])/"cpu-0208"/"source"
+          src=root/"0208_0073_play-by-play.mp4"
+          q=json.loads((root/"0208_0073_play-by-play_pts_and_source.json").read_text())
+          pts=q["frame_pts_seconds"]
+          for i in range(9):
+              t=pts[0]+(pts[-1]-pts[0])*(.05+.90*i/8)
+              dest=root/f"0208_pbp_review_{i:02}.jpg"
+              subprocess.run(["ffmpeg","-nostdin","-hide_banner","-loglevel","error","-y",
+                  "-ss",str(t),"-i",str(src),"-frames:v","1","-q:v","3",str(dest)],
+                  check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=15)
+              assert dest.stat().st_size>10000
+              txt=root/f"0208_pbp_review_{i:02}.jpg.b64.txt"
+              txt.write_text(base64.b64encode(dest.read_bytes()).decode()+"\n")
+          print("SOURCE_PRIVATE_REVIEW_STILLS_CREATED",9)
+          PY
+          for i in $(seq -w 0 8); do
+            file="$RUNNER_TEMP/cpu-0208/source/0208_pbp_review_${i}.jpg.b64.txt"
+            export FILE_TO_COMMIT="$file"
+            python3 - <<'PY' | gh api \
+              repos/timeedmonds-maker/104/contents/docs/cpu_animate/$(basename "$FILE_TO_COMMIT") \
+              -X PUT --input - >/dev/null
+          import base64,json,os
+          from pathlib import Path
+          p=Path(os.environ["FILE_TO_COMMIT"])
+          print(json.dumps({"message":"qa: source-verified private 0208 event73 Play By Play contact frame",
+                "branch":"cpu-animate/0208-pbp-three-rings-v22-20261110",
+                "content":base64.b64encode(p.read_bytes()).decode()}))
+          PY
+          done
+          export FILE_TO_COMMIT="$RUNNER_TEMP/cpu-0208/source/0208_0073_play-by-play_pts_and_source.json"
+          python3 - <<'PY' | gh api \
+            repos/timeedmonds-maker/104/contents/docs/cpu_animate/0208_0073_source_receipt.json \
+            -X PUT --input - >/dev/null
+          import base64,json,os
+          from pathlib import Path
+          p=Path(os.environ["FILE_TO_COMMIT"])
+          receipt=json.loads(p.read_text())
+          receipt.pop("frame_pts_seconds",None)
+          receipt["private_source_release"]="cpu-animate-0208-73-pbp-original-source-v1"
+          payload=json.dumps(receipt,indent=2).encode()
+          print(json.dumps({"message":"qa: source SHA/PTS provenance for new 0208 angle; no raw media",
+               "branch":"cpu-animate/0208-pbp-three-rings-v22-20261110",
+               "content":base64.b64encode(payload).decode()}))
+          PY
           echo CPU_ANIMATE_0208_73_SOURCE_PRIVATE_INTAKE_COMPLETE
