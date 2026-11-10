@@ -1,0 +1,136 @@
+name: Rockets 0022600208 private companion original SDK source final capture
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-rockets-0208-companion-final-20261110.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: rockets-0022600208-original-companion-single-game
+  cancel-in-progress: false
+jobs:
+  companion:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 44
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - id: '0022600208'
+            tipoff: '2026-11-10T01:30:00.000Z'
+    env:
+      NBA_GAME_ID: ${{ matrix.id }}
+      NBA_TIPOFF_UTC: ${{ matrix.tipoff }}
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      IGP_PRIVATE_CAPTURE_DIR: /tmp/igp-original-companion-oct28
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Install reviewed original SDK privately
+        if: matrix.id != 'none'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          mkdir -p "$IGP_PRIVATE_CAPTURE_DIR"
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          cd tools/licensed_feed
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Read original app events and preserve source SHA
+        if: matrix.id != 'none'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tools/licensed_feed/companion_original_sdk_probe.mjs > "$RUNNER_TEMP/private-sdk-probe.log"
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          root=Path(os.environ["IGP_PRIVATE_CAPTURE_DIR"])
+          q=json.loads((root/"companion_probe_receipt.json").read_bytes())
+          assert q["game_id"]==os.environ["NBA_GAME_ID"]
+          assert not q["authentication_bypass_attempted"] and not q["raw_29joint_pose_60hz_observed"]
+          if q["status"]=="FULL_EVENT_RESPONSE_OBSERVED":
+              p=root/"companion_original_sdk_response.json"
+              assert p.is_file()
+              assert hashlib.sha256(p.read_bytes()).hexdigest()==q["original_body_sha256"]
+              o=json.loads(p.read_bytes())
+              assert isinstance(o,list) and len(o)==q["original_body_event_count"]
+              assert len([x for x in o if x.get("event")=="ShotDetails#show"])==q["original_body_shot_details_count"]
+          print("IGP_OCT28_PRIVATE_COMPANION_ORIGINAL",q["game_id"],q["status"],q.get("original_body_shot_details_count",0))
+          PY
+      - name: Preserve original full app response, retry partial source without losing prior SHA
+        if: matrix.id != 'none'
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/evidence gamepulse/fusion/qa/igp_progress_20261030
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          import hashlib,json,os,shutil
+          from pathlib import Path
+          gid=os.environ["NBA_GAME_ID"]
+          capture=Path(os.environ["IGP_PRIVATE_CAPTURE_DIR"])
+          dest=Path("gamepulse/fusion/evidence")/("companion_sdk_original_"+gid)
+          dest.mkdir(parents=True,exist_ok=True)
+          src=dest/"sdk_observed_original.json"
+          receipt=dest/"sdk_original_receipt.json"
+          old_receipt=Path("gamepulse/fusion/qa/igp_progress_20261030")/("igp_original_companion_source_"+gid+"_20261030.json")
+          d=json.loads((capture/"companion_probe_receipt.json").read_bytes())
+          assert d["game_id"]==gid
+          if src.exists() and not receipt.exists():
+              assert old_receipt.is_file(),"PRIOR_ORIGINAL_WITHOUT_SHA_RECEIPT"
+              assert hashlib.sha256(src.read_bytes()).hexdigest()==json.loads(old_receipt.read_bytes())["original_body_sha256"]
+              shutil.copyfile(old_receipt,receipt)
+          if d["status"]=="FULL_EVENT_RESPONSE_OBSERVED":
+              candidate=capture/"companion_original_sdk_response.json"
+              assert hashlib.sha256(candidate.read_bytes()).hexdigest()==d["original_body_sha256"]
+              new=json.loads(candidate.read_bytes())
+              assert isinstance(new,list) and len(new)==d["original_body_event_count"]
+              if src.exists():
+                  old=json.loads(src.read_bytes())
+                  prior=json.loads(receipt.read_bytes())
+                  assert hashlib.sha256(src.read_bytes()).hexdigest()==prior["original_body_sha256"]
+                  old_shots=sum(x.get("event")=="ShotDetails#show" for x in old)
+                  new_shots=sum(x.get("event")=="ShotDetails#show" for x in new)
+                  if new_shots<old_shots:
+                      print("IGP_ORIGINAL_APP_LOWER_COVERAGE_RETAINED",gid,old_shots,new_shots)
+                  elif new_shots==old_shots and len(new)<=len(old):
+                      print("IGP_ORIGINAL_APP_PREVIOUS_SOURCE_CONSERVED",gid)
+                  else:
+                      folder=dest/"source_revision_history"
+                      folder.mkdir(exist_ok=True)
+                      shutil.copyfile(src,folder/(prior["original_body_sha256"]+".json"))
+                      shutil.copyfile(receipt,folder/(prior["original_body_sha256"]+".receipt.json"))
+                      shutil.copyfile(candidate,src)
+                      receipt.write_text(json.dumps(d,sort_keys=True,indent=2)+"\n")
+                      print("IGP_ORIGINAL_APP_COVERAGE_UPGRADED",gid,old_shots,new_shots)
+              else:
+                  shutil.copyfile(candidate,src)
+                  receipt.write_text(json.dumps(d,sort_keys=True,indent=2)+"\n")
+                  print("IGP_ORIGINAL_APP_SOURCE_SAVED",gid,d["original_body_shot_details_count"])
+          elif not receipt.is_file():
+              receipt.write_text(json.dumps(d,sort_keys=True,indent=2)+"\n")
+              print("IGP_ORIGINAL_APP_RETRY_QUEUED",gid,d["status"])
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "gamepulse/fusion/evidence/companion_sdk_original_$NBA_GAME_ID"
+          git diff --cached --check
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -q -m "data(igp): versioned original NBA companion full-event capture $NBA_GAME_ID"
+          for n in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo IGP_SOURCE_REVISION_SAFE_PRIVATE_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 23
