@@ -32,7 +32,7 @@ jobs:
             -b research/igp-ball-screen-evidence-v1-20261109 \
             https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           cd "$RUNNER_TEMP/private"
-          test "$(git rev-parse HEAD)" = "dd2fe161e078ad1e70e60b4a0b9d7c9582f2dc9c"
+          test "$(git rev-parse HEAD)" = "584b0fd921119e964aa3e1719742c3bc1dbfc572"
           git sparse-checkout set --no-cone \
             /gamepulse/fusion/analysis/igp_ball_screen_research_v1.py \
             /gamepulse/fusion/analysis/igp_four_actor_screen_motifs_v2.py \
@@ -41,8 +41,10 @@ jobs:
             /gamepulse/fusion/analysis/test_igp_screen_event_triad_v3.py \
             gamepulse/fusion/analysis/igp_joint_defender_assignment_v4.py \
             gamepulse/fusion/analysis/test_igp_joint_defender_assignment_v4.py \
+            gamepulse/fusion/analysis/igp_screen_mobile_discrepancy_review_v1.py \
             /gamepulse/fusion/analysis/igp_joint_defender_assignment_v4.py \
             /gamepulse/fusion/analysis/test_igp_joint_defender_assignment_v4.py \
+            /gamepulse/fusion/analysis/igp_screen_mobile_discrepancy_review_v1.py \
             /gamepulse/fusion/analysis/test_igp_ball_screen_research_v1.py \
             /gamepulse/fusion/analysis/igp_full139_ball_screen_validation_v1.py \
             /gamepulse/fusion/analysis/test_igp_full139_ball_screen_validation_v1.py \
@@ -99,6 +101,8 @@ jobs:
             python3 -B gamepulse/fusion/analysis/igp_full139_ball_screen_source_pilot_v1.py --root . --game-id "$gid"
           done
           echo FULL139_SOURCE_NATIVE_FOUR_GAME_PILOT_COMPLETE
+          python3 -B gamepulse/fusion/analysis/igp_screen_mobile_discrepancy_review_v1.py --root . --out "$RUNNER_TEMP/igp_four_discrepancies_mobile.json"
+          echo FULL139_FOUR_DISCREPANCY_MOBILE_LINKS_DERIVED_FROM_SOURCE
           python3 -B gamepulse/fusion/analysis/igp_0194_screen_human_review_queue_v1.py --root . --out "$RUNNER_TEMP/0194_review_queue.json"
           python3 - <<'PY'
           import os,json,hashlib,pathlib
