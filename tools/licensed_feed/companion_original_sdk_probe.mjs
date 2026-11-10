@@ -132,6 +132,8 @@ try{
     result.observed_original_position_keyframes_with_ball>0)?'ORIGINAL_PLAYER_BALL_OBSERVED':
    result.observed_200_slot_responses>0?'ORIGINAL_SLOTS_BUT_NO_PLAYER_BALL':
    result.initialization_result==='error'?'SDK_ERROR':
+   result.sdk_lifecycle?.latest_app_status==='disabled'?
+     'SDK_APP_DISABLED_NO_TRACKING_SLOTS':
    events['app.ready']?'APP_READY_BUT_NO_ORIGINAL_SLOTS':
    events['bridge.ready']?'BRIDGE_READY_APP_NOT_READY':
    events['view.ready']?'VIEW_READY_BRIDGE_NOT_READY':
