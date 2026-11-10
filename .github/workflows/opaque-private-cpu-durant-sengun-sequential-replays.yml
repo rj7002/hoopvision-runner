@@ -1,4 +1,4 @@
-name: CourtCoder V19C event-verified source time KD + Sengun V12
+name: CourtCoder V20 native-video forensic snapshot + KD alignment QA
 # Original pixel-anchor KD seed fix: source-video identity diagnostic V6 rerun
 on:
   push:
@@ -118,8 +118,29 @@ jobs:
                --modelpose "$ROOT/private/yolo11n-pose.pt" \
                --modelseg "$ROOT/private/yolo11n-seg.pt" \
                --out "$ROOT/out" > "$ROOT/render.log" 2>&1 || {
+                  # Preserve once, in the PRIVATE 104 repository, every
+                  # frame/video-PTS, source-native XY and camera warp pairing
+                  # that was actually used. Do not print any raw player positions
+                  # into public runner logs or public artifacts.
+                  if test -s "$ROOT/out/v20_alignment_inputs_private.json"; then
+                    python3 - "$ROOT/out/v20_alignment_inputs_private.json" <<'PY'
+          import base64,json,subprocess,sys
+          from pathlib import Path
+          p=Path(sys.argv[1])
+          branch='cpu-animate/min0181-native-xyz-alignment-v19-20261110'
+          target='repos/timeedmonds-maker/104/contents/docs/cpu_animate/private_v20_min0181_alignment_input_snapshot.json'
+          payload={'message':'qa(cpu animate v20): original NBA private source-video calibration inputs',
+                   'branch':branch,'content':base64.b64encode(p.read_bytes()).decode()}
+          before=subprocess.run(['gh','api',target+'?ref='+branch],capture_output=True,text=True)
+          if before.returncode==0:payload['sha']=json.loads(before.stdout)['sha']
+          post=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],
+               input=json.dumps(payload),capture_output=True,text=True)
+          if post.returncode:raise RuntimeError('PRIVATE_V20_SOURCE_VIDEO_INPUT_ARCHIVE_FAILED')
+          print('PRIVATE_V20_ORIGINAL_SOURCE_VIDEO_PAIRINGS_SAVED',p.stat().st_size)
+          PY
+                  fi
                   tail -c 11000 "$ROOT/render.log"
-                  echo V12_UNIVERSAL_COURT_FLOOR_CPU_PREVIEW_REJECTED
+                  echo V19_NATIVE_VIDEO_ALIGNMENT_UNCERTAINTY_REJECTED
                   exit 5
                }
           tail -c 10000 "$ROOT/render.log"
