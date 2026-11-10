@@ -1,4 +1,4 @@
-name: CourtCoder V19 native XYZ KD to video + Sengun preserved V12
+name: CourtCoder V19B clock-rebased native XYZ KD + Sengun V12
 # Original pixel-anchor KD seed fix: source-video identity diagnostic V6 rerun
 on:
   push:
@@ -103,15 +103,17 @@ jobs:
              --repo timeedmonds-maker/104 --dir "$ROOT/scout" \
              --pattern 'identity-tracks-*.json' \
              > "$ROOT/source-scout.log" 2>&1 || { echo ORIGINAL_VIDEO_IDENTITY_SCOUT_DOWNLOAD_FAILED; exit 4; }
-          gh release download cpu-animate-min-ato-0181-source-40hz-two-player-v1 \
+          gh release download cpu-animate-0181-durant-sengun-native10-coach40 \
              --repo timeedmonds-maker/104 --dir "$ROOT/motion" \
-             --pattern 'min_ato_two_target_full131_derived40hz.json' \
+             --pattern 'durant_sengun_native10hz_coach40hz.json' \
+             --pattern 'durant_sengun_native_motion_qa.json' \
              > "$ROOT/source-native.log" 2>&1 || { echo ORIGINAL_NBA_NATIVE_40HZ_SOURCE_RECOVERY_FAILED; exit 4; }
           env -u GH_TOKEN -u GITHUB_TOKEN -u GIT_ASKPASS \
             python3 -m cpu_animate.min0181_v12_universal_floor_real_video \
                --private "$ROOT/private" --media "$ROOT/media" \
                --scout "$ROOT/scout" \
-               --motion "$ROOT/motion/min_ato_two_target_full131_derived40hz.json" \
+               --motion "$ROOT/motion/durant_sengun_native10hz_coach40hz.json" \
+               --motion_qa "$ROOT/motion/durant_sengun_native_motion_qa.json" \
                --modelcourt "$ROOT/private/basketball_court_best.pt" \
                --modelpose "$ROOT/private/yolo11n-pose.pt" \
                --modelseg "$ROOT/private/yolo11n-seg.pt" \
