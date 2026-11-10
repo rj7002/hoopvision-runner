@@ -1,8 +1,8 @@
-name: CourtCoder V18 KD source-body ring + unchanged Sengun V12 floor
+name: CourtCoder V21 Durant direct-shoe anchored + Sengun V12 original
 # Original pixel-anchor KD seed fix: source-video identity diagnostic V6 rerun
 on:
   push:
-    branches: ['cpu-animate-opaque-private-cpu-20261108']
+    branches: ['cpu-animate-v21-foot-strict-cpu-20261110']
     paths: ['.github/workflows/opaque-private-cpu-durant-sengun-sequential-replays.yml']
 permissions:
   contents: read
@@ -41,7 +41,7 @@ jobs:
           trap 'rm -rf "$ROOT"' EXIT
           gh auth setup-git >/dev/null 2>&1
           git clone -q --depth=1 --filter=blob:none --sparse \
-            --branch cpu-animate/min0181-kd-body-plus-sengun-v12-v18-20261110 \
+            --branch cpu-animate/min0181-kd-direct-video-foot-v21-20261110 \
             https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
             > "$ROOT/clone.log" 2>&1 || { echo PRIVATE_CPU_ANIMATE_SOURCE_CLONE_FAILED; exit 4; }
           git -C "$ROOT/private" sparse-checkout set --no-cone \
@@ -118,7 +118,7 @@ jobs:
           python3 - "$ROOT/out" <<'PY'
           import json,sys
           from pathlib import Path
-          q=json.loads((Path(sys.argv[1])/'v18_kd_body_sengun_v12_split_qa.json').read_text())
+          q=json.loads((Path(sys.argv[1])/'v21_kd_strict_shoe_sengun_v12_qa.json').read_text())
           assert q['frames']>=235
           assert q['original_NBA_source_mutated'] is False
           assert q['camera_cuts_are_hard_resets'] is True
@@ -147,14 +147,17 @@ jobs:
           assert q['sengun_original_v12_source_video_identity_preserved'] is True
           assert q['sengun_original_v12_unmodified_court_filter'] is True
           assert q['sengun_added_body_position_snap_disabled'] is True
-          assert q['kd_v17_verified_body_anchor_fusion_preserved'] is True
+          assert q['kd_v17_verified_body_anchor_fusion_preserved_as_diagnostic'] is True
+          assert q['v21_original_NBA_KD_direct_video_shoe_gate']['direct_real_video_kd_shoe_frames']>=110
+          assert q['v21_no_unverified_long_KD_ring_inference'] is True
+          assert q['v21_original_video_foot_distance_max_px']==6.
           assert q['kd_verified_body_ring_consistency_frames']>=65
           assert q['kd_body_tether_original_video_qa']['body_tethered_renderable_frames']>=80
           assert q['kd_body_tether_original_video_qa']['max_accepted_body_envelope_error_px']<=3.5
           assert q['kd_fused_floor_intervals_have_two_sided_camera_shot_support'] is True
           assert q['kd_fused_original_camera_source_qa']['accepted_floor_frames']>=145
           assert len(q['kd_video_source_manual_anchor_evidence'])>=4
-          assert q['ring_output_qa'].get('Durant_visible_ring_frames',0)>=140
+          assert q['ring_output_qa'].get('Durant_visible_ring_frames',0)>=110
           assert q['ring_output_qa'].get('Sengun_visible_ring_frames',0)>=125
           assert q['ring_output_qa'].get('Sengun_green_reviewed_frames',0)>60
           assert (Path(sys.argv[1])/q['video_file']).stat().st_size>1000000
@@ -164,15 +167,15 @@ jobs:
                  'floor':q['floor_filter_qa'],
                  'ring':q['ring_frame_dynamics']})
           PY
-          TAG=cpu-animate-min0181-kd-body-sengun-v12-v18
+          TAG=cpu-animate-min0181-kd-strict-video-shoe-v21
           gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
             gh release create "$TAG" --repo timeedmonds-maker/104 \
-              --title 'CPU Animate V18: KD body-verified floor rings plus preserved Sengun V12 path' \
-              --notes 'V18 private research: KD floor path = video-verified body and reviewed shoe-keyframe fusion from V17, with body-ring hard gate; Sengun original V12 video identity and court-floor trajectory explicitly preserved, later source-body snap removed. Original frozen three-sector rotating/pulsing HoopVision ring and green-reviewed Sengun control unchanged. No independent real-video shoe p95 or calibrated world court ground truth yet. Third-party court model AGPL.' \
+              --title 'CPU Animate V21: KD direct original video shoe ring strict gate plus original Sengun V12' \
+              --notes 'V21 research video-only accuracy-first: Durant rendered only within 6 source pixels of detected shoe on original KD body or <=120ms two-sided bounded source camera gaps. No 1.9s inferred KD ring; complete original Sengun V12 court path remains exactly unchanged. Frozen HoopVision art. Native XYZ-to-video physical accuracy not certified. NO GPU. Research only.' \
               --latest=false >/dev/null
           gh release upload "$TAG" \
-             "$ROOT/out/MIN0181_V18_KD_SOURCE_BODY_SENGUN_V12_BROADCAST_8S.mp4" \
-             "$ROOT/out/v18_kd_body_sengun_v12_split_qa.json" \
+             "$ROOT/out/MIN0181_V21_KD_SOURCE_FOOT_STRICT_SENGUN_V12_BROADCAST_8S.mp4" \
+             "$ROOT/out/v21_kd_strict_shoe_sengun_v12_qa.json" \
              "$ROOT/out"/v18_floor_review_t*.jpg \
              "$ROOT/out"/v18_kd_body_foot_debug_t*.jpg \
              --repo timeedmonds-maker/104 --clobber
@@ -180,7 +183,7 @@ jobs:
           import base64,json,subprocess,sys
           from pathlib import Path
           out=Path(sys.argv[1])
-          branch='cpu-animate/min0181-kd-body-plus-sengun-v12-v18-20261110'
+          branch='cpu-animate/min0181-kd-direct-video-foot-v21-20261110'
           for sec in (2,3,4,5,6):
               p=out/f'v18_floor_review_t{sec:02}.jpg'
               if not p.is_file():continue
@@ -207,7 +210,7 @@ jobs:
                   if status.returncode:raise RuntimeError('V16_KD_BODY_QA_FRAME_SAVE_FAILED')
           print('V17_ORIGINAL_NBA_REAL_FRAMES_ARCHIVED')
           PY
-          echo V18_KD_BODY_SENGUN_V12_SOURCE_REPLAY_COMPLETE
+          echo V21_KD_STRICT_SHOE_SENGUN_V12_CPU_REPLAY_COMPLETE
           exit 0
           gh release download cpu-animate-min-ato-0181-durant-sengun-identity-scout \
              --repo timeedmonds-maker/104 --dir "$ROOT/scout" \
