@@ -32,7 +32,7 @@ jobs:
             -b research/igp-ball-screen-evidence-v1-20261109 \
             https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           cd "$RUNNER_TEMP/private"
-          test "$(git rev-parse HEAD)" = "e46182514112f2e38fa71bd54df334b2826f80fb"
+          test "$(git rev-parse HEAD)" = "dd2fe161e078ad1e70e60b4a0b9d7c9582f2dc9c"
           git sparse-checkout set --no-cone \
             /gamepulse/fusion/analysis/igp_ball_screen_research_v1.py \
             /gamepulse/fusion/analysis/igp_four_actor_screen_motifs_v2.py \
