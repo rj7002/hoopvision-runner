@@ -8,7 +8,7 @@ permissions:
   contents: read
 concurrency:
   group: cpu-animate-0181-durant-sengun-sequential-v1
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   authentic-single-view-replay:
     runs-on: ubuntu-24.04
