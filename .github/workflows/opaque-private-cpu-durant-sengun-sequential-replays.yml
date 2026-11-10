@@ -1,4 +1,4 @@
-name: CourtCoder V20 cached source-video alignment forensic CPU
+name: CourtCoder V20 cached original XYZ calibration and source-relative blind QA
 on:
   push:
     branches: ['cpu-animate-v20-cached-forensics-20261110']
@@ -52,26 +52,42 @@ jobs:
                      echo CPU_V20_CACHED_FORensics_FAILED
                      exit 5
                 }
-          python3 - "$ROOT/forensic.json" <<'PY'
+          env -u GH_TOKEN -u GITHUB_TOKEN -u GIT_ASKPASS \
+            python3 -m cpu_animate.source_relative_video_motion_v20 \
+               --snapshot "$ROOT/input.json" --out "$ROOT/relative.json" \
+               >> "$ROOT/lab.log" 2>&1 || {
+                   tail -c 1800 "$ROOT/lab.log"
+                   echo CPU_V20_SOURCE_RELATIVE_RESEARCH_FAILED
+                   exit 5
+               }
+          python3 - "$ROOT/forensic.json" "$ROOT/relative.json" <<'PY'
           import base64,json,subprocess,sys
           from pathlib import Path
-          p=Path(sys.argv[1]); d=json.loads(p.read_text())
+          paths=[Path(x) for x in sys.argv[1:]]
+          d=json.loads(paths[0].read_text())
+          rel=json.loads(paths[1].read_text())
           assert d['schema']=='cpu-animate.v20.source-to-video-forensic.heldout.v1'
           assert d['shot_results']
           assert d['manual_shoe_ground_truth_certified'] is False
-          assert d['video_to_UTC_timing_physically_certified'] is False
+          assert rel['absolute_native_camera_projection_certified'] is False
+          assert rel['source_preview_promotion_certified'] is False
           branch='cpu-animate/min0181-native-xyz-alignment-v19-20261110'
-          target='repos/timeedmonds-maker/104/contents/docs/cpu_animate/private_v20_min0181_offline_source_forensic_report.json'
-          payload={'message':'qa(cpu animate v20): source-video original player comparison on heldout original footage',
-                   'branch':branch,'content':base64.b64encode(p.read_bytes()).decode()}
-          old=subprocess.run(['gh','api',target+'?ref='+branch],capture_output=True,text=True)
-          if old.returncode==0:payload['sha']=json.loads(old.stdout)['sha']
-          status=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],
-               input=json.dumps(payload),capture_output=True,text=True)
-          if status.returncode:raise RuntimeError('PRIVATE_V20_FORENSIC_SAVE_FAILED')
+          destinations=[
+             'private_v20_min0181_offline_source_forensic_report.json',
+             'private_v20_min0181_blind_native_relative_motion_qa.json']
+          for path,name in zip(paths,destinations):
+              target='repos/timeedmonds-maker/104/contents/docs/cpu_animate/'+name
+              payload={'message':'qa(cpu animate v20): cached private original NBA real-video heldout research',
+                       'branch':branch,'content':base64.b64encode(path.read_bytes()).decode()}
+              old=subprocess.run(['gh','api',target+'?ref='+branch],capture_output=True,text=True)
+              if old.returncode==0:payload['sha']=json.loads(old.stdout)['sha']
+              status=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],
+                   input=json.dumps(payload),capture_output=True,text=True)
+              if status.returncode:raise RuntimeError('PRIVATE_V20_FORENSIC_SAVE_FAILED')
           for result in d['shot_results']:
               print('CPU_V20_FORENSIC_CANDIDATE_REPORT',
-                result['shot'],result.get('candidates_tried'),
-                result.get('top_ten_development_candidates_then_blind_test',[None])[0])
+                 result['shot'],result.get('candidates_tried'),
+                 result.get('top_ten_development_candidates_then_blind_test',[None])[0])
+          print('CPU_V20_SOURCE_RELATIVE_KD_BLIND_GATE',rel)
           print('CPU_V20_SOURCE_CALIBRATION_FORENSIC_COMPLETE')
           PY
