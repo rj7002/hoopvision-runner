@@ -1,0 +1,74 @@
+name: CourtCoder V20 cached native-video source calibration forensic
+on:
+  push:
+    branches: ['cpu-animate-v20-cached-forensics-20261110']
+    paths: ['.github/workflows/cpu-animate-v20-cached-source-forensics.yml']
+permissions:
+  contents: read
+jobs:
+  v20-source-video-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate no GPU and private-data isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN" && test ! -e /dev/nvidia0 && test ! -e /dev/kfd
+          echo V20_CPU_SOURCE_PRIVACY_GUARD_PASS
+      - name: Source snapshot laboratory, no YOLO, no video re-encoding
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(mktemp -d)"
+          chmod 700 "$ROOT"
+          trap 'rm -rf "$ROOT"' EXIT
+          gh auth setup-git >/dev/null 2>&1
+          git clone -q --depth=1 --filter=blob:none --sparse \
+              --branch cpu-animate/min0181-native-xyz-alignment-v19-20261110 \
+              https://github.com/timeedmonds-maker/104.git "$ROOT/private"
+          git -C "$ROOT/private" sparse-checkout set --no-cone '/cpu_animate/'
+          gh api 'repos/timeedmonds-maker/104/contents/docs/cpu_animate/private_v20_min0181_alignment_input_snapshot.json?ref=cpu-animate/min0181-native-xyz-alignment-v19-20261110' \
+            --jq '.content' | base64 --decode > "$ROOT/input.json"
+          test "$(wc -c < "$ROOT/input.json")" -ge 200000
+          python3 -m pip install -q --disable-pip-version-check numpy opencv-python-headless
+          cd "$ROOT/private"
+          env -u GH_TOKEN -u GITHUB_TOKEN -u GIT_ASKPASS \
+           python3 -m cpu_animate.native_video_forensics_v20 \
+             --snapshot "$ROOT/input.json" --out "$ROOT/forensic.json" \
+             > "$ROOT/report.log" 2>&1 || {
+                tail -c 4500 "$ROOT/report.log"
+                echo V20_CACHED_SOURCE_FORENSICS_FAILED
+                exit 5
+             }
+          tail -c 12000 "$ROOT/report.log"
+          python3 - "$ROOT/forensic.json" <<'PY'
+          import json,subprocess,sys,base64
+          from pathlib import Path
+          p=Path(sys.argv[1])
+          d=json.loads(p.read_text())
+          assert d['schema']=='cpu-animate.v20.source-to-video-forensic.heldout.v1'
+          assert not d['manual_shoe_ground_truth_certified']
+          assert not d['video_to_UTC_timing_physically_certified']
+          assert d['shot_results']
+          branch='cpu-animate/min0181-native-xyz-alignment-v19-20261110'
+          dest='repos/timeedmonds-maker/104/contents/docs/cpu_animate/private_v20_min0181_offline_source_forensic_report.json'
+          payload={'message':'qa(cpu-animate v20): original NBA source to video cached forensic per-player heldout',
+                   'branch':branch,'content':base64.b64encode(p.read_bytes()).decode()}
+          old=subprocess.run(['gh','api',dest+'?ref='+branch],capture_output=True,text=True)
+          if old.returncode==0:payload['sha']=json.loads(old.stdout)['sha']
+          done=subprocess.run(['gh','api','-X','PUT',dest,'--input','-'],
+               input=json.dumps(payload),capture_output=True,text=True)
+          if done.returncode:raise RuntimeError('V20_PRIVATE_FORENSIC_REPORT_ARCHIVE_FAILED')
+          print('V20_ORIGINAL_SOURCE_PRIVATE_HELDOUT_CPU_FORENSIC_PASS',p.stat().st_size)
+          PY
