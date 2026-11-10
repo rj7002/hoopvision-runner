@@ -1,3 +1,4 @@
+# 2026-11-10 NZ: quarantine failing SDK catalog records in derived Blueprint build, retain original evidence unchanged.
 # 2026-11-10 NZ: restore >1 MiB private season catalog reads using SHA-addressed Git blobs; no source data change.
 name: Game Pulse Blueprint private fusion searchable x-man warehouse
 # Original SDK season catalog may grow beyond 36 games; preserve source QA and existing validated snapshots.
@@ -43,6 +44,21 @@ jobs:
           CAT_SHA="$(gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27-auto-refresh-provisional.json?ref=main' --jq .sha)"
           gh api "repos/timeedmonds-maker/104/git/blobs/$CAT_SHA" --jq .content | base64 -d > "$RUNNER_TEMP/season36-catalog.json"
           test -s "$RUNNER_TEMP/season36-catalog.json"
+          # Keep original private source catalog immutable; materialize only verified SHA-backed games.
+          python3 - "$RUNNER_TEMP/season36-catalog.json" <<'PY'
+          import json,sys
+          from pathlib import Path
+          p=Path(sys.argv[1])
+          data=json.loads(p.read_bytes())
+          source=data["games"]
+          verified={gid:g for gid,g in source.items() if g.get("index_state")=="VERIFIED_ARCHIVE_INDEX" and g.get("source_signature")}
+          quarantined=sorted(set(source)-set(verified))
+          assert len(verified)>=36 and len(verified)+len(quarantined)==len(source)
+          data["games"]=verified
+          data["game_count"]=len(verified)
+          p.write_text(json.dumps(data,sort_keys=True,separators=(",",":"))+"\n")
+          print("PRIVATE_BLUEPRINT_SHA_VERIFIED_COHORT",len(verified),"quarantined_game_ids",",".join(quarantined) or "none")
+          PY
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/index.json?ref=main' --jq .content | base64 -d > "$RUNNER_TEMP/season36-existing.json"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tracking_onoff/index.json?ref=main' --jq .content | base64 -d > "$RUNNER_TEMP/season-onoff-existing.json"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/status.json?ref=main' --jq .content | base64 -d > "$RUNNER_TEMP/season-fusion-status.json"
@@ -85,8 +101,7 @@ jobs:
             base64 -d > "$ROOT/build.py"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_fusion.py?ref=main' --jq .content |
             base64 -d > "$ROOT/tests/test_fusion.py"
-          CAT_SHA="$(gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27-auto-refresh-provisional.json?ref=main' --jq .sha)"
-          gh api "repos/timeedmonds-maker/104/git/blobs/$CAT_SHA" --jq .content | base64 -d > "$ROOT/gamepulse-catalog.json"
+          cp "$RUNNER_TEMP/season36-catalog.json" "$ROOT/gamepulse-catalog.json"
           test -s "$ROOT/gamepulse-catalog.json"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/materialize.py?ref=main' --jq .content |
             base64 -d > "$ROOT/materialize.py"
