@@ -80,6 +80,7 @@ jobs:
           else
              OUT="gamepulse/fusion/materialized/igp_0022600208_sourcegraded_10hz_v1"
           fi
+          export PRIVATE_10HZ_OUT="$OUT"
           echo "PRIVATE_10HZ_OUT=$OUT" >> "$GITHUB_ENV"
           if test ! -e "$OUT"; then
              python3 gamepulse/fusion/igp_0022600208_original_to_10hz_v1.py --root . --out-dir "$OUT"
