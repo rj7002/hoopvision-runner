@@ -1,0 +1,60 @@
+name: IGP Full154 original positions SDK diagnostic (CPU only)
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/gamepulse-igp-full154-sdk-position-diagnostic-20261110.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: igp-full154-sdk-positions-bounded-diagnostic
+  cancel-in-progress: false
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify public code boundary and source
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          node --check tools/licensed_feed/companion_original_sdk_probe.mjs
+          node --check tools/licensed_feed/browser.js
+      - name: Install original licensed SDK from existing registry (no GPU)
+        working-directory: tools/licensed_feed
+        run: |
+          set -euo pipefail
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Test source-observed positions programme for newest and earlier games
+        env:
+          IGP_SDK_SOURCE_VARIANT: positions
+          IGP_PRIVATE_CAPTURE_DIR: /tmp/igp-sdk-positions-diagnostic
+        run: |
+          set -euo pipefail
+          mkdir -p "$IGP_PRIVATE_CAPTURE_DIR"
+          for row in "0022600208 2026-11-10T01:30:00.000Z" "0022600205 2026-11-10T00:00:00.000Z" "0022600189 2026-11-07T22:00:00.000Z"; do
+            read -r NBA_GAME_ID NBA_TIPOFF_UTC <<< "$row"
+            export NBA_GAME_ID NBA_TIPOFF_UTC
+            echo "IGP_POSITIONS_PROBE_GAME $NBA_GAME_ID"
+            node tools/licensed_feed/companion_original_sdk_probe.mjs
+            python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          d=json.loads((Path(os.environ["IGP_PRIVATE_CAPTURE_DIR"])/"companion_probe_receipt.json").read_bytes())
+          assert d["app_program_variant"]=="positions"
+          assert not d["authentication_bypass_attempted"]
+          print("IGP_POSITIONS_SDK_DIAGNOSTIC",json.dumps({
+             k:d.get(k) for k in ("game_id","initialization_result","status",
+               "first_party_http_status_counts","first_party_program_http_status_counts",
+               "first_party_program_response_categories","sdk_browser_page_errors",
+               "observed_200_slot_responses","observed_original_position_keyframes_with_players",
+               "observed_original_position_keyframes_with_ball")
+          },sort_keys=True))
+          PY
+          done
+          echo IGP_FULL154_DIAGNOSTIC_NO_SOURCE_PROMOTION
