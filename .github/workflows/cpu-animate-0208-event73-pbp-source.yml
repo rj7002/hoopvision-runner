@@ -158,3 +158,26 @@ jobs:
                "content":base64.b64encode(payload).decode()}))
           PY
           echo CPU_ANIMATE_0208_73_SOURCE_PRIVATE_INTAKE_COMPLETE
+
+      - name: Record authenticated completion state for source QA
+        if: always()
+        shell: bash
+        env:
+          SOURCE_JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          python3 - <<'PY' | gh api \
+            repos/timeedmonds-maker/104/contents/docs/cpu_animate/0208_0073_ingestion_job_status.json \
+            -X PUT --input - >/dev/null
+          import base64,json,os
+          data={"game_id":"0022600208","event_id":73,"camera":"Play By Play",
+             "source_job_status":os.environ.get("SOURCE_JOB_STATUS","UNKNOWN"),
+             "github_run_id":os.environ.get("GITHUB_RUN_ID"),
+             "github_sha":os.environ.get("GITHUB_SHA"),
+             "cpu_only":True,
+             "rings_rendered":False}
+          print(json.dumps({"message":"qa: 0208 original NBA camera intake result",
+                "branch":"cpu-animate/0208-pbp-three-rings-v22-20261110",
+                "content":base64.b64encode(json.dumps(data,indent=2).encode()).decode()}))
+          PY
