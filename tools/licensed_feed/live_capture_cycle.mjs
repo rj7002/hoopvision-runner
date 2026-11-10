@@ -241,8 +241,9 @@ async function main() {
    // Two independent empty minutes with no source response are sufficient
    // for this cycle. Retry on the next scheduled discovery, not ten times
    // against a programme that has not published authentic SDK slots.
-   if(failed>=2&&fullSaved+partialSaved===0&&
-      ['uncovered_window','sdk_session_url_missing','sdk_initialization_failed'].includes(safe)){
+   if(safe==='sdk_app_disabled'||
+      (failed>=2&&fullSaved+partialSaved===0&&
+       ['uncovered_window','sdk_session_url_missing','sdk_initialization_failed'].includes(safe))){
     console.log('LIVE_POSITIONS_FEED_UNAVAILABLE_BACKOFF',id,safe);
     break;
    }
@@ -256,16 +257,17 @@ async function main() {
   distinct_minutes_attempted:attempted.size,failures};
  console.log('LIVE_FIRST_INGESTION_CYCLE',JSON.stringify(result));
  if(process.env.GITHUB_STEP_SUMMARY)appendFileSync(process.env.GITHUB_STEP_SUMMARY,
-  '### Live-first original SDK source health\\n\\n'+
+  '### Live-first original SDK source health\n\n'+
   'Game '+id+'; complete source minutes '+fullSaved+'; authentic partial minutes '+
-  partialSaved+'; failed minutes '+failed+'. Missing XYZ remains unobserved, never imputed.\\n');
- if(process.env.GITHUB_OUTPUT)
+  partialSaved+'; failed minutes '+failed+'. Missing XYZ remains unobserved, never imputed.\n');
+ if(process.env.GITHUB_OUTPUT){
   appendFileSync(process.env.GITHUB_OUTPUT,'new_capture='+
    String(fullSaved+partialSaved>0)+'\n');
   appendFileSync(process.env.GITHUB_OUTPUT,'new_full_capture='+
    String(fullSaved>0)+'\n');
   appendFileSync(process.env.GITHUB_OUTPUT,'new_tracking_capture='+
    String(fullTrackingSaved>0)+'\n');
+ }
  if(failed>0&&fullSaved+partialSaved===0)process.exitCode=2;
 }
 if(process.argv[1]?.endsWith('live_capture_cycle.mjs')){
