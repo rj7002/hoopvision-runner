@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {checkJob,stats} from './capture.mjs';
+import {checkJob,stats,sdkInitCanSeek} from './capture.mjs';
 const j={game_id:'0022699999',account_id:'nba',program_id:'companion-0022699999-positions',start_ms:1792522800000,count:2,part:0};
 test('exact window and program scoping',()=>{
  assert.equal(checkJob(j).count,2);
@@ -15,4 +15,12 @@ test('missingness remains observed',()=>{
  assert.equal(result.manifest.empty_windows,1);
  assert.equal(result.manifest.frames_with_players,1);
  assert.equal(result.manifest.frames_with_ball,1);
+});
+
+test('post-final SDK late-ready handling remains strictly source gated',()=>{
+ assert.equal(sdkInitCanSeek('ready'),true);
+ assert.equal(sdkInitCanSeek('timeout'),true);
+ assert.equal(sdkInitCanSeek('error'),false);
+ assert.equal(sdkInitCanSeek(''),false);
+ assert.equal(sdkInitCanSeek(undefined),false);
 });
