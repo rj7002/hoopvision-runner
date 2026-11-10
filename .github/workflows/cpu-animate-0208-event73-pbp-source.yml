@@ -23,6 +23,10 @@ jobs:
           set -euo pipefail
           test -n "$GH_TOKEN"
           test ! -e /dev/nvidia0
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update -qq >/dev/null
+            sudo apt-get install -y -qq ffmpeg >/dev/null
+          fi
           mkdir -p "$RUNNER_TEMP/cpu-0208/source"
           cd "$RUNNER_TEMP/cpu-0208"
           python3 - <<'PY'
@@ -167,6 +171,7 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$GH_TOKEN"
+          export OLD_RECEIPT_SHA="$(gh api repos/timeedmonds-maker/104/contents/docs/cpu_animate/0208_0073_ingestion_job_status.json?ref=cpu-animate/0208-pbp-three-rings-v22-20261110 --jq .sha 2>/dev/null || true)"
           python3 - <<'PY' | gh api \
             repos/timeedmonds-maker/104/contents/docs/cpu_animate/0208_0073_ingestion_job_status.json \
             -X PUT --input - >/dev/null
@@ -177,7 +182,9 @@ jobs:
              "github_sha":os.environ.get("GITHUB_SHA"),
              "cpu_only":True,
              "rings_rendered":False}
-          print(json.dumps({"message":"qa: 0208 original NBA camera intake result",
+          payload={"message":"qa: 0208 original NBA camera intake result",
                 "branch":"cpu-animate/0208-pbp-three-rings-v22-20261110",
-                "content":base64.b64encode(json.dumps(data,indent=2).encode()).decode()}))
+                "content":base64.b64encode(json.dumps(data,indent=2).encode()).decode()}
+          if os.environ.get("OLD_RECEIPT_SHA"): payload["sha"]=os.environ["OLD_RECEIPT_SHA"]
+          print(json.dumps(payload))
           PY
