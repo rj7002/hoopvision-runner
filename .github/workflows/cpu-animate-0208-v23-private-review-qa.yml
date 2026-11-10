@@ -1,0 +1,42 @@
+name: CPU Animate 0208 V23 private render review archive
+on:
+  push:
+    branches: ['cpu-animate-0208-event73-pbp-v22-20261110']
+    paths: ['.github/workflows/cpu-animate-0208-v23-private-review-qa.yml']
+permissions:
+  contents: read
+jobs:
+  preserve-reviewed-source-rings:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - name: Source-to-output receipt and frame QA remain private
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN" && test ! -e /dev/nvidia0
+          D="$(mktemp -d)"
+          export D
+          gh release download cpu-animate-0208-73-playbyplay-v23-three-rings-video-only \
+            --repo timeedmonds-maker/104 --dir "$D" \
+            --pattern '0208_v23_ring_review_f*.jpg' \
+            --pattern '0208_v23_video_only_three_player_qa.json' >/dev/null
+          test -s "$D/0208_v23_video_only_three_player_qa.json"
+          test "$(find "$D" -name '0208_v23_ring_review_f*.jpg' | wc -l)" -eq 20
+          for file in "$D"/0208_v23_ring_review_f*.jpg "$D"/0208_v23_video_only_three_player_qa.json; do
+            export SRC="$file"
+            python3 - <<'PY' | gh api -X PUT \
+              "repos/timeedmonds-maker/104/contents/docs/cpu_animate/v23_final_$(basename "$SRC").b64.txt" \
+              --input - >/dev/null
+          import json,os,base64
+          from pathlib import Path
+          f=Path(os.environ["SRC"])
+          raw=(base64.b64encode(f.read_bytes())+b'\n') if f.suffix=='.jpg' else f.read_bytes()
+          print(json.dumps({'branch':'cpu-animate/0208-v23-cpu-video-only-20261111',
+           'message':'qa(original NBA clip 0208 event 73): private accepted video-only ring review evidence',
+           'content':base64.b64encode(raw).decode()}))
+          PY
+          done
+          echo V23_PRIVATE_ORIGINAL_NBA_3RING_REVIEW_QA_ARCHIVED
