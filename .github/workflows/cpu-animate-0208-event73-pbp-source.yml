@@ -128,7 +128,7 @@ jobs:
               txt.write_text(base64.b64encode(dest.read_bytes()).decode()+"\n")
           print("SOURCE_PRIVATE_REVIEW_STILLS_CREATED",9)
           PY
-          for i in $(seq -w 0 8); do
+          for i in $(seq -w 00 08); do
             file="$RUNNER_TEMP/cpu-0208/source/0208_pbp_review_${i}.jpg.b64.txt"
             export FILE_TO_COMMIT="$file"
             python3 - <<'PY' | gh api \
