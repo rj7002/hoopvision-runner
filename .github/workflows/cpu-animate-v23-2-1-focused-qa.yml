@@ -1,0 +1,54 @@
+name: CPU Animate V23.2.1 focused QA three source anchors
+on:
+  push:
+    branches: ['cpu-animate-0208-event73-pbp-v22-20261110']
+    paths: ['.github/workflows/cpu-animate-v23-2-1-focused-qa.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - name: Preserve only the original recovered Durant and safe Smart frames
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          D="$(mktemp -d)"
+          export D
+          gh release download cpu-animate-0208-73-playbyplay-v23-2-1-continuity-repaired \
+            --repo timeedmonds-maker/104 --dir "$D" \
+            --pattern '0208_v23_2_1_ring_review_f192.jpg' \
+            --pattern '0208_v23_2_1_ring_review_f222.jpg' \
+            --pattern '0208_v23_2_1_ring_review_f552.jpg' \
+            --pattern '0208_v23_2_1_ring_review_f582.jpg' \
+            --pattern '0208_v23_2_1_video_only_three_player_qa.json' >/dev/null
+          test "$(find "$D" -name '0208_v23_2_1_ring_review_f*.jpg' | wc -l)" -eq 4
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          q=json.loads((Path(os.environ['D'])/'0208_v23_2_1_video_only_three_player_qa.json').read_text())
+          assert q['ring_frames']['Durant']>=225
+          assert 192 in q['ring_video_frame_indices']['Durant']
+          assert 552 not in q['ring_video_frame_indices']['Smart']
+          assert q['source_xyz_used'] is False
+          print('SOURCE_VIDEO_V23_2_1_RESTORED_DURANT_192_AND_NO_FALSE_SMART_552',q['ring_frames'])
+          PY
+          for f in "$D"/*.jpg "$D"/*.json; do
+            export SOURCE_FILE="$f"
+            python3 - <<'PY' | gh api -X PUT \
+              "repos/timeedmonds-maker/104/contents/docs/cpu_animate/v23_2_1_verified_$(basename "$SOURCE_FILE").b64.txt" \
+              --input - >/dev/null
+          import base64,json,os
+          from pathlib import Path
+          p=Path(os.environ['SOURCE_FILE'])
+          raw=base64.b64encode(p.read_bytes())+b'\n' if p.suffix=='.jpg' else p.read_bytes()
+          print(json.dumps({'branch':'cpu-animate/0208-v23-2-1-observed-segment-recovery-20261111',
+             'message':'qa: focused V23.2.1 original 0208 source video video-only rings',
+             'content':base64.b64encode(raw).decode()}))
+          PY
+          done
+          echo V23_2_1_FOCUSED_VISUAL_QA_PRIVATE_ACCEPTED
