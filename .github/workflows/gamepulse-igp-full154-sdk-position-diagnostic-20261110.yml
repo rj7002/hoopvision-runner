@@ -1,3 +1,4 @@
+# Source-safe: exact workflow allowlisted by public_content_guard.py; zero private XYZ in public logs.
 name: IGP Full154 original positions SDK diagnostic (CPU only)
 on:
   push:
