@@ -121,7 +121,7 @@ jobs:
           GAMEPULSE_LIVE_TIPOFF: ${{ matrix.game.tipoff }}
         run: node live_capture_cycle.mjs
       - name: Privately materialize SDK native touch counts and source-gated paint touches
-        if: success() && matrix.game.id != 'none' && steps.ingest.outputs.new_full_capture == 'true'
+        if: success() && matrix.game.id != 'none' && steps.ingest.outputs.new_tracking_capture == 'true'
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
           GAME_ID: ${{ matrix.game.id }}
@@ -168,7 +168,7 @@ jobs:
           else:raise RuntimeError("private_touch_conflict")
           PY
       - name: Build and publish tracking-reconstructed touches from player-ball XYZ
-        if: success() && matrix.game.id != 'none' && steps.ingest.outputs.new_full_capture == 'true'
+        if: success() && matrix.game.id != 'none' && steps.ingest.outputs.new_tracking_capture == 'true'
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
           GAME_ID: ${{ matrix.game.id }}
@@ -209,7 +209,7 @@ jobs:
           else:raise RuntimeError("tracking_touch_publish_conflict")
           PY
       - name: Build private generic live lineup ONOFF and NBA Blueprint xFG search
-        if: success() && matrix.game.id != 'none' && steps.ingest.outputs.new_full_capture == 'true'
+        if: success() && matrix.game.id != 'none' && steps.ingest.outputs.new_tracking_capture == 'true'
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
           GAME_ID: ${{ matrix.game.id }}
@@ -245,7 +245,7 @@ jobs:
           else:raise RuntimeError("private_live_analytics_publish_failed")
           PY
       - name: Preserve independent live source coverage QA privately
-        if: success() && matrix.game.id != 'none' && steps.ingest.outputs.new_full_capture == 'true'
+        if: success() && matrix.game.id != 'none' && steps.ingest.outputs.new_tracking_capture == 'true'
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
           GAME_ID: ${{ matrix.game.id }}
