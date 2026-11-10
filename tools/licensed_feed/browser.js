@@ -1,12 +1,12 @@
 import EaseLive from '@ease-live/ease-live-bridge-web';
 let client;
 let lifecycle={event_counts:{},error_type_counts:{warning:0,fatal:0,unknown:0},
- latest_app_status:null};
+ app_status_counts:{enabled:0,hidden:0,disabled:0},latest_app_status:null};
 window.ephemeralFeed = {
   initialize: ({accountId,programId,timeoutMs=16000}) => new Promise(resolve => {
     let settled = false;
     lifecycle={event_counts:{},error_type_counts:{warning:0,fatal:0,unknown:0},
-      latest_app_status:null};
+      app_status_counts:{enabled:0,hidden:0,disabled:0},latest_app_status:null};
     const done = value => {if (!settled) {settled = true; resolve(value);}};
     try {
       client = new EaseLive({
@@ -22,7 +22,8 @@ window.ephemeralFeed = {
           lifecycle.event_counts[name]=(lifecycle.event_counts[name]||0)+1;
           if (name==='app.status' &&
               ['enabled','hidden','disabled'].includes(payload?.status))
-            lifecycle.latest_app_status=payload.status;
+            {lifecycle.latest_app_status=payload.status;
+             lifecycle.app_status_counts[payload.status]++;}
           if (name.endsWith('.error')) {
             const type=['fatal','warning'].includes(payload?.type)?
               payload.type:'unknown';
@@ -44,6 +45,7 @@ window.ephemeralFeed = {
   diagnostics: () => ({
     event_counts:{...lifecycle.event_counts},
     error_type_counts:{...lifecycle.error_type_counts},
+    app_status_counts:{...lifecycle.app_status_counts},
     latest_app_status:lifecycle.latest_app_status
   }),
   seek: ms => {
