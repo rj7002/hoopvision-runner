@@ -1,62 +1,72 @@
-# Source-safe: exact workflow allowlisted by public_content_guard.py; zero private XYZ in public logs.
+# Reviewed: remaining six official 2026-11-09 US slate games; CPU-only SDK authorised programme discovery, no source XYZ artifacts.
 name: IGP Full154 original positions SDK diagnostic (CPU only)
 on:
   push:
     branches: [main]
     paths: [.github/workflows/gamepulse-igp-full154-sdk-position-diagnostic-20261110.yml]
   workflow_dispatch:
-permissions:
-  contents: read
+permissions: {contents: read}
 concurrency:
   group: igp-full154-sdk-positions-bounded-diagnostic
   cancel-in-progress: false
 jobs:
   probe:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - {game_id: '0022600203', tipoff: '2026-11-10T00:00:00.000Z'}
+          - {game_id: '0022600204', tipoff: '2026-11-10T00:00:00.000Z'}
+          - {game_id: '0022600206', tipoff: '2026-11-10T00:30:00.000Z'}
+          - {game_id: '0022600207', tipoff: '2026-11-10T01:00:00.000Z'}
+          - {game_id: '0022600209', tipoff: '2026-11-10T02:00:00.000Z'}
+          - {game_id: '0022600210', tipoff: '2026-11-10T03:00:00.000Z'}
+    env:
+      NBA_GAME_ID: ${{ matrix.game_id }}
+      NBA_TIPOFF_UTC: ${{ matrix.tipoff }}
+      IGP_SDK_SOURCE_VARIANT: positions
+      IGP_SDK_INIT_TIMEOUT_MS: '45000'
+      IGP_PRIVATE_CAPTURE_DIR: /tmp/igp-sdk-position-census
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
-      - name: Verify public code boundary and source
+      - name: Verify public source boundary and SDK syntax
         run: |
           set -euo pipefail
           python3 tools/public_content_guard.py
           node --check tools/licensed_feed/companion_original_sdk_probe.mjs
           node --check tools/licensed_feed/browser.js
-      - name: Install original licensed SDK from existing registry (no GPU)
+      - name: Install authentic SDK (CPU, scripts disabled)
         working-directory: tools/licensed_feed
         run: |
-          set -euo pipefail
           npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
           npm install --ignore-scripts --no-audit --no-fund --silent
-      - name: Test source-observed positions programme for newest and earlier games
-        env:
-          IGP_SDK_SOURCE_VARIANT: positions
-          IGP_SDK_INIT_TIMEOUT_MS: "45000"
-          IGP_PRIVATE_CAPTURE_DIR: /tmp/igp-sdk-positions-diagnostic
+      - name: Determine genuine original XYZ slot availability for one game
         run: |
           set -euo pipefail
           mkdir -p "$IGP_PRIVATE_CAPTURE_DIR"
-          for row in "0022600007 2026-10-23T01:30:00.000Z" "0022600208 2026-11-10T01:30:00.000Z"; do
-            read -r NBA_GAME_ID NBA_TIPOFF_UTC <<< "$row"
-            export NBA_GAME_ID NBA_TIPOFF_UTC
-            echo "IGP_POSITIONS_PROBE_GAME $NBA_GAME_ID"
-            node tools/licensed_feed/companion_original_sdk_probe.mjs
-            python3 - <<'PY'
+          node tools/licensed_feed/companion_original_sdk_probe.mjs > "$RUNNER_TEMP/private-source-probe.log"
+          python3 - <<'PY'
           import json,os
           from pathlib import Path
-          d=json.loads((Path(os.environ["IGP_PRIVATE_CAPTURE_DIR"])/"companion_probe_receipt.json").read_bytes())
-          assert d["app_program_variant"]=="positions"
-          assert not d["authentication_bypass_attempted"]
-          print("IGP_POSITIONS_SDK_DIAGNOSTIC",json.dumps({
-             k:d.get(k) for k in ("game_id","initialization_result","status",
-               "first_party_http_status_counts","first_party_program_http_status_counts",
-               "first_party_program_response_categories","sdk_browser_page_errors",
-               "observed_200_slot_responses","observed_original_position_keyframes_with_players",
-               "observed_original_position_keyframes_with_ball")
+          d=json.loads((Path(os.environ['IGP_PRIVATE_CAPTURE_DIR'])/'companion_probe_receipt.json').read_bytes())
+          assert d['game_id']==os.environ['NBA_GAME_ID'] and d['app_program_variant']=='positions'
+          assert d['authentication_bypass_attempted'] is False
+          print('IGP_FULL154_ORIGINAL_SDK_CENSUS',json.dumps({
+            'game_id':d['game_id'], 'sdk_init':d['initialization_result'],
+            'program_http_statuses':d['first_party_program_http_status_counts'],
+            'observed_sdk_slots':d['observed_200_slot_responses'],
+            'source_frames_with_players':d['observed_original_position_keyframes_with_players'],
+            'source_frames_with_ball':d['observed_original_position_keyframes_with_ball'],
+            'browser_page_errors':d['sdk_browser_page_errors'],
+            'source_ready':d['initialization_result']=='ready' and
+                 d['observed_original_position_keyframes_with_players']>0 and
+                 d['observed_original_position_keyframes_with_ball']>0
           },sort_keys=True))
           PY
-          done
-          echo IGP_FULL154_DIAGNOSTIC_NO_SOURCE_PROMOTION
+          echo IGP_FULL154_CENSUS_NO_SYNTHETIC_XYZ_NO_SOURCE_PROMOTION
