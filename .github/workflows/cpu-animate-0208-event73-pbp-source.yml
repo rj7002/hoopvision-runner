@@ -1,0 +1,113 @@
+name: CPU Animate 0208-73 authentic Play By Play source intake (CPU only)
+on:
+  push:
+    branches: ['cpu-animate-0208-event73-pbp-v22-20261110']
+    paths: ['.github/workflows/cpu-animate-0208-event73-pbp-source.yml']
+permissions:
+  contents: read
+concurrency:
+  group: cpu-animate-0208-73-source
+  cancel-in-progress: true
+jobs:
+  inspect-original-angle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: \${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+    steps:
+      - name: Restrict access and inspect source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          test ! -e /dev/nvidia0
+          mkdir -p "$RUNNER_TEMP/cpu-0208/source"
+          cd "$RUNNER_TEMP/cpu-0208"
+          python3 - <<'PY'
+          import collections, hashlib, html, json, os, re, subprocess, sys, urllib.request
+          from pathlib import Path
+          from urllib.parse import urlsplit
+          root=Path(os.environ["RUNNER_TEMP"])/"cpu-0208"/"source"
+          game="0022600208"; event=73
+          exact="https://clips.nba.com/?gameNo=0022600208&eventNum=73&source=grs"
+          req=urllib.request.Request(exact,headers={"User-Agent":"Mozilla/5.0","Accept":"text/html","Referer":"https://clips.nba.com/"})
+          with urllib.request.urlopen(req,timeout=18) as r:
+              page=r.read(384*1024+1)
+              assert len(page)<=384*1024,"SOURCE_PAGE_TOO_LARGE"
+              assert "html" in r.headers.get("Content-Type","").lower(),"NOT_HTML"
+          pattern=r'<option\s+value=["\x27]([^"\x27]+)["\x27][^>]*>(.*?)</option>'
+          choices=[]
+          for url,label in re.findall(pattern,page.decode("utf8","replace"),re.I|re.S):
+              label=" ".join(re.sub(r"<[^>]+>","",html.unescape(label)).split())
+              url=html.unescape(url)
+              u=urlsplit(url)
+              if u.scheme=="https" and u.hostname=="lrmedia.nba.com" and u.path.endswith(".m3u8") and not u.username and not u.password and not u.fragment:
+                  choices.append((label,url))
+          print("SOURCE_NBA_EXACT_GAME_EVENT",game,event)
+          print("SOURCE_CAMERA_LABELS",json.dumps([x[0] for x in choices]))
+          selected=[(x,y) for x,y in choices if re.sub(r"[^a-z0-9]","",x.lower())=="playbyplay"]
+          assert len(selected)==1,"PLAY_BY_PLAY_CAMERA_NOT_UNIQUELY_SOURCE_LISTED"
+          label,url=selected[0]
+          media=root/"0208_0073_play-by-play.mp4"
+          # Suppress command arguments and source HLS URL from logs: sensitive signed media.
+          cmd=["ffmpeg","-nostdin","-hide_banner","-loglevel","error","-y",
+               "-i",url,"-map","0:v:0","-map","0:a?","-c","copy","-movflags","+faststart",str(media)]
+          res=subprocess.run(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=150)
+          if res.returncode or not media.exists():
+              # Do not echo stderr, which can contain expiring private media URL.
+              raise RuntimeError("NBA_PLAY_BY_PLAY_HLS_MEDIA_ACQUISITION_FAILED")
+          raw=media.read_bytes()
+          assert len(raw)>100000,"MEDIA_TOO_SMALL"
+          probe=subprocess.check_output(["ffprobe","-v","error","-show_entries",
+              "format=duration:stream=index,codec_type,codec_name,width,height,avg_frame_rate",
+              "-of","json",str(media)],timeout=25)
+          meta=json.loads(probe)
+          frames=subprocess.check_output(["ffprobe","-v","error","-select_streams","v:0",
+              "-show_frames","-show_entries","frame=best_effort_timestamp_time,pkt_duration_time",
+              "-of","json",str(media)],timeout=35)
+          pts=[float(f["best_effort_timestamp_time"]) for f in json.loads(frames)["frames"] if "best_effort_timestamp_time" in f]
+          assert len(pts)>15 and all(b>a for a,b in zip(pts,pts[1:])),"VIDEO_PTS_NOT_STRICTLY_INCREASING"
+          receipt={"schema":"cpu-animate.0208-73-original-source.v1",
+            "game_id":game,"event_num":event,"camera":label,"source_page":exact,
+            "original_video_sha256":hashlib.sha256(raw).hexdigest(),
+            "original_video_bytes":len(raw),"frame_pts_seconds":pts,
+            "decoded_frame_count":len(pts),"ffprobe":meta,
+            "media_rights":"PRIVATE_RESEARCH_ONLY; redistribution not authorized by this manifest",
+            "identity_status":{"201142":"NOT_YET_VERIFIED","1630578":"NOT_YET_VERIFIED","203935":"NOT_YET_VERIFIED"},
+            "render_status":"SOURCE_INTAKE_ONLY; no rings until independently validated identities"}
+          (root/"0208_0073_play-by-play_pts_and_source.json").write_text(json.dumps(receipt,indent=2))
+          print("PLAY_BY_PLAY_AUTHENTIC_MEDIA_SOURCE_QA_PASS",json.dumps({
+            "camera":label,"frames":len(pts),"sha256":receipt["original_video_sha256"],
+            "duration":meta["format"].get("duration"),"streams":meta["streams"]
+          }))
+          # NBA first-party action details, independent of URL's PBP index.
+          try:
+              url_pbp=f"https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{game}.json"
+              p=json.load(urllib.request.urlopen(urllib.request.Request(url_pbp,headers={"User-Agent":"Mozilla/5.0"}),timeout=12))
+              acts=p["game"]["actions"]
+              matches=[a for a in acts if a.get("actionNumber")==event or a.get("actionId")==event]
+              (root/"0208_0073_official_pbp_event.json").write_text(json.dumps({
+                 "game_id":game,"requested_event":event,
+                 "matching_actions":[{k:a.get(k) for k in ("actionNumber","actionId","period","clock","description","personId","teamTricode","actionType")} for a in matches]
+              },indent=2))
+              print("NBA_PBP_RECONCILIATION",json.dumps(matches[:1],default=str)[:1400])
+          except Exception as e:
+              print("NBA_PBP_RECONCILIATION_UNAVAILABLE",type(e).__name__)
+          PY
+          TAG=cpu-animate-0208-73-pbp-original-source-v1
+          gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
+            gh release create "$TAG" --repo timeedmonds-maker/104 \
+              --title 'CPU Animate 0208 event 73 — authentic NBA Play By Play source, private CPU intake' \
+              --notes 'Private research-only source intake for user-selected camera. Source PTS and SHA retained. Not a player-ring output or rights grant.' \
+              --latest=false >/dev/null
+          gh release upload "$TAG" \
+            "$RUNNER_TEMP/cpu-0208/source/0208_0073_play-by-play.mp4" \
+            "$RUNNER_TEMP/cpu-0208/source/0208_0073_play-by-play_pts_and_source.json" \
+            --repo timeedmonds-maker/104 --clobber >/dev/null
+          if test -f "$RUNNER_TEMP/cpu-0208/source/0208_0073_official_pbp_event.json"; then
+            gh release upload "$TAG" "$RUNNER_TEMP/cpu-0208/source/0208_0073_official_pbp_event.json" \
+              --repo timeedmonds-maker/104 --clobber >/dev/null
+          fi
+          echo CPU_ANIMATE_0208_73_SOURCE_PRIVATE_INTAKE_COMPLETE
