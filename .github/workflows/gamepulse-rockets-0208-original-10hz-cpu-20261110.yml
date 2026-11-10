@@ -43,12 +43,7 @@ jobs:
             echo ORIGINAL_0208_GAME_NATIVE_ALREADY_INDEXED
           else
             if gh api "repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-$GID" > "$RUNNER_TEMP/0208-release.json"; then
-              count="$(python3 - "$RUNNER_TEMP/0208-release.json" <<'PY'
-import json,sys
-a=json.load(open(sys.argv[1]))['assets']
-print(sum(x['name'].startswith('sdk-part-') and x['name'].endswith('.tar.gz') for x in a))
-PY
-)"
+              count="$(python3 -c 'import json,sys; a=json.load(open(sys.argv[1]))["assets"]; print(sum(x["name"].startswith("sdk-part-") and x["name"].endswith(".tar.gz") for x in a))' "$RUNNER_TEMP/0208-release.json")"
               if test "$count" -eq 13; then
                 mkdir -p "$RUNNER_TEMP/sdk-0208"
                 gh release download "gamepulse-sdk-$GID" -R timeedmonds-maker/104 --pattern 'sdk-part-*.tar.gz' --dir "$RUNNER_TEMP/sdk-0208"
