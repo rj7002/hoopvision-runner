@@ -1,0 +1,105 @@
+name: CPU Animate 0208 video-only V23 595-frame source scout
+on:
+  push:
+    branches: ['cpu-animate-0208-event73-pbp-v22-20261110']
+    paths: ['.github/workflows/cpu-animate-0208-videoonly-scout-v23.yml']
+permissions:
+  contents: read
+concurrency:
+  group: cpu-animate-0208-videoonly-v23-scout
+  cancel-in-progress: false
+jobs:
+  source-video-track:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 42
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+      OPENCV_OPENCL_RUNTIME: disabled
+      OPENBLAS_NUM_THREADS: '2'
+      OMP_NUM_THREADS: '3'
+      MKL_NUM_THREADS: '3'
+      TOKENIZERS_PARALLELISM: 'false'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - name: Verify exact original media and run CPU source-person tracker
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          test ! -e /dev/nvidia0 && test ! -e /dev/kfd
+          ROOT="$(mktemp -d)"
+          export ROOT
+          trap 'rm -rf "$ROOT"' EXIT
+          mkdir -p "$ROOT/media" "$ROOT/out"
+          gh auth setup-git >/dev/null 2>&1
+          git clone -q --depth=1 --filter=blob:none --sparse \
+            --branch cpu-animate/0208-v23-cpu-video-only-20261111 \
+            https://github.com/timeedmonds-maker/104.git "$ROOT/private"
+          git -C "$ROOT/private" sparse-checkout set --no-cone \
+            '/cpu_animate/' '/tools/locked_broadcast_screen_v5_rings.py' >/dev/null
+          cd "$ROOT/private"
+          python3 -m pip install -q --disable-pip-version-check ultralytics opencv-python-headless numpy pillow
+          gh release download cpu-animate-0208-73-pbp-original-source-v1 \
+            --repo timeedmonds-maker/104 --dir "$ROOT/media" \
+            --pattern '0208_0073_play-by-play.mp4' \
+            --pattern '0208_0073_play-by-play_pts_and_source.json' >/dev/null
+          echo '506606517d547d0be048c2d6306f324b6c77271ae4d5a3de436a596fe32f6ff4  '$ROOT'/media/0208_0073_play-by-play.mp4' | sha256sum -c -
+          curl --fail --location --silent --show-error --retry 2 --max-time 120 \
+            https://huggingface.co/Ultralytics/YOLO11/resolve/1fad642026e935ebf53c4d878b6fd844ad08de3f/yolo11n-seg.pt \
+            -o "$ROOT/private/yolo11n-seg.pt"
+          echo '55ed65c56c91713d23e8402371c6c49a6fd84f257f7dce452e8d70e41dcbe152  '$ROOT'/private/yolo11n-seg.pt' | sha256sum -c -
+          env -u GH_TOKEN -u GITHUB_TOKEN -u GIT_ASKPASS \
+            python3 -m cpu_animate.video_only_scout_0208_v23 \
+              --media "$ROOT/media/0208_0073_play-by-play.mp4" \
+              --manifest "$ROOT/media/0208_0073_play-by-play_pts_and_source.json" \
+              --model "$ROOT/private/yolo11n-seg.pt" \
+              --out "$ROOT/out" --stride 1
+          python3 - "$ROOT/out" <<'PY'
+          import json,sys
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          q=json.loads((root/"scout_0208_73_videoonly_qa.json").read_text())
+          assert q["original_sha256"]=="506606517d547d0be048c2d6306f324b6c77271ae4d5a3de436a596fe32f6ff4"
+          assert q["frame_count"]==595 and q["source_xyz_used"] is False
+          assert q["frames_with_detections"]>=400, q
+          assert q["statistics"]["shoe_segmentation"]>500
+          assert len(list(root.glob("scout_0208_f*.jpg")))==20
+          print("CPU_V23_REAL_NBA_VIDEO_TRACKING_AND_SHOES_ACCEPTED",q,flush=True)
+          PY
+          TAG=cpu-animate-0208-73-video-only-scout-v23
+          gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
+            gh release create "$TAG" --repo timeedmonds-maker/104 \
+              --title 'CPU Animate 0208 73 — original Play By Play framewise video-only source scout V23' \
+              --notes 'Real source SHA checked, all 595 original frames, per-frame BoT-SORT tracking candidate IDs plus source segmentation shoe pixels, 20 original contact stills. Source-track IDs are not roster identity; no XYZ. Research-private. No rings yet.' \
+              --latest=false >/dev/null
+          gh release upload "$TAG" "$ROOT/out"/scout_0208_73_* \
+            "$ROOT/out"/scout_0208_f*.jpg \
+            --repo timeedmonds-maker/104 --clobber >/dev/null
+          for file in "$ROOT/out"/scout_0208_f*.jpg; do
+            export JPEG_SRC="$file"
+            python3 - <<'PY' | gh api -X PUT \
+              "repos/timeedmonds-maker/104/contents/docs/cpu_animate/v23_$(basename "$JPEG_SRC").b64.txt" \
+              --input - >/dev/null
+          import os,json,base64
+          from pathlib import Path
+          f=Path(os.environ['JPEG_SRC'])
+          data=base64.b64encode(f.read_bytes())+b'\n'
+          print(json.dumps({'branch':'cpu-animate/0208-v23-cpu-video-only-20261111',
+            'message':'qa(video-only): source person id and shoe at exact NBA frame',
+            'content':base64.b64encode(data).decode()}))
+          PY
+          done
+          export INDEX_SRC="$ROOT/out/scout_0208_73_review_index.json"
+          python3 - <<'PY' | gh api -X PUT \
+              repos/timeedmonds-maker/104/contents/docs/cpu_animate/v23_0208_scout_review_index.json \
+              --input - >/dev/null
+          import os,json,base64
+          from pathlib import Path
+          p=Path(os.environ["INDEX_SRC"])
+          print(json.dumps({'branch':'cpu-animate/0208-v23-cpu-video-only-20261111',
+            'message':'qa(video-only): exact-frame tracker IDs and foot coordinates',
+            'content':base64.b64encode(p.read_bytes()).decode()}))
+          PY
+          echo CPU_ANIMATE_V23_ALL_595_ORIGINAL_VIDEO_TRACKS_AND_SOURCE_SHOES_ARCHIVED
