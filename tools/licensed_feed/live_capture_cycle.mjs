@@ -189,7 +189,7 @@ async function main() {
  // scheduling a new capture. SHA verify the original tar, 5s rows and game.
  repairOrphanedAssets(tag,getAssets(tag)||new Map(),id,fullPlan);
  const deadline=Date.now()+215000;
- let fullSaved=0,partialSaved=0,failed=0;
+ let fullSaved=0,fullTrackingSaved=0,partialSaved=0,failed=0;
  const attempted=new Set();
  const failures={};
  while(Date.now()<deadline-20000 && attempted.size<10){
@@ -223,8 +223,10 @@ async function main() {
    // Never replace original files. Partial captures use distinct names outside the live-*.tar.gz complete-minute consumer glob.
    uploadImmutable(tag,archivePath,base+'.tar.gz',digest);
    uploadImmutable(tag,side,base+'.json',sha(readFileSync(side)));
-   if(grade==='FULL_5S_SOURCE_COVERAGE')fullSaved++;
-   else partialSaved++;
+   if(grade==='FULL_5S_SOURCE_COVERAGE'){
+    fullSaved++;
+    if(m.frames_with_players>0&&m.frames_with_ball>0)fullTrackingSaved++;
+   }else partialSaved++;
    failed=0;
    console.log('PRIVATE_LIVE_ORIGINAL_SHA_VERIFIED',JSON.stringify({
     game_id:id,minute_utc_ms:from,grade,expected_windows:job.count,
@@ -249,6 +251,7 @@ async function main() {
   }finally{rmSync(dir,{recursive:true,force:true});}
  }
  const result={game_id:id,complete_minutes_saved:fullSaved,
+  full_minutes_with_player_and_ball:fullTrackingSaved,
   partial_minutes_saved:partialSaved,failed_minutes:failed,
   distinct_minutes_attempted:attempted.size,failures};
  console.log('LIVE_FIRST_INGESTION_CYCLE',JSON.stringify(result));
@@ -261,6 +264,8 @@ async function main() {
    String(fullSaved+partialSaved>0)+'\n');
   appendFileSync(process.env.GITHUB_OUTPUT,'new_full_capture='+
    String(fullSaved>0)+'\n');
+  appendFileSync(process.env.GITHUB_OUTPUT,'new_tracking_capture='+
+   String(fullTrackingSaved>0)+'\n');
  if(failed>0&&fullSaved+partialSaved===0)process.exitCode=2;
 }
 if(process.argv[1]?.endsWith('live_capture_cycle.mjs')){
