@@ -1,3 +1,4 @@
+# 2026-11-10 09:34Z bounded rerun after independent Full154 position-response probe; source gate must pass before capture fanout.
 # Reviewed 2026-11-10: real original SDK position-and-ball readiness required before any full capture fanout; no credential replay.
 # Reviewed 2026-11-10: guard allowlist committed; initiate 13-part original postfinal source recovery and SHA certification.
 # Source-only targeted 13-part Rockets–Nuggets 0208 recovery. Original coordinates exclusively private 104. This does not substitute interpolation for missing observed source.
