@@ -1,3 +1,4 @@
+# 2026-11-10 NZ: exact Rockets–Nuggets game0208 native Blueprint full report intake and SHA-preserving private storage.
 name: NBA Blueprint priority private acquisition
 on:
   push:
@@ -16,7 +17,7 @@ jobs:
     timeout-minutes: 22
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      GID: '0022600009'
+      GID: '0022600208'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,15 +55,11 @@ jobs:
               dest.parent.mkdir(parents=True,exist_ok=True)
               if not dest.exists(): dest.write_text(fresh,encoding='utf-8')
               status.update({'state':'ORIGINAL_ACQUIRED','shot_rows':len(report['shot_difficulty']['shotDifficulty']),'page_build':meta.get('page_build')})
-              matching=[s for s in report['shot_difficulty']['shotDifficulty']
-                         if str(s.get('shooter',{}).get('playerId'))=='1641705'
-                         and str(s.get('defender',{}).get('playerId'))=='1641708'
-                         and int(s.get('period',0))==4]
-              status['matched_shooter_defender_shots']=len(matching)
-              status['original_matching_shots']=matching
+              status['published_shot_count']=len(report['shot_difficulty']['shotDifficulty'])
+              status['original_modules_available']=sorted(report.keys())
           except Exception as e:
               status.update({'state':'NBA_SOURCE_NOT_RETRIEVED','error_type':type(e).__name__,'reason':str(e)[:280]})
-          target=BASE/'priority_0022600009_source_status.json'
+          target=BASE/('priority_'+gid+'_source_status.json')
           target.parent.mkdir(parents=True,exist_ok=True)
           target.write_text(json.dumps(status,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
           print('PRIORITY_SOURCE_ATTEMPT_RECORDED_PRIVATELY')
@@ -70,7 +67,7 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-          p=Path('data/extensions/nba_blueprint_2026_27/priority_0022600009_source_status.json')
+          p=Path('data/extensions/nba_blueprint_2026_27/priority_0022600208_source_status.json')
           s=json.loads(p.read_text())
           print('PRIORITY_SOURCE_STATE='+s['state'])
           PY
