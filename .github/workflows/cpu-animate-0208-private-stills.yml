@@ -1,0 +1,65 @@
+name: CPU Animate 0208 private roster source video review frames
+on:
+  push:
+    branches: ['cpu-animate-0208-event73-pbp-v22-20261110']
+    paths: ['.github/workflows/cpu-animate-0208-private-stills.yml']
+permissions:
+  contents: read
+jobs:
+  original-source-video-contact:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+    steps:
+      - name: Generate private NBA Play By Play source-review evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN" && test ! -e /dev/nvidia0
+          python3 -m pip install -q --disable-pip-version-check opencv-python-headless
+          DIR="$(mktemp -d)"
+          export DIR
+          gh release download cpu-animate-0208-73-pbp-original-source-v1 \
+            --repo timeedmonds-maker/104 --dir "$DIR" \
+            --pattern '0208_0073_play-by-play.mp4' \
+            --pattern '0208_0073_play-by-play_pts_and_source.json' >/dev/null
+          python3 - <<'PY'
+          import base64,cv2,hashlib,json,os
+          from pathlib import Path
+          root=Path(os.environ["DIR"])
+          media=root/"0208_0073_play-by-play.mp4"
+          original=json.loads((root/"0208_0073_play-by-play_pts_and_source.json").read_text())
+          assert hashlib.sha256(media.read_bytes()).hexdigest()=="506606517d547d0be048c2d6306f324b6c77271ae4d5a3de436a596fe32f6ff4"
+          pts=original["frame_pts_seconds"]
+          capture=cv2.VideoCapture(str(media))
+          assert capture.isOpened()
+          for i in range(20):
+              j=int(round((.02+.96*i/19)*(len(pts)-1)))
+              capture.set(cv2.CAP_PROP_POS_FRAMES,j)
+              ok,img=capture.read()
+              assert ok
+              ok,jpg=cv2.imencode(".jpg",img,[int(cv2.IMWRITE_JPEG_QUALITY),85])
+              assert ok
+              (root/f"0208_pbp_f{j:03d}_review_{i:02d}.jpg.b64.txt").write_text(
+                  base64.b64encode(jpg.tobytes()).decode()+"\n")
+              print("SOURCE_REVIEW_FRAME",i,"frame",j,"pts",round(pts[j],3),
+                    "bytes",len(jpg),flush=True)
+          capture.release()
+          print("SOURCE_VIDEO_SHA_AND_20_REVIEW_FRAMES_ACCEPTED",len(pts),flush=True)
+          PY
+          for file in "$DIR"/0208_pbp_f*_review_*.jpg.b64.txt; do
+            export FILE_TO_COMMIT="$file"
+            path="repos/timeedmonds-maker/104/contents/docs/cpu_animate/$(basename "$file")"
+            python3 - <<'PY' | gh api -X PUT "$path" --input - >/dev/null
+          import base64,json,os
+          from pathlib import Path
+          f=Path(os.environ["FILE_TO_COMMIT"])
+          print(json.dumps({"message":"qa: original Play By Play NBA 0208-73 private frame",
+             "branch":"cpu-animate/0208-pbp-three-rings-v22-20261110",
+             "content":base64.b64encode(f.read_bytes()).decode()}))
+          PY
+          done
+          echo CPU_ANIMATE_0208_PRIVATE_CONTACT_20_FRAMES_COMPLETE
