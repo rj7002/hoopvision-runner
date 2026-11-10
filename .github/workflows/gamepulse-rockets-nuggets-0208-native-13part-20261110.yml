@@ -29,9 +29,58 @@ jobs:
           node-version: '22'
       - name: Verify real SDK window-slot and archive invariants
         run: node --test tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs
+  source-ready:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    outputs:
+      genuine_positions: ${{ steps.gate.outputs.genuine_positions }}
+    env:
+      NBA_GAME_ID: '0022600208'
+      NBA_TIPOFF_UTC: '2026-11-10T01:30:00Z'
+      IGP_SDK_SOURCE_VARIANT: positions
+      IGP_SDK_INIT_TIMEOUT_MS: '45000'
+      IGP_PRIVATE_CAPTURE_DIR: /tmp/0208-original-position-readiness
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Source program authenticated preflight; no token replay, no coordinate publication
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          (cd tools/licensed_feed && npm install --ignore-scripts --no-audit --no-fund --silent)
+          mkdir -p "$IGP_PRIVATE_CAPTURE_DIR"
+          node tools/licensed_feed/companion_original_sdk_probe.mjs > "$RUNNER_TEMP/sdk-readiness-private.log" 2>&1
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          p=Path(os.environ['IGP_PRIVATE_CAPTURE_DIR'])/'companion_probe_receipt.json'
+          d=json.loads(p.read_bytes())
+          assert d['game_id']=='0022600208'
+          assert d['authentication_bypass_attempted'] is False
+          assert d['app_program_variant']=='positions'
+          ready=(d['initialization_result']=='ready' and
+            d['observed_original_position_keyframes_with_players']>0 and
+            d['observed_original_position_keyframes_with_ball']>0)
+          with open(os.environ['GITHUB_OUTPUT'],'a') as o:
+            o.write('genuine_positions='+str(ready).lower()+'\n')
+          print('GAME0208_ORIGINAL_POSITIONS_SOURCE_GATE',json.dumps({
+            'program_status':d['status'],
+            'sdk_initialization':d['initialization_result'],
+            'first_party_200':d['first_party_program_http_status_counts'].get('200',0),
+            'genuine_original_player_keyframes':d['observed_original_position_keyframes_with_players'],
+            'genuine_original_ball_keyframes':d['observed_original_position_keyframes_with_ball'],
+            'source_ready_for_capture':ready},sort_keys=True))
+          PY
   recover:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: preflight
+    needs: [preflight, source-ready]
+    if: needs.source-ready.outputs.genuine_positions == 'true'
     strategy:
       fail-fast: false
       max-parallel: 4
