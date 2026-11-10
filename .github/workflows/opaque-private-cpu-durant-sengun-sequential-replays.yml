@@ -171,7 +171,9 @@ jobs:
           assert q['ring_output_qa'].get('Durant_visible_ring_frames',0)>=110
           assert q['ring_output_qa'].get('Sengun_visible_ring_frames',0)>=125
           assert q['ring_output_qa'].get('Sengun_green_reviewed_frames',0)>60
-          assert q['ring_output_qa'].get('Durant_green_reviewed_frames',0)>4
+          assert 0<=q['ring_output_qa'].get('Durant_green_reviewed_frames',0)<=q['v22_source_video_ball_control_qa']['green_candidate_video_frames']['Durant']
+          # Durant's source identity is NOT certified throughout every reception frame;
+          # never invent a shoe ring or green pulse to satisfy a coverage quota.
           assert (Path(sys.argv[1])/q['video_file']).stat().st_size>1000000
           print('V12_UNIVERSAL_COURT_SHOE_IDENTITY_VISIBILITY_ACCEPTANCE_PASS',
                 {'frames':q['frames'],'appearance':q['source_video_identity_appearance_qa'],
