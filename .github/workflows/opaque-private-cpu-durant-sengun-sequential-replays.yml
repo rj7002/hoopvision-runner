@@ -1,4 +1,4 @@
-name: CourtCoder V19B clock-rebased native XYZ KD + Sengun V12
+name: CourtCoder V19C event-verified source time KD + Sengun V12
 # Original pixel-anchor KD seed fix: source-video identity diagnostic V6 rerun
 on:
   push:
