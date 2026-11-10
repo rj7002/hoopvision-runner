@@ -31,6 +31,18 @@ jobs:
               with urllib.request.urlopen(req,timeout=18) as res:
                 payload=json.loads(res.read().decode("utf-8"))
               print("SUCCESS",url,"keys",list(payload))
+              root=payload.get("boxScoreMatchups",{})
+              print("GAME_MATCHUP_TOTAL",root.get("gameId"),"HOME",root.get("homeTeamId"),"AWAY",root.get("awayTeamId"))
+              for side in ("homeTeam","awayTeam"):
+                for player in root.get(side,{}).get("players",[]):
+                  if player.get("personId") in (203999,201142):
+                    print("FOCAL_PARENT",side,player.get("personId"),player.get("nameI"),"CHILDREN",len(player.get("matchups",[])))
+                    for child in player.get("matchups",[]):
+                      print("FOCAL_CHILD",child.get("personId"),child.get("nameI"),json.dumps(child.get("statistics",{}),ensure_ascii=False))
+                  else:
+                    for child in player.get("matchups",[]):
+                      if child.get("personId") in (203999,201142) and player.get("personId") in (203999,201142):
+                        print("FOCAL_PAIR",side,player.get("personId"),child.get("personId"),json.dumps(child.get("statistics",{}),ensure_ascii=False))
               def recurse(x,p="",parent=None):
                 if isinstance(x,dict):
                   vals=json.dumps(x,ensure_ascii=False)
