@@ -36,6 +36,8 @@ export function stats(job,rows){
  return {
   manifest:{schema:'nba-gamepulse-sdk-chunk.v1',game_id:job.game_id,
    part:job.part,start_ms:job.start_ms,successful_windows:rows.length,
+   expected_windows:job.count,capture_complete:rows.length===job.count,
+   source_window_starts_ms:rows.map(x=>x.from),
    empty_windows:empty,unique_keyframes:observed.length,
    frames_with_players:observed.filter(hasPlayers).length,
    frames_with_ball:observed.filter(hasBall).length,
@@ -112,7 +114,7 @@ export async function initializeWithRetry(factory,wait=sleep){
   }
  }
 }
-export async function capture(job,dir){
+export async function capture(job,dir,{allowPartial=false}={}){
  checkJob(job);
  // Live acceleration is limited to matured, fully elapsed five-second source windows.
  // The licensed SDK must authenticate and every slot response must be observed.
@@ -155,11 +157,20 @@ export async function capture(job,dir){
      native_windows_received:windows.filter(ms=>received.has(ms)).length,
      expected_windows:windows.length
     }));
-   if(windows.some(ms=>!received.has(ms)))
-    await recoverMissingWindows(job,received,session.observedUrl());
+   if(windows.some(ms=>!received.has(ms))){
+    try{await recoverMissingWindows(job,received,session.observedUrl());}
+    catch(e){
+     // A live source-read failure must not discard other genuinely observed
+     // five-second SDK responses. Full thirteen-part archives remain strict.
+     if(!allowPartial||!['uncovered_window','sdk_session_url_missing'].includes(e?.message))throw e;
+    }
+   }
   }
-  const rows=windows.map(ms=>received.get(ms));
-  if(rows.some(x=>!x))throw Error('uncovered_window');
+  const rows=windows.map(ms=>received.get(ms)).filter(Boolean);
+  if(rows.length===0||(!allowPartial&&rows.length!==windows.length))throw Error('uncovered_window');
+  if(allowPartial&&rows.length<windows.length)
+   console.log('SDK_LIVE_OBSERVED_PARTIAL_WINDOWS',JSON.stringify({
+    game_id:job.game_id,part:job.part,expected:windows.length,observed:rows.length}));
   const {manifest,frames}=stats(job,rows);
   mkdirSync(dir,{recursive:true});
   writeFileSync(join(dir,'manifest.json'),JSON.stringify(manifest)+'\n');
