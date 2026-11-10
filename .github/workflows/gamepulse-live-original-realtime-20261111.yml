@@ -1,4 +1,5 @@
 name: Integrated Pulse Nov11 live original XYZ source capture
+# Reviewed source-guard allowlist and CPU-only live observation readiness.
 # One-day source-only experiment: observe the live SDK positions program, not postgame replay.
 # Keep existing full-game and live-first workflows untouched; store raw licensed data privately.
 on:
