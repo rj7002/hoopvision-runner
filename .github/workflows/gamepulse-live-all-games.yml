@@ -39,7 +39,7 @@ jobs:
           node-version: '22'
       - name: Verify concurrent slate selection and original SDK integrity
         run: |
-          node --test tools/licensed_feed/live_discovery.test.mjs tools/licensed_feed/live_capture_cycle.test.mjs tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs tools/licensed_feed/capture.test.mjs
+          node --test tools/licensed_feed/live_discovery.test.mjs tools/licensed_feed/live_capture_cycle.test.mjs tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs
       - name: Select every currently active or recently final NBA fixture
         id: active
         run: node tools/licensed_feed/live_discovery.mjs
@@ -71,6 +71,9 @@ jobs:
         run: |
           npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
           npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Verify source-gated late-ready capture regressions
+        if: matrix.game.id != 'none'
+        run: node --test tools/licensed_feed/capture.test.mjs
       - name: Ingest all available elapsed one-minute windows, resume missing private checkpoints
         if: matrix.game.id != 'none'
         working-directory: tools/licensed_feed
