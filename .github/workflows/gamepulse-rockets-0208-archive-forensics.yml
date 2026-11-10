@@ -42,6 +42,19 @@ jobs:
           python3 -m py_compile gamepulse/fusion/igp_0022600208_raw_sdk_archive_structure_audit_v1.py
           python3 gamepulse/fusion/igp_0022600208_raw_sdk_archive_structure_audit_v1.py \
             --archive-dir "$RUNNER_TEMP/0208-original"
+          python3 gamepulse/fusion/igp_0022600208_raw_original_variant_recovery_v1.py \
+            --archive-dir "$RUNNER_TEMP/0208-original"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          a=json.loads(Path('gamepulse/fusion/materialized/igp_original_xyz_partial_0022600208_rawbest_v1/index.json').read_bytes())
+          assert a['native_record_count']==251 and a['source_original_archives']==8
+          print('IGP_0208_RAWBEST_FIRSTPARTY_RECOVERY_QA',
+                a['counts']['source_frames_with_player'],
+                a['counts']['source_frames_with_ball'],
+                a['raw_source_richness_improvement_total'],
+                a['counts']['equal_richness_native_timestamps_quarantined'])
+          PY
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -63,6 +76,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f gamepulse/fusion/qa/igp_progress_20261030/igp_0022600208_raw_sdk_archive_structure_audit_v1.json
+          git add -f gamepulse/fusion/materialized/igp_original_xyz_partial_0022600208_rawbest_v1
           git diff --cached --check
           if git diff --cached --quiet; then echo IGP_0208_FORENSIC_SOURCE_ALREADY_RECORDED; exit 0; fi
           git commit -q -m 'qa(igp): SHA audit original Rockets 0208 SDK raw positions and fields'
