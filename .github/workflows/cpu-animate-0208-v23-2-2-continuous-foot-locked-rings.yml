@@ -38,7 +38,7 @@ jobs:
             https://github.com/timeedmonds-maker/104.git "$ROOT/private"
           git -C "$ROOT/private" sparse-checkout set --no-cone \
             '/cpu_animate/' '/tools/locked_broadcast_screen_v5_rings.py' >/dev/null
-          cd "$ROOT/private"
+          test "$(git -C "$ROOT/private" rev-parse HEAD)" = "e3c8174d63148a697f7b4e8668848ad5f5304276"\n          cd "$ROOT/private"
           python3 -m pip install -q --disable-pip-version-check numpy opencv-python-headless pillow ultralytics
           if ! command -v ffmpeg >/dev/null; then
             sudo apt-get update -qq >/dev/null
