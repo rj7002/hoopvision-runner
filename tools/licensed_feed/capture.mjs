@@ -93,8 +93,15 @@ async function launchClient(job,received,pending){
   // A timeout is seek-eligible, never proof of ingestion: downstream requires
   // an observed SDK-issued slot URL and every exact original 5s response.
   // Explicit SDK error states remain a hard failure.
+  const lifecycle=await page.evaluate(()=>window.ephemeralFeed.diagnostics());
   console.log('SDK_INITIALIZATION_GRADE',result==='ready'?'READY':result==='timeout'?'TIMEOUT_SOURCE_REQUIRED':'ERROR');
+  console.log('SDK_SOURCE_LIFECYCLE',JSON.stringify({game_id:job.game_id,
+   stage_counts:lifecycle.event_counts,app_status:lifecycle.latest_app_status,
+   app_status_counts:lifecycle.app_status_counts,
+   warning_count:lifecycle.error_type_counts?.warning||0}));
   if(!sdkInitCanSeek(result))throw Error('sdk_initialization_failed');
+  if(result==='timeout' && lifecycle.latest_app_status==='disabled' &&
+     !observedSlotUrl && received.size===0)throw Error('sdk_app_disabled');
   return {page,observedUrl:()=>observedSlotUrl,
    close:async()=>{await browser.close();await new Promise(ok=>server.close(ok));}};
  }catch(e){
