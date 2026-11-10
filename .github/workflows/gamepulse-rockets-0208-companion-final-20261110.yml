@@ -156,7 +156,7 @@ jobs:
           gh auth setup-git
           git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private-0208"
           git -C "$RUNNER_TEMP/private-0208" sparse-checkout set gamepulse/fusion data/extensions/nba_blueprint_2026_27
-          git -C "$RUNNER_TEMP/private-0208" fetch -q --depth=1 origin main
+          git -C "$RUNNER_TEMP/private-0208" fetch -q --depth=1 origin main:refs/remotes/origin/main
       - name: Capture game-only original NBA PBP and immutable Blueprint source; SHA reconcile
         shell: bash
         run: |
