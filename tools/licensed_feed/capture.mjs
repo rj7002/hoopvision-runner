@@ -87,7 +87,12 @@ async function launchClient(job,received,pending){
   const result=await page.evaluate(j=>window.ephemeralFeed.initialize({
     accountId:j.account_id,programId:j.program_id
   }),job);
-  if(result!=='ready')throw Error('sdk_initialization_failed');
+  // The SDK may emit genuine source responses even if app.ready arrives late.
+  // A timeout is seek-eligible, never proof of ingestion: downstream requires
+  // an observed SDK-issued slot URL and every exact original 5s response.
+  // Explicit SDK error states remain a hard failure.
+  console.log('SDK_INITIALIZATION_GRADE',result==='ready'?'READY':result==='timeout'?'TIMEOUT_SOURCE_REQUIRED':'ERROR');
+  if(!sdkInitCanSeek(result))throw Error('sdk_initialization_failed');
   return {page,observedUrl:()=>observedSlotUrl,
    close:async()=>{await browser.close();await new Promise(ok=>server.close(ok));}};
  }catch(e){
@@ -96,6 +101,8 @@ async function launchClient(job,received,pending){
   throw e;
  }
 }
+export function sdkInitCanSeek(state){return state==='ready'||state==='timeout';}
+
 export async function initializeWithRetry(factory,wait=sleep){
  for(let attempt=0;attempt<3;attempt++){
   try{return await factory();}
