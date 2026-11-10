@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {checkJob,stats,sdkInitCanSeek} from './capture.mjs';
+import {checkJob,stats,sdkInitCanSeek,sdkInitSourceGate} from './capture.mjs';
 const j={game_id:'0022699999',account_id:'nba',program_id:'companion-0022699999-positions',start_ms:1792522800000,count:2,part:0};
 test('exact window and program scoping',()=>{
  assert.equal(checkJob(j).count,2);
@@ -35,4 +35,15 @@ test('partial source metadata records exactly observed source slots and cannot c
  assert.deepEqual(m.source_window_starts_ms,[j.start_ms]);
  assert.equal(m.observed,true);
  assert.equal(m.imputed,false);
+});
+
+test('disabled postgame SDK programme cannot masquerade as tracking, observed slots are never lost',()=>{
+ const disabled={latest_app_status:'disabled'};
+ const enabled={latest_app_status:'enabled'};
+ assert.equal(sdkInitSourceGate('timeout',disabled,false,0),'sdk_app_disabled');
+ assert.equal(sdkInitSourceGate('timeout',disabled,true,0),'SEEK_SOURCE_REQUIRED');
+ assert.equal(sdkInitSourceGate('timeout',disabled,false,2),'SEEK_SOURCE_REQUIRED');
+ assert.equal(sdkInitSourceGate('ready',enabled,false,0),'SEEK_SOURCE_REQUIRED');
+ assert.equal(sdkInitSourceGate('timeout',{latest_app_status:null},false,0),'SEEK_SOURCE_REQUIRED');
+ assert.equal(sdkInitSourceGate('error',enabled,true,2),'sdk_initialization_failed');
 });
