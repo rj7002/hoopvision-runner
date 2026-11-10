@@ -26,6 +26,8 @@ const result={schema:'igp.licensed-sdk-companion-source-readback.v1',
  game_id:gid, app_program_variant:sourceVariant, sdk_client:'@ease-live/ease-live-bridge-web',source_mode:'SDK_INITIALIZED_CLIENT_NO_URL_REPLAY',
  status:'NOT_AVAILABLE',initialization_result:null,initialization_timeout_ms:initTimeoutMs,
  first_party_http_status_counts:{},first_party_program_http_status_counts:{},
+ safe_http_host_status_counts:{},sdk_failed_requests:0,
+ sdk_lifecycle:null,source_readiness_grade:'UNDETERMINED',
  first_party_program_response_categories:{},sdk_browser_page_errors:0,
  observed_200_event_responses:0,
  observed_200_slot_responses:0,other_status_counts:{},original_total_event_objects:0,
@@ -49,11 +51,16 @@ try{
  const page=await browser.newPage();
  const seen=new Set(),pending=new Set(),candidateBodies=[];
  page.on('pageerror',()=>{result.sdk_browser_page_errors++});
+ page.on('requestfailed',()=>{result.sdk_failed_requests++});
  page.on('response',response=>{
   const job=(async()=>{
    let url;try{url=new URL(response.url())}catch{return}
    if(url.hostname!==origin)return;
    const statusKey=String(response.status());
+   const hostGroup=url.hostname===origin?'positions_cdn':
+     url.hostname.endsWith('.easelive.tv')?'ease_live_other':'other';
+   const safeKey=hostGroup+'_'+statusKey;
+   result.safe_http_host_status_counts[safeKey]=(result.safe_http_host_status_counts[safeKey]||0)+1;
    result.first_party_http_status_counts[statusKey]=(result.first_party_http_status_counts[statusKey]||0)+1;
    if(url.pathname.includes(programId)){
      result.first_party_program_http_status_counts[statusKey]=(result.first_party_program_http_status_counts[statusKey]||0)+1;
@@ -119,6 +126,17 @@ try{
    await new Promise(resolve=>setTimeout(resolve,3200));
  }
  await Promise.allSettled([...pending]);
+ result.sdk_lifecycle=await page.evaluate(()=>window.ephemeralFeed.diagnostics());
+ const events=result.sdk_lifecycle?.event_counts||{};
+ result.source_readiness_grade=(result.observed_original_position_keyframes_with_players>0 &&
+    result.observed_original_position_keyframes_with_ball>0)?'ORIGINAL_PLAYER_BALL_OBSERVED':
+   result.observed_200_slot_responses>0?'ORIGINAL_SLOTS_BUT_NO_PLAYER_BALL':
+   result.initialization_result==='error'?'SDK_ERROR':
+   events['app.ready']?'APP_READY_BUT_NO_ORIGINAL_SLOTS':
+   events['bridge.ready']?'BRIDGE_READY_APP_NOT_READY':
+   events['view.ready']?'VIEW_READY_BRIDGE_NOT_READY':
+   result.first_party_program_http_status_counts['200']?
+    'PROGRAM_METADATA_HTTP_200_BUT_NO_APP_READY_OR_SLOTS':'PROGRAM_UNREACHABLE_OR_NOT_OBSERVED';
  const winners=candidateBodies.filter(x=>x.shots>0 || ((sourceVariant==='positions'||process.env.IGP_CAPTURE_ZERO_SHOT_FULL_EVENTS==='true') && x.full && x.events>0)).sort((a,b)=>
       (b.full?1:0)-(a.full?1:0)||b.shots-a.shots||b.buffer.length-a.buffer.length);
  if(winners.length){
