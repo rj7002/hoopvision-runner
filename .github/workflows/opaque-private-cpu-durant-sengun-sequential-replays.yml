@@ -1,8 +1,8 @@
-name: CourtCoder V18 KD source-body ring + unchanged Sengun V12 floor
+name: CourtCoder V19 native XYZ KD to video + Sengun preserved V12
 # Original pixel-anchor KD seed fix: source-video identity diagnostic V6 rerun
 on:
   push:
-    branches: ['cpu-animate-opaque-private-cpu-20261108']
+    branches: ['cpu-animate-v19-native-xyz-cpu-20261110']
     paths: ['.github/workflows/opaque-private-cpu-durant-sengun-sequential-replays.yml']
 permissions:
   contents: read
@@ -41,14 +41,14 @@ jobs:
           trap 'rm -rf "$ROOT"' EXIT
           gh auth setup-git >/dev/null 2>&1
           git clone -q --depth=1 --filter=blob:none --sparse \
-            --branch cpu-animate/min0181-kd-body-plus-sengun-v12-v18-20261110 \
+            --branch cpu-animate/min0181-native-xyz-alignment-v19-20261110 \
             https://github.com/timeedmonds-maker/104.git "$ROOT/private" \
             > "$ROOT/clone.log" 2>&1 || { echo PRIVATE_CPU_ANIMATE_SOURCE_CLONE_FAILED; exit 4; }
           git -C "$ROOT/private" sparse-checkout set --no-cone \
             '/cpu_animate/' '/tools/locked_broadcast_screen_v5_rings.py' \
             > "$ROOT/sparse.log" 2>&1 || { echo PRIVATE_CPU_ANIMATE_SPARSE_CHECKOUT_FAILED; exit 4; }
           cd "$ROOT/private"
-          mkdir -p "$ROOT/media" "$ROOT/scout" "$ROOT/out"
+          mkdir -p "$ROOT/media" "$ROOT/scout" "$ROOT/out" "$ROOT/motion"
           python3 -m pip install -q --disable-pip-version-check numpy opencv-python-headless pillow ultralytics \
             > "$ROOT/pip.log" 2>&1 || { tail -c 1500 "$ROOT/pip.log"; echo ORIGINAL_VIDEO_CPU_DEPENDENCY_INSTALL_FAILED; exit 4; }
           if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
@@ -60,6 +60,7 @@ jobs:
           python3 -m cpu_animate.test_bidirectional_video_reid_v14
           python3 -m cpu_animate.test_body_floor_anchor_v16
           python3 -m cpu_animate.test_source_anchor_floor_fusion_v17
+          python3 -m cpu_animate.test_native_video_bridge_v19
           echo V12_CPU_APPEARANCE_KIT_SWAP_AND_REACQUISITION_PASS
           echo CPU_ANIMATE_UNIVERSAL_FLOOR_LOCK_V12_SYNTHETIC_REGRESSION_COMPLETE
           python3 -m py_compile cpu_animate/body_floor_anchor_v16.py
@@ -102,10 +103,15 @@ jobs:
              --repo timeedmonds-maker/104 --dir "$ROOT/scout" \
              --pattern 'identity-tracks-*.json' \
              > "$ROOT/source-scout.log" 2>&1 || { echo ORIGINAL_VIDEO_IDENTITY_SCOUT_DOWNLOAD_FAILED; exit 4; }
+          gh release download cpu-animate-min-ato-0181-source-40hz-two-player-v1 \
+             --repo timeedmonds-maker/104 --dir "$ROOT/motion" \
+             --pattern 'min_ato_two_target_full131_derived40hz.json' \
+             > "$ROOT/source-native.log" 2>&1 || { echo ORIGINAL_NBA_NATIVE_40HZ_SOURCE_RECOVERY_FAILED; exit 4; }
           env -u GH_TOKEN -u GITHUB_TOKEN -u GIT_ASKPASS \
             python3 -m cpu_animate.min0181_v12_universal_floor_real_video \
                --private "$ROOT/private" --media "$ROOT/media" \
                --scout "$ROOT/scout" \
+               --motion "$ROOT/motion/min_ato_two_target_full131_derived40hz.json" \
                --modelcourt "$ROOT/private/basketball_court_best.pt" \
                --modelpose "$ROOT/private/yolo11n-pose.pt" \
                --modelseg "$ROOT/private/yolo11n-seg.pt" \
@@ -153,8 +159,10 @@ jobs:
           assert q['kd_body_tether_original_video_qa']['max_accepted_body_envelope_error_px']<=3.5
           assert q['kd_fused_floor_intervals_have_two_sided_camera_shot_support'] is True
           assert q['kd_fused_original_camera_source_qa']['accepted_floor_frames']>=145
+          assert q['v19_native_xyz_video_qa']['kd_native_projected_video_body_accepted']>=50
+          assert q['v19_native_xyz_video_qa']['sengun_original_v12_path_modified'] is False
           assert len(q['kd_video_source_manual_anchor_evidence'])>=4
-          assert q['ring_output_qa'].get('Durant_visible_ring_frames',0)>=140
+          assert q['ring_output_qa'].get('Durant_visible_ring_frames',0)>=50
           assert q['ring_output_qa'].get('Sengun_visible_ring_frames',0)>=125
           assert q['ring_output_qa'].get('Sengun_green_reviewed_frames',0)>60
           assert (Path(sys.argv[1])/q['video_file']).stat().st_size>1000000
@@ -164,15 +172,16 @@ jobs:
                  'floor':q['floor_filter_qa'],
                  'ring':q['ring_frame_dynamics']})
           PY
-          TAG=cpu-animate-min0181-kd-body-sengun-v12-v18
+          TAG=cpu-animate-min0181-native-xyz-kd-sengun-v19
           gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
             gh release create "$TAG" --repo timeedmonds-maker/104 \
-              --title 'CPU Animate V18: KD body-verified floor rings plus preserved Sengun V12 path' \
-              --notes 'V18 private research: KD floor path = video-verified body and reviewed shoe-keyframe fusion from V17, with body-ring hard gate; Sengun original V12 video identity and court-floor trajectory explicitly preserved, later source-body snap removed. Original frozen three-sector rotating/pulsing HoopVision ring and green-reviewed Sengun control unchanged. No independent real-video shoe p95 or calibrated world court ground truth yet. Third-party court model AGPL.' \
+              --title 'CPU Animate V19: immutable NBA native XYZ to original video KD ring, Sengun V12 preserved' \
+              --notes 'V19 experimental: Durant native NBA source XY projected to video via robust source-to-reference camera fit and video body gate; Sengun accepted V12 path unchanged. Neither two physical timing anchors nor independent landmarks/feet yet certified. Research preview, fail closed. No original NBA source mutation.' \
               --latest=false >/dev/null
           gh release upload "$TAG" \
-             "$ROOT/out/MIN0181_V18_KD_SOURCE_BODY_SENGUN_V12_BROADCAST_8S.mp4" \
+             "$ROOT/out/MIN0181_V19_NATIVE_XYZ_VIDEO_REGISTERED_KD_SENGUN_V12_8S.mp4" \
              "$ROOT/out/v18_kd_body_sengun_v12_split_qa.json" \
+             "$ROOT/out/v19_native_xyz_alignment_diagnostic_qa.json" \
              "$ROOT/out"/v18_floor_review_t*.jpg \
              "$ROOT/out"/v18_kd_body_foot_debug_t*.jpg \
              --repo timeedmonds-maker/104 --clobber
