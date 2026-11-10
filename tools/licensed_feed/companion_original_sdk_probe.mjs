@@ -30,7 +30,10 @@ const result={schema:'igp.licensed-sdk-companion-source-readback.v1',
  observed_200_event_responses:0,
  observed_200_slot_responses:0,other_status_counts:{},original_total_event_objects:0,
  shot_detail_objects:0,original_body_bytes:0,original_body_sha256:null,
- raw_29joint_pose_60hz_observed:false,authentication_bypass_attempted:false};
+ raw_29joint_pose_60hz_observed:false,authentication_bypass_attempted:false,
+ observed_original_position_keyframes_with_players:0,
+ observed_original_position_keyframes_with_ball:0,
+ observed_original_position_keyframes_with_10_players_and_ball:0};
 try{
  const output=join(sourceDir,'bundle.js');
  await build({entryPoints:[new URL('./browser.js',import.meta.url).pathname],bundle:true,
@@ -74,6 +77,18 @@ try{
     if(!events||!events.length)return;
     if(hasEvents)result.observed_200_event_responses++;
     if(hasSlots)result.observed_200_slot_responses++;
+    if(sourceVariant==='positions'&&hasSlots){
+      for(const event of events){
+        for(const frame of event?.metadata?.keyframes||[]){
+          const positions=frame?.positions||{};
+          if(typeof positions!=='object')continue;
+          const pids=Object.keys(positions).filter(id=>id!=='ball');
+          result.observed_original_position_keyframes_with_players+=Number(pids.length>0);
+          result.observed_original_position_keyframes_with_ball+=Number(Object.hasOwn(positions,'ball'));
+          result.observed_original_position_keyframes_with_10_players_and_ball+=Number(pids.length===10&&Object.hasOwn(positions,'ball'));
+        }
+      }
+    }
     const key=Buffer.from(buffer).toString('base64url').slice(0,48);
     if(seen.has(key))return;seen.add(key);
     const count=events.filter(e=>JSON.stringify(e).includes('ShotDetails#show')).length;
