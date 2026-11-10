@@ -2,7 +2,7 @@ name: CPU Animate V23.2 0208 resized stable source render status
 on:
   push:
     branches: ['cpu-animate-0208-event73-pbp-v22-20261110']
-    paths: ['.github/workflows/cpu-animate-0208-v23-1-run-monitor.yml']
+    paths: ['.github/workflows/cpu-animate-0208-v23-2-run-monitor.yml']
 permissions:
   contents: read
 jobs:
