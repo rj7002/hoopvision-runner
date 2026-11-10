@@ -32,9 +32,11 @@ jobs:
             -b research/igp-ball-screen-evidence-v1-20261109 \
             https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           cd "$RUNNER_TEMP/private"
-          test "$(git rev-parse HEAD)" = "ef45b71805d3252134d1fe5134b7c3b6062d141b"
+          test "$(git rev-parse HEAD)" = "32be53a0a11f0691cc404ec8c4856482af6add46"
           git sparse-checkout set --no-cone \
             /gamepulse/fusion/analysis/igp_ball_screen_research_v1.py \
+            /gamepulse/fusion/analysis/igp_four_actor_screen_motifs_v2.py \
+            /gamepulse/fusion/analysis/test_igp_four_actor_screen_motifs_v2.py \
             /gamepulse/fusion/analysis/test_igp_ball_screen_research_v1.py \
             /gamepulse/fusion/analysis/igp_full139_ball_screen_validation_v1.py \
             /gamepulse/fusion/analysis/test_igp_full139_ball_screen_validation_v1.py \
@@ -58,6 +60,8 @@ jobs:
           export PYTHONPATH=gamepulse/fusion/analysis:gamepulse/fusion
           python3 -B -m py_compile \
             gamepulse/fusion/analysis/igp_ball_screen_research_v1.py \
+            gamepulse/fusion/analysis/igp_four_actor_screen_motifs_v2.py \
+            gamepulse/fusion/analysis/test_igp_four_actor_screen_motifs_v2.py \
             gamepulse/fusion/analysis/test_igp_ball_screen_research_v1.py \
             gamepulse/fusion/analysis/igp_full139_ball_screen_validation_v1.py \
             gamepulse/fusion/analysis/test_igp_full139_ball_screen_validation_v1.py \
@@ -66,6 +70,7 @@ jobs:
             gamepulse/fusion/igp_full139_sourcegraded_query_v1.py
           python3 -B -m unittest -v \
             test_igp_ball_screen_research_v1 \
+            test_igp_four_actor_screen_motifs_v2 \
             test_igp_full139_ball_screen_validation_v1
           python3 -B - <<'PY'
           from igp_full139_ball_screen_validation_v1 import source_preflight
