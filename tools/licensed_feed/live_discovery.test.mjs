@@ -20,3 +20,11 @@ test('never include a future game just because it is status 2',()=>{
 test('changed upstream schedule fails closed',()=>{
  assert.throws(()=>activeGames({},t),/schema/);
 });
+
+test('preflight arms official scheduled games 30m before tipoff but not before that',()=>{
+ const id='0022600199',start=t+30*60000;
+ const d={leagueSchedule:{gameDates:[{games:[{gameId:id,gameStatus:1,
+  gameDateTimeUTC:new Date(start).toISOString()}]}]}};
+ assert.deepEqual(activeGames(d,t).map(g=>g.id),[id]);
+ assert.equal(activeGames(d,t-1).length,0);
+});
