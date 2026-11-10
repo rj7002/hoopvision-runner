@@ -1,0 +1,74 @@
+# One-off SHA original live SDK forensic audit for Rockets-Nuggets 0208; no licensed coordinates or raw values public.
+name: IGP Rockets 0208 genuine SDK raw archive structural forensics
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-rockets-0208-archive-forensics.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-0208-raw-original-archive-forensics
+  cancel-in-progress: false
+jobs:
+  source-sha-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Authenticate approved private source only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: SHA-verify eight ORIGINAL source archives and inspect all raw SDK event metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/0208-original"
+          gh release download gamepulse-live-sdk-0022600208 --repo timeedmonds-maker/104 \
+            --pattern 'live-*.tar.gz' --pattern 'live-*.json' \
+            --dir "$RUNNER_TEMP/0208-original"
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/igp_0022600208_raw_sdk_archive_structure_audit_v1.py
+          python3 gamepulse/fusion/igp_0022600208_raw_sdk_archive_structure_audit_v1.py \
+            --archive-dir "$RUNNER_TEMP/0208-original"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('gamepulse/fusion/qa/igp_progress_20261030/igp_0022600208_raw_sdk_archive_structure_audit_v1.json')
+          d=json.loads(p.read_bytes())
+          assert d['archive_count']==8 and d['game_id']=='0022600208'
+          assert d['aggregate_counts']['source_frames_with_player']>=18
+          print('IGP_0208_RAW_SOURCE_QA',d['archive_count'],
+                d['aggregate_counts']['unique_keyframe_timestamps'],
+                d['aggregate_counts']['source_frames_with_player'],
+                d['aggregate_counts']['source_frames_with_ball'],
+                d['possible_nonkey_original_position_source_keys'])
+          PY
+      - name: Preserve forensic provenance report in private 104 only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_progress_20261030/igp_0022600208_raw_sdk_archive_structure_audit_v1.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo IGP_0208_FORENSIC_SOURCE_ALREADY_RECORDED; exit 0; fi
+          git commit -q -m 'qa(igp): SHA audit original Rockets 0208 SDK raw positions and fields'
+          for n in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then echo IGP_0208_RAW_ARCHIVE_AUDIT_PRIVATE_SHA_COMMITTED; exit 0; fi
+            sleep "$n"
+          done
+          exit 23
