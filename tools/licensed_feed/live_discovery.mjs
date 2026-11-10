@@ -13,8 +13,10 @@ export function activeGames(schedule,now=Date.now()) {
   // Include recently completed games to resume missing live windows after final.
   // Start observing the official slate before tipoff. No source slot is
   // requested until its entire five-second interval and settle guard elapse.
-  const eligible=(status===2&&now>=start-15*60000&&now<=start+8*3600000)
-    ||(status===3&&now>=start&&now<=start+8*3600000)
+  // Stop retrying long-finished games from the live pipeline. Full-game
+  // recovery is separately gated by genuine SDK position-source readiness.
+  const eligible=(status===2&&now>=start-15*60000&&now<=start+6*3600000)
+    ||(status===3&&now>=start&&now<=start+5*3600000)
     ||(status===1&&now>=start-30*60000&&now<=start+5*3600000);
   if(eligible)found.set(id,{id,tipoff:new Date(start).toISOString()});
  }
