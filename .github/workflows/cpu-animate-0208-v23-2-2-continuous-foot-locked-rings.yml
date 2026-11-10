@@ -7,7 +7,7 @@ permissions:
   contents: read
 concurrency:
   group: cpu-animate-0208-v23-2-2-persistent-feet
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   original-playbyplay-three-rings:
     runs-on: ubuntu-24.04
@@ -38,7 +38,7 @@ jobs:
             https://github.com/timeedmonds-maker/104.git "$ROOT/private"
           git -C "$ROOT/private" sparse-checkout set --no-cone \
             '/cpu_animate/' '/tools/locked_broadcast_screen_v5_rings.py' >/dev/null
-          test "$(git -C "$ROOT/private" rev-parse HEAD)" = "4841511a725d199e603f7b32be7900dc3a0b1540"
+          test "$(git -C "$ROOT/private" rev-parse HEAD)" = "08dcbbc09ddd7c437e25ea45850dd6c99f6867ed"
           cd "$ROOT/private"
           python3 -m pip install -q --disable-pip-version-check numpy opencv-python-headless pillow ultralytics
           if ! command -v ffmpeg >/dev/null; then
