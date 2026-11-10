@@ -34,11 +34,12 @@ jobs:
       - name: Test source-observed positions programme for newest and earlier games
         env:
           IGP_SDK_SOURCE_VARIANT: positions
+          IGP_SDK_INIT_TIMEOUT_MS: "45000"
           IGP_PRIVATE_CAPTURE_DIR: /tmp/igp-sdk-positions-diagnostic
         run: |
           set -euo pipefail
           mkdir -p "$IGP_PRIVATE_CAPTURE_DIR"
-          for row in "0022600208 2026-11-10T01:30:00.000Z" "0022600205 2026-11-10T00:00:00.000Z" "0022600189 2026-11-07T22:00:00.000Z"; do
+          for row in "0022600007 2026-10-23T01:30:00.000Z" "0022600208 2026-11-10T01:30:00.000Z"; do
             read -r NBA_GAME_ID NBA_TIPOFF_UTC <<< "$row"
             export NBA_GAME_ID NBA_TIPOFF_UTC
             echo "IGP_POSITIONS_PROBE_GAME $NBA_GAME_ID"
