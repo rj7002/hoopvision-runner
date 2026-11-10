@@ -1,3 +1,4 @@
+# 2026-11-10 NZ live-first: original five-second SDK windows saved even if a minute is incomplete; SHA-private only.
 # 2026-11-10 exact HOU–DEN 0022600208 postfinal source-gated timeout recovery, public CPU only, preserve original SHA.
 name: Game Pulse NBA all-game live-first private capture
 # 2026-11-08 NZ recovery retrigger: re-discover US Nov 7 games 0022600190-0022600195, resume authentic missing SDK slots and private QA; do not certify incomplete originals.
@@ -20,6 +21,12 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/gamepulse-live-all-games.yml'
+      - 'tools/licensed_feed/capture.mjs'
+      - 'tools/licensed_feed/capture.test.mjs'
+      - 'tools/licensed_feed/live_capture_cycle.mjs'
+      - 'tools/licensed_feed/live_capture_cycle.test.mjs'
+      - 'tools/licensed_feed/live_discovery.mjs'
+      - 'tools/licensed_feed/live_discovery.test.mjs'
   workflow_dispatch:
 permissions:
   contents: read
@@ -39,7 +46,7 @@ jobs:
           node-version: '22'
       - name: Verify concurrent slate selection and original SDK integrity
         run: |
-          node --test tools/licensed_feed/live_discovery.test.mjs tools/licensed_feed/live_capture_cycle.test.mjs tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs
+          node --test tools/licensed_feed/live_discovery.test.mjs tools/licensed_feed/live_capture_cycle.test.mjs tools/licensed_feed/capture.test.mjs tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs
       - name: Select every currently active or recently final NBA fixture
         id: active
         run: node tools/licensed_feed/live_discovery.mjs
@@ -74,7 +81,8 @@ jobs:
       - name: Verify source-gated late-ready capture regressions
         if: matrix.game.id != 'none'
         run: node --test tools/licensed_feed/capture.test.mjs
-      - name: Ingest all available elapsed one-minute windows, resume missing private checkpoints
+      - name: Ingest and SHA-preserve all authentic full and partial five-second source windows
+        id: ingest
         if: matrix.game.id != 'none'
         working-directory: tools/licensed_feed
         env:
@@ -83,7 +91,7 @@ jobs:
           GAMEPULSE_LIVE_TIPOFF: ${{ matrix.game.tipoff }}
         run: node live_capture_cycle.mjs
       - name: Privately materialize SDK native touch counts and source-gated paint touches
-        if: always() && matrix.game.id != 'none'
+        if: success() && matrix.game.id != 'none' && steps.ingest.outputs.new_capture == 'true'
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
           GAME_ID: ${{ matrix.game.id }}
@@ -130,7 +138,7 @@ jobs:
           else:raise RuntimeError("private_touch_conflict")
           PY
       - name: Build and publish tracking-reconstructed touches from player-ball XYZ
-        if: always() && matrix.game.id != 'none'
+        if: success() && matrix.game.id != 'none' && steps.ingest.outputs.new_capture == 'true'
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
           GAME_ID: ${{ matrix.game.id }}
@@ -171,7 +179,7 @@ jobs:
           else:raise RuntimeError("tracking_touch_publish_conflict")
           PY
       - name: Build private generic live lineup ONOFF and NBA Blueprint xFG search
-        if: always() && matrix.game.id != 'none'
+        if: success() && matrix.game.id != 'none' && steps.ingest.outputs.new_capture == 'true'
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
           GAME_ID: ${{ matrix.game.id }}
@@ -207,7 +215,7 @@ jobs:
           else:raise RuntimeError("private_live_analytics_publish_failed")
           PY
       - name: Preserve independent live source coverage QA privately
-        if: always() && matrix.game.id != 'none'
+        if: success() && matrix.game.id != 'none' && steps.ingest.outputs.new_capture == 'true'
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
           GAME_ID: ${{ matrix.game.id }}
