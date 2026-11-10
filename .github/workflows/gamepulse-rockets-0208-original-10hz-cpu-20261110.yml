@@ -1,3 +1,4 @@
+# 2026-11-10 verified public guard allowlist and fixed game QA: run original source-grade 10Hz CPU analysis.
 # Fixed NBA game 0022600208: genuine SDK source if available, then source-graded 100 ms player-and-ball grid.
 # Private source, rows, and outputs never leave 104. GitHub CPU only. No original XYZ is fabricated.
 name: Rockets-Nuggets 0208 SHA original XYZ 10Hz private CPU
