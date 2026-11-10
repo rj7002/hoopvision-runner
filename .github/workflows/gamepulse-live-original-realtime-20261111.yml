@@ -1,0 +1,84 @@
+name: Integrated Pulse Nov11 live original XYZ source capture
+# One-day source-only experiment: observe the live SDK positions program, not postgame replay.
+# Keep existing full-game and live-first workflows untouched; store raw licensed data privately.
+on:
+  schedule:
+    - cron: '*/5 0-7 11 11 *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/gamepulse-live-original-realtime-20261111.yml'
+      - 'tools/licensed_feed/live_realtime_20261111.mjs'
+permissions: {contents: read}
+concurrency:
+  group: igp-nov11-real-live-discover
+  cancel-in-progress: false
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    outputs:
+      games: ${{ steps.active.outputs.games }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Syntax and source-boundary checks
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          node --check tools/licensed_feed/live_realtime_20261111.mjs
+          node --test tools/licensed_feed/live_discovery.test.mjs
+      - name: Discover exact current NBA games from official schedule
+        id: active
+        run: |
+          set -euo pipefail
+          if test "$(date -u +%Y-%m-%d)" != '2026-11-11'; then
+            echo 'games=[{"id":"none","tipoff":"1970-01-01T00:00:00.000Z"}]' >> "$GITHUB_OUTPUT"
+            echo IGP_NOV11_NOT_YET_IN_UTC_COLLECTION_WINDOW
+          else
+            node tools/licensed_feed/live_discovery.mjs
+          fi
+  live-original:
+    needs: discover
+    if: needs.discover.result == 'success'
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        game: ${{ fromJSON(needs.discover.outputs.games) }}
+    concurrency:
+      group: igp-nov11-realtime-game-${{ matrix.game.id }}
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        if: matrix.game.id != 'none'
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        if: matrix.game.id != 'none'
+        with: {node-version: '22'}
+      - name: Install existing licensed SDK on CPU
+        if: matrix.game.id != 'none'
+        working-directory: tools/licensed_feed
+        run: |
+          set -euo pipefail
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Capture genuine live player and ball events with independent SHA readback
+        if: matrix.game.id != 'none'
+        working-directory: tools/licensed_feed
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          GAMEPULSE_LIVE_ID: ${{ matrix.game.id }}
+          GAMEPULSE_LIVE_TIPOFF: ${{ matrix.game.tipoff }}
+        run: |
+          set -euo pipefail
+          node live_realtime_20261111.mjs
+      - name: Source availability is not presumed
+        if: always() && matrix.game.id != 'none'
+        run: |
+          echo 'Original live SDK observation attempted; verify IGP_REALTIME_ORIGINAL_SOURCE_SHA_READBACK and source counts in job logs. A successful workflow alone does not certify XYZ.' >> "$GITHUB_STEP_SUMMARY"
