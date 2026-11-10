@@ -142,11 +142,11 @@ async function main() {
    const grade=validateLiveManifest(job,m);
    const archive=join(dir,'checkpoint.tar.gz'),digest=sha(readFileSync(archive));
    const base=grade==='FULL_5S_SOURCE_COVERAGE'?'live-'+from:
-    'live-partial-'+from+'-'+digest.slice(0,20);
+    'partial-observed-'+from+'-'+digest.slice(0,20);
    const archivePath=join(dir,base+'.tar.gz'),side=join(dir,base+'.json');
    copyFileSync(archive,archivePath);
    writeFileSync(side,JSON.stringify({...m,archive_sha256:digest,source_grade:grade})+'\n');
-   // Never replace original files. Partial captures use distinct names.
+   // Never replace original files. Partial captures use distinct names outside the live-*.tar.gz complete-minute consumer glob.
    uploadImmutable(tag,archivePath,base+'.tar.gz',digest);
    uploadImmutable(tag,side,base+'.json',sha(readFileSync(side)));
    if(grade==='FULL_5S_SOURCE_COVERAGE')fullSaved++;
