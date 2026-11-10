@@ -91,18 +91,10 @@ jobs:
           echo FULL139_SOURCE_NATIVE_FOUR_GAME_PILOT_COMPLETE
           python3 -B gamepulse/fusion/analysis/igp_0194_screen_human_review_queue_v1.py --root . --out "$RUNNER_TEMP/0194_review_queue.json"
           python3 - <<'PY'
-          import os,json,base64,hashlib,pathlib,subprocess
+          import os,json,hashlib,pathlib
           f=pathlib.Path(os.environ["RUNNER_TEMP"])/"0194_review_queue.json"
           data=f.read_bytes(); r=json.loads(data)
           assert r["game_id"]=="0022600194" and r["review_case_count"]==len(r["cases"])
           assert r["predicted_screen_proposal_count"]>0 and r["original_xyz_exported"] is False
-          name="gamepulse/fusion/qa/analysis/igp_0194_screen_review_queue_v1.json"
-          url="repos/timeedmonds-maker/104/contents/"+name
-          branch="research/igp-ball-screen-evidence-v1-20261109"
-          existing=subprocess.run(["gh","api",url+"?ref="+branch],capture_output=True,text=True)
-          body={"branch":branch,"message":"qa(private): original-source 0194 screen review queue [skip ci]","content":base64.b64encode(data).decode()}
-          if existing.returncode==0: body["sha"]=json.loads(existing.stdout)["sha"]
-          done=subprocess.run(["gh","api","-X","PUT",url,"--input","-"],input=json.dumps(body),capture_output=True,text=True)
-          if done.returncode!=0:raise RuntimeError("PRIVATE_REVIEW_QUEUE_PERSIST_FAILED:"+done.stderr[-300:])
-          print("PRIVATE_0194_REVIEW_CASES_COMMITTED",r["review_case_count"],hashlib.sha256(data).hexdigest())
+          print("PRIVATE_0194_REVIEW_QUEUE_READ_ONLY_VALIDATED",r["review_case_count"],hashlib.sha256(data).hexdigest())
           PY
