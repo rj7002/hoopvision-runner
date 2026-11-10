@@ -1,0 +1,100 @@
+name: CPU Animate 0208 V23 actual 595-frame Durant Sengun Smart video-only rings
+on:
+  push:
+    branches: ['cpu-animate-0208-event73-pbp-v22-20261110']
+    paths: ['.github/workflows/cpu-animate-0208-v23-full-video-only-rings.yml']
+permissions:
+  contents: read
+concurrency:
+  group: cpu-animate-0208-v23-three-rings-final
+  cancel-in-progress: false
+jobs:
+  original-playbyplay-three-rings:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+      OPENCV_OPENCL_RUNTIME: disabled
+      OMP_NUM_THREADS: '3'
+      MKL_NUM_THREADS: '3'
+      OPENBLAS_NUM_THREADS: '2'
+      TOKENIZERS_PARALLELISM: 'false'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - name: Validate private source and produce real 19s three-player ring MP4 without XYZ
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN" && test ! -e /dev/nvidia0 && test ! -e /dev/kfd
+          ROOT="$(mktemp -d)"
+          export ROOT
+          trap 'rm -rf "$ROOT"' EXIT
+          mkdir -p "$ROOT/media" "$ROOT/scout" "$ROOT/out"
+          gh auth setup-git >/dev/null 2>&1
+          git clone -q --depth=1 --filter=blob:none --sparse \
+            --branch cpu-animate/0208-v23-cpu-video-only-20261111 \
+            https://github.com/timeedmonds-maker/104.git "$ROOT/private"
+          git -C "$ROOT/private" sparse-checkout set --no-cone \
+            '/cpu_animate/' '/tools/locked_broadcast_screen_v5_rings.py' >/dev/null
+          cd "$ROOT/private"
+          python3 -m pip install -q --disable-pip-version-check numpy opencv-python-headless pillow ultralytics
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq >/dev/null
+            sudo apt-get install -y -qq ffmpeg >/dev/null
+          fi
+          python3 -m py_compile \
+            cpu_animate/video_only_render_0208_v23.py \
+            cpu_animate/v22_multiplayer_floor_adapter.py
+          python3 -m cpu_animate.test_v22_multiplayer_floor_adapter
+          gh release download cpu-animate-0208-73-pbp-original-source-v1 \
+            --repo timeedmonds-maker/104 --dir "$ROOT/media" \
+            --pattern '0208_0073_play-by-play.mp4' \
+            --pattern '0208_0073_play-by-play_pts_and_source.json' >/dev/null
+          gh release download cpu-animate-0208-73-video-only-scout-v23 \
+            --repo timeedmonds-maker/104 --dir "$ROOT/scout" \
+            --pattern 'scout_0208_73_videoonly_595.json.gz' \
+            --pattern 'scout_0208_73_videoonly_qa.json' >/dev/null
+          echo '506606517d547d0be048c2d6306f324b6c77271ae4d5a3de436a596fe32f6ff4  '$ROOT'/media/0208_0073_play-by-play.mp4' | sha256sum -c -
+          curl --fail --location --silent --show-error --retry 2 --max-time 120 \
+            https://huggingface.co/Ultralytics/YOLO11/resolve/1fad642026e935ebf53c4d878b6fd844ad08de3f/yolo11n-seg.pt \
+            -o "$ROOT/private/yolo11n-seg.pt"
+          echo '55ed65c56c91713d23e8402371c6c49a6fd84f257f7dce452e8d70e41dcbe152  '$ROOT'/private/yolo11n-seg.pt' | sha256sum -c -
+          env -u GH_TOKEN -u GITHUB_TOKEN -u GIT_ASKPASS \
+            python3 -m cpu_animate.video_only_render_0208_v23 \
+              --media "$ROOT/media/0208_0073_play-by-play.mp4" \
+              --manifest "$ROOT/media/0208_0073_play-by-play_pts_and_source.json" \
+              --scout "$ROOT/scout/scout_0208_73_videoonly_595.json.gz" \
+              --anchors "$ROOT/private/cpu_animate/video_only_0208_v23_source_identity_anchors.json" \
+              --model "$ROOT/private/yolo11n-seg.pt" \
+              --out "$ROOT/out"
+          python3 - "$ROOT/out" <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          d=Path(sys.argv[1])
+          q=json.loads((d/"0208_v23_video_only_three_player_qa.json").read_text())
+          assert q["source_xyz_used"] is False
+          assert q["original_NBA_source_video_frames"]==595
+          assert q["original_NBA_source_sha256"]=="506606517d547d0be048c2d6306f324b6c77271ae4d5a3de436a596fe32f6ff4"
+          assert set(q["ring_frames"])=={"Durant","Sengun","Smart"}
+          assert all(q["ring_frames"][p]>=15 for p in ("Durant","Sengun","Smart")),q["ring_frames"]
+          assert q["source_audio_preserved"]
+          p=d/q["output_file"]
+          assert p.stat().st_size>500000
+          assert hashlib.sha256(p.read_bytes()).hexdigest()==q["output_sha256"]
+          print("CPU_V23_AUTHENTIC_595_FRAME_VIDEO_3RING_OUTPUT_ACCEPTED",
+             q["ring_frames"],q["output_sha256"],flush=True)
+          PY
+          TAG=cpu-animate-0208-73-playbyplay-v23-three-rings-video-only
+          gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 || \
+            gh release create "$TAG" --repo timeedmonds-maker/104 \
+              --title 'CPU Animate — Houston Denver Play By Play 73 — Durant Sengun Smart genuine V22 rings' \
+              --notes 'V23 original 19.848s NBA Play By Play private source, 595 exact source frames, frozen HoopVision v22 visual art and CPU per-frame human-reviewed roster anchors. Source-video-only BoT-SORT/YOLO shoe tracks, video court-motion stabilisation, mask occlusion, original audio, red-only unknown green custody. No XYZ/GPU. Research review; physical ground-truth alignment not independently certified.' \
+              --latest=false >/dev/null
+          gh release upload "$TAG" \
+            "$ROOT/out/0208_0073_PLAY_BY_PLAY_DURANT_SENGUN_SMART_V23_VIDEO_ONLY_19S.mp4" \
+            "$ROOT/out/0208_v23_video_only_three_player_qa.json" \
+            "$ROOT/out"/0208_v23_ring_review_f*.jpg \
+            --repo timeedmonds-maker/104 --clobber >/dev/null
+          echo CPU_0208_SOURCE_PLAY_BY_PLAY_V23_DURANT_SENGUN_SMART_595_FRAME_VIDEO_CPU_EXPORT_SUCCEEDED
