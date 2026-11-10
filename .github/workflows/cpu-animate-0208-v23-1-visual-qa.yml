@@ -1,0 +1,51 @@
+name: CPU Animate 0208 corrected V23.1 private QA and supersede preliminary
+on:
+  push:
+    branches: ['cpu-animate-0208-event73-pbp-v22-20261110']
+    paths: ['.github/workflows/cpu-animate-0208-v23-1-visual-qa.yml']
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - name: Preserve corrected private frame source QA and mark flawed preliminary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN" && test ! -e /dev/nvidia0
+          D="$(mktemp -d)"
+          export D
+          gh release download cpu-animate-0208-73-playbyplay-v23-1-identity-corrected \
+            --repo timeedmonds-maker/104 --dir "$D" \
+            --pattern '0208_v23_1_ring_review_f012.jpg' \
+            --pattern '0208_v23_1_ring_review_f102.jpg' \
+            --pattern '0208_v23_1_ring_review_f282.jpg' \
+            --pattern '0208_v23_1_ring_review_f372.jpg' \
+            --pattern '0208_v23_1_ring_review_f552.jpg' \
+            --pattern '0208_v23_1_ring_review_f582.jpg' \
+            --pattern '0208_v23_1_video_only_three_player_qa.json' >/dev/null
+          test -s "$D/0208_v23_1_ring_review_f552.jpg"
+          test "$(find "$D" -name '0208_v23_1_ring_review_f*.jpg' | wc -l)" -eq 6
+          for f in "$D"/*.jpg "$D"/*.json; do
+            export FILE="$f"
+            python3 - <<'PY' | gh api -X PUT \
+              "repos/timeedmonds-maker/104/contents/docs/cpu_animate/v23_1_$(basename "$FILE").b64.txt" \
+              --input - >/dev/null
+          import base64,os,json
+          from pathlib import Path
+          p=Path(os.environ['FILE'])
+          raw=base64.b64encode(p.read_bytes())+b'\n' if p.suffix=='.jpg' else p.read_bytes()
+          print(json.dumps({'branch':'cpu-animate/0208-v23-1-source-identity-repair-20261111',
+            'message':'qa V23.1: source-verified private corrected render review frame/QA',
+            'content':base64.b64encode(raw).decode()}))
+          PY
+          done
+          gh release edit cpu-animate-0208-73-playbyplay-v23-three-rings-video-only \
+            --repo timeedmonds-maker/104 \
+            --title 'SUPERSEDED PRELIMINARY V23 - do not use (Smart vs Denver #32 overlay)' \
+            --notes 'This preliminary V23 MP4 has a known wrong-player overlay at the late Smart/Denver #32 overlap and is archived for research A/B only. Corrected CPU-only V23.1 release: https://github.com/timeedmonds-maker/104/releases/tag/cpu-animate-0208-73-playbyplay-v23-1-identity-corrected . Original MP4 byte-for-byte preserved for audit.' >/dev/null
+          echo V23_1_QA_SOURCE_STILLS_ARCHIVED_AND_FLAWED_V23_SUPERSEDED
