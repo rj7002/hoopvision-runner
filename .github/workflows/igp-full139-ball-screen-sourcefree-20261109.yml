@@ -32,7 +32,7 @@ jobs:
             -b research/igp-ball-screen-evidence-v1-20261109 \
             https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           cd "$RUNNER_TEMP/private"
-          test "$(git rev-parse HEAD)" = "32be53a0a11f0691cc404ec8c4856482af6add46"
+          test "$(git rev-parse HEAD)" = "516c1aa88e9fe3d0208d52c95dfb986efc51b940"
           git sparse-checkout set --no-cone \
             /gamepulse/fusion/analysis/igp_ball_screen_research_v1.py \
             /gamepulse/fusion/analysis/igp_four_actor_screen_motifs_v2.py \
@@ -85,10 +85,10 @@ jobs:
                 result['original_native_eligible_games'],result['official_actions'])
           PY
           echo FULL139_BALL_SCREEN_SOURCE_FREE_AND_SHA_SOURCE_GATE_PASS
-          for gid in 0022600138 0022600187 0022600188; do
+          for gid in 0022600138 0022600187 0022600188 0022600194; do
             python3 -B gamepulse/fusion/analysis/igp_full139_ball_screen_source_pilot_v1.py --root . --game-id "$gid"
           done
-          echo FULL139_SOURCE_NATIVE_THREE_GAME_PILOT_COMPLETE
+          echo FULL139_SOURCE_NATIVE_FOUR_GAME_PILOT_COMPLETE
           python3 -B gamepulse/fusion/analysis/igp_0194_screen_human_review_queue_v1.py --root . --out "$RUNNER_TEMP/0194_review_queue.json"
           python3 - <<'PY'
           import os,json,base64,hashlib,pathlib,subprocess
