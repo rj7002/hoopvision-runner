@@ -24,3 +24,15 @@ test('post-final SDK late-ready handling remains strictly source gated',()=>{
  assert.equal(sdkInitCanSeek(''),false);
  assert.equal(sdkInitCanSeek(undefined),false);
 });
+
+test('partial source metadata records exactly observed source slots and cannot certify completion',()=>{
+ const observed=[{from:j.start_ms,events:[{metadata:{keyframes:[
+  {timestamp:j.start_ms+1000,positions:{a:[1,2,3],ball:[4,5,6]}}]}}]}];
+ const m=stats(j,observed).manifest;
+ assert.equal(m.expected_windows,2);
+ assert.equal(m.successful_windows,1);
+ assert.equal(m.capture_complete,false);
+ assert.deepEqual(m.source_window_starts_ms,[j.start_ms]);
+ assert.equal(m.observed,true);
+ assert.equal(m.imputed,false);
+});
