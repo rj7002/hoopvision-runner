@@ -32,11 +32,13 @@ jobs:
             -b research/igp-ball-screen-evidence-v1-20261109 \
             https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           cd "$RUNNER_TEMP/private"
-          test "$(git rev-parse HEAD)" = "516c1aa88e9fe3d0208d52c95dfb986efc51b940"
+          test "$(git rev-parse HEAD)" = "a62998af409b40948ec77355b40034d4d0ac801b"
           git sparse-checkout set --no-cone \
             /gamepulse/fusion/analysis/igp_ball_screen_research_v1.py \
             /gamepulse/fusion/analysis/igp_four_actor_screen_motifs_v2.py \
             /gamepulse/fusion/analysis/test_igp_four_actor_screen_motifs_v2.py \
+            /gamepulse/fusion/analysis/igp_screen_event_triad_v3.py \
+            /gamepulse/fusion/analysis/test_igp_screen_event_triad_v3.py \
             /gamepulse/fusion/analysis/test_igp_ball_screen_research_v1.py \
             /gamepulse/fusion/analysis/igp_full139_ball_screen_validation_v1.py \
             /gamepulse/fusion/analysis/test_igp_full139_ball_screen_validation_v1.py \
@@ -62,6 +64,8 @@ jobs:
             gamepulse/fusion/analysis/igp_ball_screen_research_v1.py \
             gamepulse/fusion/analysis/igp_four_actor_screen_motifs_v2.py \
             gamepulse/fusion/analysis/test_igp_four_actor_screen_motifs_v2.py \
+            gamepulse/fusion/analysis/igp_screen_event_triad_v3.py \
+            gamepulse/fusion/analysis/test_igp_screen_event_triad_v3.py \
             gamepulse/fusion/analysis/test_igp_ball_screen_research_v1.py \
             gamepulse/fusion/analysis/igp_full139_ball_screen_validation_v1.py \
             gamepulse/fusion/analysis/test_igp_full139_ball_screen_validation_v1.py \
@@ -71,6 +75,7 @@ jobs:
           python3 -B -m unittest -v \
             test_igp_ball_screen_research_v1 \
             test_igp_four_actor_screen_motifs_v2 \
+            test_igp_screen_event_triad_v3 \
             test_igp_full139_ball_screen_validation_v1
           python3 -B - <<'PY'
           from igp_full139_ball_screen_validation_v1 import source_preflight
