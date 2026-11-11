@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {NBA_GAME_ID,activeGames,MAX_SIMULTANEOUS,sourceBackfillCandidates,officialFinalFromBoxscore,postfinalWindowDecision} from './live_evergreen_discovery.mjs';
+import {NBA_GAME_ID,activeGames,MAX_SIMULTANEOUS,sourceBackfillCandidates,officialFinalFromBoxscore,officialFinalFromSchedule,postfinalWindowDecision} from './live_evergreen_discovery.mjs';
 const now=Date.parse('2026-11-11T02:00:00.000Z');
 const row=(id,min,status=2)=>({gameId:id,gameDateTimeUTC:new Date(now+min*60000).toISOString(),gameStatus:status});
 const wrap=(games)=>({leagueSchedule:{gameDates:[{games}]}});
@@ -71,4 +71,14 @@ test('bounded postfinal observation remains inside the same authorised SDK sessi
  assert.equal(grade(2*60000,final+2*60000,final+119000),'STOP_SOURCE_DISABLED');
  assert.equal(grade(20*60000,final+19*60000),'STOP_WINDOW_HARD_CAP');
  assert.throws(()=>grade(-1,final),/invalid_postfinal_timing/);
+});
+
+test('official schedule fallback only accepts exact game and final status',()=>{
+ const date=Date.parse('2026-11-11T04:00:00Z');
+ const schedule=wrap([row('0022600212',0,3),row('0022600211',0,2)]);
+ assert.equal(officialFinalFromSchedule('0022600212',schedule),true);
+ assert.equal(officialFinalFromSchedule('0022600211',schedule),false);
+ assert.equal(officialFinalFromSchedule('0022600213',schedule),null);
+ assert.equal(officialFinalFromSchedule('0022600212',{}),null);
+ assert.throws(()=>officialFinalFromSchedule('wrong',schedule),/invalid_nba_game_id/);
 });
