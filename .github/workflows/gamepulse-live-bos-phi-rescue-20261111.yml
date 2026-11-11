@@ -1,5 +1,6 @@
 name: IGP Boston-Philadelphia live original XYZ rescue (Nov 11)
 # Dedicated CPU-only source observation for exact Boston-Philadelphia game.
+# Reviewed public-content allowlist in commit e51ed860f907ace459e6ac28ddc3dc7896bdc3a0; retrigger source guard and capture.
 # Writes only original SDK-observed position slot payloads into the canonical private source branch.
 # Does not generate or interpolate XYZ, change tracking defaults, or use paid GPUs.
 on:
