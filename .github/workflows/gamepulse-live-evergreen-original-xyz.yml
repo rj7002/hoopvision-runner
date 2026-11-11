@@ -115,7 +115,9 @@ jobs:
     # Independent of the prearmed live SDK job. Kings 0022600215 proved
     # original player+ball XYZ can be recovered by a FRESH final-state SDK.
     needs: discover
-    if: needs.discover.result == 'success'
+    # Switched off in this fork: in testing it recovered nothing after the final (0 slots), and it holds a second
+    # runner per game for the whole game, which the 20-job concurrency limit cannot afford on a 10-game night.
+    if: false
     strategy:
       fail-fast: false
       max-parallel: 16
