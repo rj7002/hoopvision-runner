@@ -150,7 +150,7 @@ jobs:
           GAMEPULSE_LIVE_ID: ${{ matrix.game.id }}
           GAMEPULSE_LIVE_TIPOFF: ${{ matrix.game.tipoff }}
           IGP_REALTIME_CAPTURE_MS: '240000'
-          IGP_REALTIME_LIVE_STOP_MS: '28800000'
+          IGP_REALTIME_LIVE_STOP_MS: '21000000'
           IGP_REALTIME_PRETIPOFF_WAIT_MS: '0'
           IGP_REALTIME_FLUSH_MS: '20000'
         run: |
