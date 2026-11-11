@@ -62,6 +62,21 @@ async function savePrivateGit(base,zipped,meta){
  for(let attempt=0;attempt<8;attempt++){
   try{
    await git(['fetch','-q','origin',PRIVATE_BRANCH],{cwd:state.root});
+   // A second live CPU observer may have already uploaded the identical
+   // original gzip. Accept only a byte-identical, SHA-verified private copy;
+   // a different metadata observation time is not a source conflict.
+   let priorBlob=null,priorMeta=null;
+   try{
+    priorBlob=execFileSync('git',['show','FETCH_HEAD:'+one],{cwd:state.root,maxBuffer:16*1024*1024,timeout:20000});
+    priorMeta=JSON.parse(execFileSync('git',['show','FETCH_HEAD:'+two],{cwd:state.root,maxBuffer:1024*1024,timeout:20000}).toString('utf8'));
+   }catch{}
+   if(priorBlob){
+    if(sha(priorBlob)!==sha(zipped)||priorMeta?.original_blob_sha256!==sha(zipped)
+      ||priorMeta?.game_id!==GAME)throw Error('private_source_same_key_sha_conflict');
+    await git(['reset','--hard','FETCH_HEAD'],{cwd:state.root});
+    console.log('IGP_PRIVATE_GIT_EXISTING_REMOTE_SHA_READBACK',GAME,base,sha(zipped));
+    return;
+   }
    await git(['rebase','-q','FETCH_HEAD'],{cwd:state.root});
    await git(['push','-q','origin','HEAD:refs/heads/'+PRIVATE_BRANCH],{cwd:state.root});
    await git(['fetch','-q','origin',PRIVATE_BRANCH],{cwd:state.root});
