@@ -1,7 +1,7 @@
 export const CHUNK_WINDOWS=300;
 const FIVE_SECONDS=5000;
 const START=Date.parse('2026-10-20T00:00:00Z');
-const idOK=id=>/^(002|003|004|005|006)26\d{5}$/.test(id);
+const idOK=id=>/^(002|003|004|005|006)\d{7}$/.test(id);
 
 export function planGame(game){
  if(!idOK(game?.id)||!Number.isSafeInteger(game.start))throw Error('invalid_game');

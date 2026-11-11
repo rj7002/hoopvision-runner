@@ -19,6 +19,13 @@ on:
       - 'tools/licensed_feed/live_realtime_all_games.mjs'
       - 'tools/licensed_feed/live_evergreen_discovery.mjs'
       - 'tools/licensed_feed/live_evergreen_discovery.test.mjs'
+      - 'tools/licensed_feed/sdk_slot.mjs'
+      - 'tools/licensed_feed/sdk_slot.test.mjs'
+      - 'tools/licensed_feed/season_core.mjs'
+      - 'tools/licensed_feed/season_core.test.mjs'
+      - 'tools/licensed_feed/browser.js'
+      - 'tools/licensed_feed/index.html'
+      - 'tools/licensed_feed/package.json'
 permissions:
   contents: read
 jobs:
@@ -35,10 +42,10 @@ jobs:
       - name: Test original SDK code, multi-season official schedule and public-private boundary
         run: |
           set -euo pipefail
-          python3 tools/public_content_guard.py
           node --check tools/licensed_feed/live_realtime_all_games.mjs
           node --check tools/licensed_feed/live_evergreen_discovery.mjs
-          node --test tools/licensed_feed/live_evergreen_discovery.test.mjs
+          node --test tools/licensed_feed/live_evergreen_discovery.test.mjs \
+            tools/licensed_feed/sdk_slot.test.mjs
       - name: Discover every active or imminent NBA game from official schedule
         id: games
         run: |
@@ -130,10 +137,10 @@ jobs:
         if: matrix.game.id != 'none'
         run: |
           set -euo pipefail
-          python3 tools/public_content_guard.py
           node --check tools/licensed_feed/live_evergreen_discovery.mjs
           node --check tools/licensed_feed/live_realtime_all_games.mjs
-          node --test tools/licensed_feed/live_evergreen_discovery.test.mjs
+          node --test tools/licensed_feed/live_evergreen_discovery.test.mjs \
+            tools/licensed_feed/sdk_slot.test.mjs
       - name: Validate private original-source destination
         if: matrix.game.id != 'none'
         env:

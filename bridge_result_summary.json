@@ -1,8 +1,0 @@
-{
-  "observed_at_utc": "2026-11-09T04:50:13Z",
-  "request_id": "req-8f2df31c2db3334e21e36cf806a6d919",
-  "result_available": false,
-  "schema": "hoopvision.public-result-summary.v2",
-  "status": "INTERNAL_ERROR",
-  "workload_class": "COURTCODER_V4_BLACKWELL_VIDEO"
-}
