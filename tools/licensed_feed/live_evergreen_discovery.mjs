@@ -226,8 +226,10 @@ if(process.argv[1]?.endsWith('live_evergreen_discovery.mjs')){
      catch{console.error('IGP_FINAL_MONITOR_CHECKPOINT_READ_RETRY_REQUIRED',gameId);}
      state=existing?.state||null;
      const age=state?.last_attempt_utc?Date.now()-Date.parse(state.last_attempt_utc):Infinity;
-     if(state?.success===true||state?.attempts>=3||
-       (age>=0&&age<120000))return false;
+     // Do not trust legacy exit-code-only successes: a collector outside its
+     // source window can exit zero without emitting any real XYZ readback.
+     if(state?.source_confirmed===true||state?.attempts>=3||
+       (age>=0&&age<120000)||Date.now()>tipoff+21000000-30000)return false;
      state={schema:'igp.final-completion-monitor.v1',game_id:gameId,
       first_final_observed_utc:state?.first_final_observed_utc||new Date().toISOString(),
       attempts:(state?.attempts||0)+1,
@@ -242,20 +244,36 @@ if(process.argv[1]?.endsWith('live_evergreen_discovery.mjs')){
     report:async code=>{
      if(!state)return;
      state={...state,status:code===0?'original_xyz_capture_success':'source_retry_required',
-      success:code===0,last_completed_utc:new Date().toISOString()};
+      success:code===0,source_confirmed:code===0,last_completed_utc:new Date().toISOString()};
      try{await writeFinalMonitorCheckpoint(gameId,tipoff,state);}
      catch{console.error('IGP_FINAL_MONITOR_CHECKPOINT_RETRY_REQUIRED',gameId);}
     },
     launch:()=>new Promise((resolve,reject)=>{
      const child=spawn(process.execPath,['live_realtime_all_games.mjs'],{
       cwd:import.meta.dirname,
-      env:process.env,
-      stdio:'inherit'
+      env:{...process.env,IGP_FINAL_TRIGGERED_CAPTURE:'1'},
+      stdio:['inherit','pipe','inherit']
+     });
+     let lastLog='',realPlayerBall=false,privateShaReadback=false;
+     child.stdout.on('data',chunk=>{
+      const part=chunk.toString('utf8');
+      process.stdout.write(part);
+      lastLog=(lastLog+part).slice(-48000);
+      if(lastLog.includes('IGP_REALTIME_ORIGINAL_SOURCE_SHA_READBACK'))
+       privateShaReadback=true;
+      if(/IGP_REALTIME_SESSION_RESULT[^\n]*"verified_source":true/.test(lastLog))
+       realPlayerBall=true;
      });
      child.on('error',reject);
      child.on('close',(code,signal)=>{
-      if(signal)reject(Error('sdk_collector_signalled_'+signal));
-      else resolve(code??1);
+      if(signal){reject(Error('sdk_collector_signalled_'+signal));return;}
+      if(code!==0){resolve(code??4);return;}
+      if(!realPlayerBall||!privateShaReadback){
+       console.error('IGP_EVERGREEN_FINAL_CAPTURE_NO_VERIFIED_PRIVATE_XYZ',gameId,
+        {realPlayerBall,privateShaReadback});
+       resolve(4);return;
+      }
+      resolve(0);
      });
     })
    });
