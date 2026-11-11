@@ -98,7 +98,9 @@ jobs:
           echo 'Only authentic private NBA SDK original slots; check remote SHA and both player/ball timestamp counts. No GPU, no inferred tracking.' >> "$GITHUB_STEP_SUMMARY"
 
   final-whistle-xyz:
-    # Extended original source window: allow 19min post-FINAL to recover all 13\n    # legitimate SDK partitions while access remains available. No GPU.\n    # Independent of the prearmed live SDK job. Kings 0022600215 proved
+    # Extended original source window: allow 19min post-FINAL to recover all 13
+    # legitimate SDK partitions while access remains available. No GPU.
+    # Independent of the prearmed live SDK job. Kings 0022600215 proved
     # original player+ball XYZ can be recovered by a FRESH final-state SDK.
     needs: discover
     if: needs.discover.result == 'success'
