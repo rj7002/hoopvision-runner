@@ -19,6 +19,9 @@ const START=Date.parse(process.env.GAMEPULSE_LIVE_TIPOFF||'');
 const REPO='timeedmonds-maker/104';
 const TOKEN=process.env.GH_TOKEN;
 const sleep=ms=>new Promise(done=>setTimeout(done,ms));
+const CAPTURE_MS=Number(process.env.IGP_REALTIME_CAPTURE_MS||185000);
+const PRETIPOFF_WAIT_MS=Number(process.env.IGP_REALTIME_PRETIPOFF_WAIT_MS||0);
+const FLUSH_MS=Number(process.env.IGP_REALTIME_FLUSH_MS||40000);
 const sha=b=>createHash('sha256').update(b).digest('hex');
 function gh(args){
  const p=spawnSync('gh',args,{encoding:'utf8',timeout:60000,maxBuffer:4*1024*1024,
@@ -60,7 +63,8 @@ function countSource(rows){
 function uploadedAndReadback(tag,name,data,dir){
  const path=join(dir,name),verify=join(dir,'readback');
  writeFileSync(path,data);
- gh(['release','upload',tag,path,'--repo',REPO]);
+ try{gh(['release','upload',tag,path,'--repo',REPO]);}
+ catch{console.log('IGP_SOURCE_ARCHIVE_ALREADY_PRESENT_RECHECK',name.slice(0,30));}
  gh(['release','download',tag,'--repo',REPO,'--pattern',name,'--dir',verify]);
  if(sha(readFileSync(join(verify,name)))!==sha(data))throw Error('private_source_sha_readback_failed');
 }
@@ -70,7 +74,16 @@ async function main(){
   ||!['schedule','workflow_dispatch','push'].includes(process.env.GITHUB_EVENT_NAME)
   ||!/^00226\d{5}$/.test(GAME||'')||!Number.isSafeInteger(START)
   ||!TOKEN||TOKEN.length<30)throw Error('unauthorized_live_collection');
- const now=Date.now();
+ if(!Number.isSafeInteger(CAPTURE_MS)||CAPTURE_MS<30000||CAPTURE_MS>16000000
+  ||!Number.isSafeInteger(PRETIPOFF_WAIT_MS)||PRETIPOFF_WAIT_MS<0||PRETIPOFF_WAIT_MS>14400000
+  ||!Number.isSafeInteger(FLUSH_MS)||FLUSH_MS<20000||FLUSH_MS>180000)throw Error('invalid_live_duration');
+ let now=Date.now();
+ if(now<START-2*60000&&PRETIPOFF_WAIT_MS>0){
+   if(START-2*60000-now>PRETIPOFF_WAIT_MS)throw Error('pregame_wait_exceeds_limit');
+   console.log('IGP_LIVE_WAIT_FOR_TIPOFF',GAME,START);
+   while(Date.now()<START-2*60000)await sleep(Math.min(30000,Math.max(1000,START-2*60000-Date.now())));
+   now=Date.now();
+ }
  if(now<START-2*60000||now>START+5*3600000){
   console.log('REALTIME_OUTSIDE_SOURCE_WINDOW',GAME);return;
  }
@@ -142,15 +155,15 @@ async function main(){
   console.log('IGP_REALTIME_SDK_INIT',GAME,init);
   if(init==='error')throw Error('sdk_initialization_failed');
   ensureRelease(tag);
-  let nextFlush=Date.now()+40000;
-  const deadline=Date.now()+185000;
+  let nextFlush=Date.now()+FLUSH_MS;
+  const deadline=Date.now()+CAPTURE_MS;
   while(Date.now()<deadline){
    // Emit actual advancing live player time, not arbitrary post-final seeks.
    const liveMs=Date.now()-1500;
    await page.evaluate(t=>window.ephemeralFeed.seek(t),liveMs);
    await sleep(1000);
    if(Date.now()>=nextFlush){
-    await flush();nextFlush=Date.now()+40000;
+    await flush();nextFlush=Date.now()+FLUSH_MS;
    }
   }
   await flush();
