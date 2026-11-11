@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-live-bos-phi-rescue-20261111.yml",  # reviewed CPU-only exact game 0022600212 original SDK slot XYZ; private SHA-verified 104 Git source only, no coordinates or credentials in public logs
     ".github/workflows/gamepulse-nov09-source-recovery-watch-20261111.yml",  # vetted bounded scheduled original NBA SDK readiness check, source-gated CPU backfill, SHA-private 104 original XYZ only
     "tools/licensed_feed/nov09_reconcile_original_xyz.py",  # generic SHA-only immutable original NBA SDK/live archive reconciliation, no private source in public repo
     "tools/licensed_feed/test_nov09_reconcile_original_xyz.py",  # synthetic-only ZIP/GZIP SHA-provenance source-only tests
