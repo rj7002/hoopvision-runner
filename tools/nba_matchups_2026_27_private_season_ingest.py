@@ -62,7 +62,8 @@ COLS = [
     "nba_game_id", "defense_team_id", "defense_team_abbr",
     "offense_team_id", "offense_team_abbr", "defender_player_id",
     "defender_player_name", "offensive_player_id", "offensive_player_name",
-    *FIELDS, "source", "source_response_sha256",
+    *FIELDS, "source", "source_response_sha256", "source_format",
+    "legacy_player_fg_points", "legacy_team_fg_points",
 ]
 
 
@@ -164,6 +165,9 @@ def inventory(as_of: dt.date):
 
 
 def normalize(gid: str, payload: dict, source_sha: str):
+    legacy = (payload.get("payload") or {}).get("defensiveBoxScore")
+    if isinstance(legacy, list) and legacy:
+        return normalize_legacy(gid, payload, source_sha)
     root = payload.get("boxScoreMatchups")
     if not isinstance(root, dict) or str(root.get("gameId")) != gid:
         raise ValueError("INVALID_MATCHUP_GAME_OR_SCHEMA_" + gid)
@@ -217,6 +221,9 @@ def normalize(gid: str, payload: dict, source_sha: str):
                     **{k: st[k] for k in FIELDS},
                     "source": "nba_official_boxscorematchupsv3",
                     "source_response_sha256": source_sha,
+                    "source_format": "BoxScoreMatchupsV3",
+                    "legacy_player_fg_points": None,
+                    "legacy_team_fg_points": None,
                 })
     if not rows:
         raise ValueError("OFFICIAL_MATCHUP_ROWS_EMPTY_" + gid)
@@ -225,26 +232,94 @@ def normalize(gid: str, payload: dict, source_sha: str):
     return rows
 
 
-def fetch_one(gid: str, fixture: dict):
-    # The G League NBA stats host is a working public mirror of the NBA
-    # BoxScoreMatchupsV3 endpoint; main NBA stats is slow/blocked from CI.
-    url = SOURCE_HOST + "/stats/boxscorematchupsv3?" + urllib.parse.urlencode(
-        {"GameID": gid})
-    try:
-        raw, obj = http_json(url, attempts=4, timeout=22)
-        rows = normalize(gid, obj, sha(raw))
-        root = obj["boxScoreMatchups"]
-        by_id = {int(root[k]["teamId"]): root[k].get("teamTricode")
-                 for k in ("homeTeam", "awayTeam")}
-        if {fixture["home"], fixture["away"]} != set(by_id.values()):
-            raise ValueError("MATCHUP_SCOREBOARD_TEAM_DISAGREEMENT_" + gid)
-        return gid, {
-            "game_id": gid, "source_url": url, "source_sha256": sha(raw),
-            "raw_base64": base64.b64encode(raw).decode("ascii"),
-        }, len(rows), None
-    except (RuntimeError, ValueError, KeyError, TypeError) as exc:
-        return gid, None, 0, f"{type(exc).__name__}:{str(exc)[:120]}"
+def normalize_legacy(gid: str, payload: dict, source_sha: str):
+    """Preserve legacy-only fields, never invent missing V3 possession/FT stats."""
+    p = payload.get("payload") or {}
+    if p.get("gameId") not in (None, gid):
+        raise ValueError("WRONG_LEGACY_MATCHUP_GAME_" + gid)
+    items = p.get("defensiveBoxScore")
+    if not isinstance(items, list) or not items:
+        raise ValueError("EMPTY_LEGACY_MATCHUPS_" + gid)
+    out, seen = [], set()
+    for rec in items:
+        if not isinstance(rec, dict):
+            raise ValueError("INVALID_LEGACY_MATCHUP_ROW_" + gid)
+        needed = ("defTeamId", "defTeamAbbreviation", "offTeamId",
+                  "offTeamAbbreviation", "defPlayerId", "offPlayerId",
+                  "matchupTime", "fieldGoalMakes", "fieldGoalAttempts",
+                  "threePointMakes", "threePointAttempts",
+                  "fieldGoalPercentage", "threePointPercentage",
+                  "playerPointsOffFieldGoals", "teamPointsOffFieldGoals", "assists")
+        if any(k not in rec for k in needed):
+            raise ValueError("MISSING_LEGACY_SOURCE_FIELDS_" + gid)
+        did, oid = rec["defPlayerId"], rec["offPlayerId"]
+        key = (gid, int(did), int(oid))
+        if key in seen:
+            raise ValueError("DUPLICATE_LEGACY_PAIR_" + gid)
+        seen.add(key)
+        if int(rec["defTeamId"]) == int(rec["offTeamId"]):
+            raise ValueError("LEGACY_SAME_TEAM_" + gid)
+        stamp = rec["matchupTime"]
+        if not isinstance(stamp, str) or not re.fullmatch(r"\d+:\d{2}", stamp):
+            raise ValueError("LEGACY_CLOCK_INVALID_" + gid)
+        if (rec["fieldGoalMakes"] > rec["fieldGoalAttempts"]
+            or rec["threePointMakes"] > rec["threePointAttempts"]):
+            raise ValueError("LEGACY_FIELD_GOAL_COUNTS_INVALID_" + gid)
+        row = {k: None for k in COLS}
+        row.update({
+            "nba_game_id": gid,
+            "defense_team_id": rec["defTeamId"],
+            "defense_team_abbr": rec["defTeamAbbreviation"],
+            "offense_team_id": rec["offTeamId"],
+            "offense_team_abbr": rec["offTeamAbbreviation"],
+            "defender_player_id": did,
+            "defender_player_name": rec.get("defPlayerName"),
+            "offensive_player_id": oid,
+            "offensive_player_name": rec.get("offPlayerName"),
+            "matchupMinutes": stamp,
+            # No source-observed fine-grained fractional-possession,
+            # switches, total points, free throws or seconds-sort fields.
+            "matchupAssists": rec["assists"],
+            "matchupFieldGoalsMade": rec["fieldGoalMakes"],
+            "matchupFieldGoalsAttempted": rec["fieldGoalAttempts"],
+            "matchupFieldGoalsPercentage": rec["fieldGoalPercentage"],
+            "matchupThreePointersMade": rec["threePointMakes"],
+            "matchupThreePointersAttempted": rec["threePointAttempts"],
+            "matchupThreePointersPercentage": rec["threePointPercentage"],
+            "legacy_player_fg_points": rec["playerPointsOffFieldGoals"],
+            "legacy_team_fg_points": rec["teamPointsOffFieldGoals"],
+            "source": "nba_official_defensiveboxscore_legacy",
+            "source_response_sha256": source_sha,
+            "source_format": "defensiveboxscore_legacy",
+        })
+        out.append(row)
+    out.sort(key=lambda r: (int(r["defense_team_id"]),
+                            int(r["defender_player_id"]),
+                            int(r["offensive_player_id"])))
+    return out
 
+
+def fetch_one(gid: str, fixture: dict):
+    # Prefer full V3; fallback to official legacy only where V3 is empty.
+    # Keep each distinct source format and unsupported fields clearly marked.
+    errors = []
+    for endpoint in ("boxscorematchupsv3", "defensiveboxscore"):
+        url = SOURCE_HOST + "/stats/" + endpoint + "?" + urllib.parse.urlencode({"GameID": gid})
+        try:
+            raw, obj = http_json(url, attempts=4, timeout=19)
+            rows = normalize(gid, obj, sha(raw))
+            teams = {r["defense_team_abbr"] for r in rows} | {r["offense_team_abbr"] for r in rows}
+            if {fixture["home"], fixture["away"]} != teams:
+                raise ValueError("MATCHUP_SCOREBOARD_TEAM_DISAGREEMENT_" + gid)
+            return gid, {
+                "game_id": gid, "source_url": url,
+                "source_sha256": sha(raw),
+                "source_format": rows[0]["source_format"],
+                "raw_base64": base64.b64encode(raw).decode("ascii"),
+            }, len(rows), None
+        except (RuntimeError, ValueError, KeyError, TypeError) as exc:
+            errors.append(endpoint + "_" + type(exc).__name__ + ":" + str(exc)[:95])
+    return gid, None, 0, ";".join(errors)
 
 def load_cache():
     path = WORK / "nba-2026-27-defensive-matchups-raw.jsonl.gz"
@@ -303,6 +378,10 @@ def materialize(cache, finals, pending, dates, errors, end_date):
     output = WORK / "defender_offender_matchups.csv"
     output.write_bytes(csv_data)
     missing = sorted(set(finals) - set(cache))
+    source_formats = {gid: rec.get("source_format", "BoxScoreMatchupsV3")
+                      for gid, rec in cache.items()}
+    fallback_games = sorted(gid for gid, fmt in source_formats.items()
+                            if fmt == "defensiveboxscore_legacy")
     # Never count scheduled/live games as missing final games.
     qa = {
         "schema": "nba-official-matchups-2026-27.full-season.v2",
@@ -310,13 +389,18 @@ def materialize(cache, finals, pending, dates, errors, end_date):
         "source_inventory_endpoint": SOURCE_HOST + "/stats/scoreboardv3",
         "season": "2026-27", "season_start_us": SEASON_START.isoformat(),
         "through_us_date": end_date.isoformat(),
-        "status": "COMPLETE" if not missing else "INCOMPLETE_RETRY_PENDING",
+        "status": ("COMPLETE_WITH_OFFICIAL_LEGACY_FALLBACK" if fallback_games else "COMPLETE")
+                  if not missing else "INCOMPLETE_RETRY_PENDING",
         "official_completed_games": len(finals),
         "official_nonfinal_games": len(pending),
         "source_verified_games": len(per_game),
         "source_missing_final_games": len(missing),
         "missing_final_game_ids": missing,
         "official_matchup_pairs": len(rows),
+        "v3_source_games": len(cache) - len(fallback_games),
+        "official_legacy_fallback_games": len(fallback_games),
+        "official_legacy_fallback_game_ids": fallback_games,
+        "legacy_only_fields_null_not_fabricated": True,
         "csv_sha256": sha(csv_data),
         "all_original_responses_retained_in_private_sha_archive": True,
         "original_blueprint_and_xyz_unchanged": True,
@@ -458,6 +542,7 @@ def main():
         "immutable_release": tag,
         "private_104_commit": commit,
         "source_status": qa["status"],
+        "official_legacy_fallback_games": qa["official_legacy_fallback_games"],
         "error_types": dict(collections.Counter(
             err["error"].split(":")[0] for err in failures)),
     }, sort_keys=True), flush=True)
