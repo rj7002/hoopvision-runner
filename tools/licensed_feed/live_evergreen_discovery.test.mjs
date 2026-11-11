@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {NBA_GAME_ID,activeGames,MAX_SIMULTANEOUS} from './live_evergreen_discovery.mjs';
+import {NBA_GAME_ID,activeGames,MAX_SIMULTANEOUS,sourceBackfillCandidates,officialFinalFromBoxscore} from './live_evergreen_discovery.mjs';
 const now=Date.parse('2026-11-11T02:00:00.000Z');
 const row=(id,min,status=2)=>({gameId:id,gameDateTimeUTC:new Date(now+min*60000).toISOString(),gameStatus:status});
 const wrap=(games)=>({leagueSchedule:{gameDates:[{games}]}});
@@ -25,4 +25,36 @@ test('fails closed on corrupted schedule, invalid clock or exceeding NBA slate l
  assert.throws(()=>activeGames(wrap([]),Infinity),/invalid_clock/);
  const tooMany=Array.from({length:MAX_SIMULTANEOUS+1},(_,i)=>row('002270'+String(i).padStart(4,'0'),0));
  assert.throws(()=>activeGames(wrap(tooMany),now),/concurrent_game_limit/);
+});
+
+test('official final signal is exact-game, genuine status 3, and fail-closed',()=>{
+ assert.equal(officialFinalFromBoxscore('0022600212',{game:{gameId:'0022600212',gameStatus:3}}),true);
+ assert.equal(officialFinalFromBoxscore('0022600212',{game:{gameId:'0022600212',gameStatus:'2'}}),false);
+ assert.equal(officialFinalFromBoxscore('0022600212',{game:{gameId:'0022600211',gameStatus:3}}),null);
+ assert.equal(officialFinalFromBoxscore('0022600212',{}),null);
+ assert.throws(()=>officialFinalFromBoxscore('BAD',{game:{gameId:'BAD',gameStatus:3}}),/invalid_nba_game_id/);
+});
+test('pre-final recovery uses only past original SDK slots and skips observed or attempted windows',()=>{
+ const start=Date.parse('2026-11-11T01:00:00Z'), observed=new Set([start-600000,start-595000]);
+ const attempted=new Set([start-590000]);
+ const selected=sourceBackfillCandidates({tipoff:start,now:start+60000,observed,attempted,limit:5});
+ assert.deepEqual(selected,[start-585000,start-580000,start-575000,start-570000,start-565000]);
+ assert(selected.every(x=>x%5000===0&&x+5000<=start+60000-10000));
+});
+test('prioritises source-backed final-whistle tail then older gaps; no fabricated positions',()=>{
+ const start=Date.parse('2026-11-11T01:00:00Z');
+ const seen=new Set(),attempted=new Set();
+ const now=start+150*60000;
+ const result=sourceBackfillCandidates({tipoff:start,now,observed:seen,attempted,limit:6,final:true});
+ assert.equal(result.length,6);
+ assert.deepEqual(result,[now-20000,now-25000,now-30000,now-35000,now-40000,now-45000]);
+ for(const ms of result)attempted.add(ms);
+ const next=sourceBackfillCandidates({tipoff:start,now,observed:seen,attempted,limit:2,final:true});
+ assert.deepEqual(next,[now-50000,now-55000]);
+});
+test('invalid source-window selection fails closed',()=>{
+ const start=Date.parse('2026-11-11T01:00:00Z');
+ assert.throws(()=>sourceBackfillCandidates({tipoff:start,now:Infinity,observed:new Set(),attempted:new Set()}),/invalid_backfill_plan/);
+ assert.throws(()=>sourceBackfillCandidates({tipoff:start,now:start,observed:[],attempted:new Set()}),/invalid_backfill_plan/);
+ assert.throws(()=>sourceBackfillCandidates({tipoff:start,now:start,observed:new Set(),attempted:new Set(),limit:1000}),/invalid_backfill_plan/);
 });
