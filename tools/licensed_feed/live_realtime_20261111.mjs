@@ -6,10 +6,11 @@
 import puppeteer from 'puppeteer-core';
 import {build} from 'esbuild';
 import {createServer} from 'node:http';
-import {readFileSync,writeFileSync,mkdtempSync,rmSync} from 'node:fs';
+import {readFileSync,writeFileSync,mkdtempSync,rmSync,mkdirSync,chmodSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {execFileSync,spawnSync} from 'node:child_process';
+import {execFileSync,execFile,spawnSync} from 'node:child_process';
+import {promisify} from 'node:util';
 import {createHash} from 'node:crypto';
 import {gzipSync} from 'node:zlib';
 
@@ -23,6 +24,56 @@ const CAPTURE_MS=Number(process.env.IGP_REALTIME_CAPTURE_MS||185000);
 const PRETIPOFF_WAIT_MS=Number(process.env.IGP_REALTIME_PRETIPOFF_WAIT_MS||0);
 const FLUSH_MS=Number(process.env.IGP_REALTIME_FLUSH_MS||40000);
 const sha=b=>createHash('sha256').update(b).digest('hex');
+const gitExec=promisify(execFile);
+const PRIVATE_BRANCH='research/gamepulse-clock-boundary-integrity-20261025';
+const PRIVATE_BASE='gamepulse/fusion/live_original_20261111/'+GAME;
+let privateGit=null;
+async function git(args,{cwd,timeout=90000}={}){
+ const env={...process.env,GH_TOKEN:TOKEN,GIT_TERMINAL_PROMPT:'0',GIT_ASKPASS:privateGit?.askpass};
+ return gitExec('git',args,{cwd,env,timeout,maxBuffer:1024*1024});
+}
+async function initPrivateGit(){
+ if(privateGit)return privateGit;
+ const dir=mkdtempSync(join(tmpdir(),'igp-private-git-'));
+ const askpass=join(dir,'askpass.sh');
+ writeFileSync(askpass,'#!/bin/sh\ncase "$1" in *Username*) printf "x-access-token\\n";; *Password*) printf "%s\\n" "$GH_TOKEN";; *) exit 1;; esac\n');
+ chmodSync(askpass,0o700);
+ privateGit={dir,askpass,root:join(dir,'private')};
+ try{
+  await git(['clone','-q','--filter=blob:none','--depth=1','--sparse','-b',PRIVATE_BRANCH,
+   'https://github.com/'+REPO+'.git',privateGit.root],{timeout:110000});
+  await git(['sparse-checkout','set','gamepulse/fusion/live_original_20261111'],{cwd:privateGit.root});
+  await git(['config','user.name','github-actions[bot]'],{cwd:privateGit.root});
+  await git(['config','user.email','41898282+github-actions[bot]@users.noreply.github.com'],{cwd:privateGit.root});
+  console.log('IGP_PRIVATE_GIT_SOURCE_STORAGE_READY',GAME);
+  return privateGit;
+ }catch(e){rmSync(dir,{recursive:true,force:true});privateGit=null;throw e;}
+}
+async function savePrivateGit(base,zipped,meta){
+ const state=await initPrivateGit();
+ const target=join(state.root,PRIVATE_BASE);
+ mkdirSync(target,{recursive:true});
+ const one=PRIVATE_BASE+'/'+base+'.jsonl.gz',two=PRIVATE_BASE+'/'+base+'.json';
+ writeFileSync(join(state.root,one),zipped);
+ writeFileSync(join(state.root,two),Buffer.from(JSON.stringify(meta)+'\n'));
+ await git(['add','-f','--',one,two],{cwd:state.root});
+ const staged=await git(['diff','--cached','--name-only'],{cwd:state.root});
+ if(staged.stdout.trim())await git(['commit','-q','-m','data(igp): immutable realtime SDK XYZ '+GAME+' '+base],{cwd:state.root});
+ for(let attempt=0;attempt<8;attempt++){
+  try{
+   await git(['fetch','-q','origin',PRIVATE_BRANCH],{cwd:state.root});
+   await git(['rebase','-q','FETCH_HEAD'],{cwd:state.root});
+   await git(['push','-q','origin','HEAD:refs/heads/'+PRIVATE_BRANCH],{cwd:state.root});
+   console.log('IGP_PRIVATE_GIT_XYZ_COMMITTED',GAME,base);
+   return;
+  }catch(e){
+   // Independent per-game files are safe to rebase after competing writers.
+   try{await git(['rebase','--abort'],{cwd:state.root});}catch{}
+   await sleep(1000*(attempt+1));
+  }
+ }
+ throw Error('private_git_push_exhausted');
+}
 function gh(args){
  const p=spawnSync('gh',args,{encoding:'utf8',timeout:60000,maxBuffer:4*1024*1024,
   stdio:['ignore','pipe','pipe'],env:{...process.env,GH_TOKEN:TOKEN}});
@@ -115,8 +166,18 @@ async function main(){
    original_blob_sha256:digest,imputed:false,physical_possessions_certified:0};
   const dir=mkdtempSync(join(tmpdir(),'igp-live-original-'));
   try{
-   uploadedAndReadback(tag,base+'.jsonl.gz',zipped,dir);
-   uploadedAndReadback(tag,base+'.json',Buffer.from(JSON.stringify(meta)+'\n'),dir);
+   let persisted=false;
+   try{await savePrivateGit(base,zipped,meta);persisted=true;}
+   catch(e){console.log('IGP_PRIVATE_GIT_SOURCE_RETRY_REQUIRED',GAME,e?.code||'TRANSIENT');}
+   if(!persisted){
+    try{
+     ensureRelease(tag);
+     uploadedAndReadback(tag,base+'.jsonl.gz',zipped,dir);
+     uploadedAndReadback(tag,base+'.json',Buffer.from(JSON.stringify(meta)+'\n'),dir);
+     persisted=true;
+    }catch(e){console.log('IGP_PRIVATE_RELEASE_SOURCE_RETRY_REQUIRED',GAME);}
+   }
+   if(!persisted)return;
    for(const [key] of entries)buffer.delete(key);
    saved+=stats.source_responses;playerFrames+=stats.player_timestamps;ballFrames+=stats.ball_timestamps;
    console.log('IGP_REALTIME_ORIGINAL_SOURCE_SHA_READBACK',JSON.stringify({
@@ -154,7 +215,8 @@ async function main(){
    accountId:'nba',programId:'companion-'+gameId+'-positions',timeoutMs:20000}),GAME);
   console.log('IGP_REALTIME_SDK_INIT',GAME,init);
   if(init==='error')throw Error('sdk_initialization_failed');
-  ensureRelease(tag);
+  // Prefer authenticated private Git commits: release REST API can be temporarily throttled.
+  // Keep the browser alive and the uncommitted source buffer if private storage fails.
   let nextFlush=Date.now()+FLUSH_MS;
   const deadline=Date.now()+CAPTURE_MS;
   while(Date.now()<deadline){
@@ -175,6 +237,7 @@ async function main(){
   try{await flush();}catch(e){console.error('IGP_REALTIME_FINAL_CHECKPOINT_FAILED',e.message);}
   if(browser)await browser.close();
   await new Promise(ok=>server.close(ok));
+  if(privateGit){rmSync(privateGit.dir,{recursive:true,force:true});privateGit=null;}
  }
 }
 main().catch(e=>{const message=/^[a-z_]+$/.test(e?.message||'')?e.message:'source_unavailable';
