@@ -14,6 +14,7 @@ import {promisify} from 'node:util';
 import {createHash} from 'node:crypto';
 import {gzipSync} from 'node:zlib';
 import {sourceBackfillCandidates,officialFinalFromBoxscore,officialFinalFromSchedule,postfinalWindowDecision} from './live_evergreen_discovery.mjs';
+import {slotRequestUrl} from './sdk_slot.mjs';
 
 const ROOT=import.meta.dirname;
 const GAME=process.env.GAMEPULSE_LIVE_ID;
@@ -220,7 +221,9 @@ async function main(){
  let browser,saved=0,playerFrames=0,ballFrames=0;
  let storeQueue=Promise.resolve(),storageRetries=0,lastSdkResponse=Date.now(),lastLiveXYZ=0,seekErrors=0,acceptResponses=true;
  let postFinalOriginalResponses=0,postFinalPlayerBallResponses=0, firstOriginalAt=null,lastOriginalAt=null,disabledAt=null;
- let finalObservedAt=null;
+ let finalObservedAt=null,observedSdkIssuedSlotUrl=null;
+ let signedDrainPromise=null,signedDrainActive=false,signedDrainStop=false;
+ let signedOriginalSuccessful=0,signedOriginalPlayerBall=0,signedOriginalAttempts=0;
  let sourceBackfillAttempts=0,postFinalBackfillAttempts=0,sourceBackfillObserved=0;
  let finalAttemptedReset=false;
  const FIRST_RECOVERY_MINUTE=45, BACKFILL_LIMIT=36;
@@ -245,7 +248,10 @@ async function main(){
    source_observed_at_utc:new Date().toISOString(),
    first_actual_sdk_http_response_at_utc:new Date(Math.min(...receivedTimes)).toISOString(),
    last_actual_sdk_http_response_at_utc:new Date(Math.max(...receivedTimes)).toISOString(),
-   sdk_http_responses_after_verified_official_final:postFinalResponses,...stats,
+   sdk_http_responses_after_verified_official_final:postFinalResponses,
+   sdk_source_methods:Object.fromEntries([...new Set(entries.map(e=>
+    sourceResponseMetadata.get(e[0])?.original_sdk_method||'UNKNOWN'))].map(method=>[
+    method,entries.filter(e=>sourceResponseMetadata.get(e[0])?.original_sdk_method===method).length])),...stats,
    original_blob_sha256:digest,imputed:false,physical_possessions_certified:0};
   const dir=mkdtempSync(join(tmpdir(),'igp-live-original-'));
   try{
@@ -281,42 +287,53 @@ async function main(){
   browser=await puppeteer.launch({headless:true,executablePath:chrome(),
    args:['--no-sandbox','--disable-dev-shm-usage']});
   const page=await browser.newPage();
+  // Both the browser and bounded signed-session backfill use this one source
+  // preservation path. Only original SDK event arrays can enter private Git.
+  function observeOriginalSlot(from,events,method='SDK_BROWSER_SOURCE'){
+    if(!acceptResponses||!Array.isArray(events)||!Number.isSafeInteger(from)
+      ||from%5000!==0||from<START-20*60000||from>START+LIVE_STOP_MS)return false;
+    const observedNow=Date.now();
+    lastSdkResponse=observedNow;
+    firstOriginalAt??=observedNow;
+    lastOriginalAt=observedNow;
+    observedSlots.add(from);
+    if(finalObservedAt!==null&&observedNow>=finalObservedAt)postFinalOriginalResponses++;
+    const hasPlayerBall=events.some(ev=>(ev?.metadata?.keyframes||[]).some(frame=>{
+      const keys=Object.keys(frame?.positions||{});
+      return keys.includes('ball')&&keys.some(k=>k!=='ball');
+    }));
+    if(hasPlayerBall){
+      lastLiveXYZ=observedNow;
+      observedPlayerBallSlots.add(from);
+      if(finalObservedAt!==null&&observedNow>=finalObservedAt)postFinalPlayerBallResponses++;
+    }
+    const body=JSON.stringify(events),key=from+':'+sha(body);
+    if(seen.has(key))return false;
+    seen.add(key);
+    sourceResponseMetadata.set(key,{
+      received_at_ms:observedNow,
+      official_final_verified_before_receipt:finalObservedAt!==null&&observedNow>=finalObservedAt,
+      original_sdk_method:method
+    });
+    buffer.set(key,{from,to:from+4999,events});
+    return hasPlayerBall;
+  }
   page.on('response',response=>{
    try{
     if(!acceptResponses)return;
     const u=new URL(response.url());
-    if(response.status()!==200||u.protocol!=='https:'
-     ||u.hostname!=='nba-cdn.cloud.easelive.tv'
-     ||!u.pathname.includes('/companion-'+GAME+'-positions/')
-     ||!u.pathname.endsWith('/events/slot'))return;
+    if(response.status()!==200||u.protocol!=='https:'||
+       u.hostname!=='nba-cdn.cloud.easelive.tv'||
+       !u.pathname.includes('/companion-'+GAME+'-positions/')||
+       !u.pathname.endsWith('/events/slot'))return;
     const from=Number(u.searchParams.get('from'));
-    if(!Number.isSafeInteger(from)||from%5000!==0
-     ||from<START-20*60000||from>START+LIVE_STOP_MS)return;
-    lastSdkResponse=Date.now();
-    const p=response.json().then(events=>{
-     if(!Array.isArray(events))return;
-     const observedNow=Date.now();
-     firstOriginalAt??=observedNow;
-     lastOriginalAt=observedNow;
-     observedSlots.add(from);
-     if(finalObservedAt!==null&&observedNow>=finalObservedAt)postFinalOriginalResponses++;
-     if(events.some(ev=>(ev?.metadata?.keyframes||[]).some(f=>{
-      const keys=Object.keys(f?.positions||{});
-      return keys.includes('ball')&&keys.some(k=>k!=='ball');
-     }))){
-       lastLiveXYZ=observedNow;
-       observedPlayerBallSlots.add(from);
-       if(finalObservedAt!==null&&observedNow>=finalObservedAt)postFinalPlayerBallResponses++;
-     }
-     const body=JSON.stringify(events),key=from+':'+sha(body);
-     if(seen.has(key))return;
-     seen.add(key);
-     sourceResponseMetadata.set(key,{
-       received_at_ms:observedNow,
-       official_final_verified_before_receipt:finalObservedAt!==null&&observedNow>=finalObservedAt
-     });
-     buffer.set(key,{from,to:from+4999,events});
-    }).catch(()=>{});
+    if(!Number.isSafeInteger(from)||from%5000!==0||
+       from<START-20*60000||from>START+LIVE_STOP_MS)return;
+    // Token-bearing URL remains in this running process ONLY, never logged,
+    // committed, exported, or reconstructed from external credentials.
+    if(u.searchParams.has('token'))observedSdkIssuedSlotUrl=response.url();
+    const p=response.json().then(events=>
+      observeOriginalSlot(from,events,'SDK_BROWSER_SOURCE')).catch(()=>{});
     pending.add(p);p.finally(()=>pending.delete(p));
    }catch{}
   });
@@ -339,6 +356,7 @@ async function main(){
     // an authorised SDK session capable of seeking saved historical slots.
     // Attempt source reads only if this SDK has not explicitly disabled access.
     if(!lastOriginalAt&&!isFinal)return;
+    if(isFinal&&signedDrainActive)return;
     const state=await page.evaluate(()=>window.ephemeralFeed.diagnostics());
     if(state?.latest_app_status==='disabled'){
       if(disabledAt===null){
@@ -397,6 +415,100 @@ async function main(){
       source_session_disabled:!!disabledAt
     }));
   }
+
+  /** Immediate authorised post-final bulk read from an SDK-ISSUED signed slot.
+   * The original SDK produces the URL; we only vary its exact 5-second times
+   * through the same validated code already used by season_private_release.
+   * Four simultaneous requests maximum per game. Access denial stops work.
+   * No token replay after SDK disable, no guessed coordinates, no public XYZ.
+   */
+  async function drainSignedOriginalAtFinal(){
+    if(!finalObservedAt||!observedSdkIssuedSlotUrl||disabledAt)return;
+    signedDrainActive=true;
+    const begin=Math.floor((START-600000)/5000)*5000;
+    const end=Math.floor((START+5*3600000)/5000)*5000;
+    const order=[6,5,4,3,2,1,7,0,8,9,10,11,12];
+    const statuses={},deadline=finalObservedAt+16*60000;
+    let denied=false,requested=0,accepted=0,rich=0,invalid=0;
+    try{
+      for(const part of order){
+        if(signedDrainStop||denied||disabledAt||Date.now()>=deadline)break;
+        const from=begin+part*300*5000;
+        const count=Math.min(300,Math.max(0,(end-from)/5000));
+        if(count<=0)continue;
+        const job={game_id:GAME,part,start_ms:from,count,
+          program_id:'companion-'+GAME+'-positions'};
+        const todo=Array.from({length:count},(_,i)=>from+i*5000)
+          .filter(t=>!observedPlayerBallSlots.has(t));
+        let cursor=0;
+        async function worker(){
+          while(!signedDrainStop&&!denied&&!disabledAt&&Date.now()<deadline){
+            const index=cursor++;
+            if(index>=todo.length)return;
+            const timestamp=todo[index];
+            const url=slotRequestUrl(observedSdkIssuedSlotUrl,job,timestamp);
+            for(let attempt=0;attempt<2;attempt++){
+              if(signedDrainStop||denied||disabledAt)return;
+              requested++;signedOriginalAttempts++;
+              try{
+                const response=await fetch(url,{signal:AbortSignal.timeout(12000),
+                  headers:{Accept:'application/json',Referer:'https://www.nba.com/',
+                    'User-Agent':'Mozilla/5.0 (compatible; licensed NBA source collector)'}});
+                const code=response.status;
+                statuses[code]=(statuses[code]||0)+1;
+                if(code===401||code===403){
+                  denied=true;
+                  console.log('IGP_POSTFINAL_SIGNED_SDK_SOURCE_ACCESS_DENIED',GAME,code);
+                  return;
+                }
+                if(response.ok){
+                  const events=await response.json();
+                  if(Array.isArray(events)){
+                    const hasBall=observeOriginalSlot(timestamp,events,'SDK_ISSUED_SIGNED_ORIGINAL');
+                    accepted++;signedOriginalSuccessful++;
+                    if(hasBall){rich++;signedOriginalPlayerBall++;}
+                    break;
+                  }
+                  invalid++;
+                }
+              }catch{statuses.network=(statuses.network||0)+1;}
+              if(attempt===0)await sleep(400);
+            }
+          }
+        }
+        await Promise.all(Array.from({length:4},()=>worker()));
+        void flush();
+        const state=await page.evaluate(()=>window.ephemeralFeed.diagnostics());
+        if(state?.latest_app_status==='disabled'){
+          disabledAt??=Date.now();break;
+        }
+        console.log('IGP_POSTFINAL_SIGNED_SDK_PART_QA',JSON.stringify({
+          game_id:GAME,part,attempts:requested,accepted_source_responses:accepted,
+          rich_original_player_ball_source_windows:rich,
+          observed_slot_windows:observedSlots.size,denied,invalid_bodies:invalid,
+          sdk_status_denied:false
+        }));
+      }
+    }finally{
+      signedDrainActive=false;
+      // Strictly aggregate/grade-only: no SDK URLs, coordinates, source rows.
+      console.log('IGP_POSTFINAL_SIGNED_SDK_FINAL_QA',JSON.stringify({
+        game_id:GAME,official_final_at_utc:new Date(finalObservedAt).toISOString(),
+        requested,accepted,player_ball_source_windows:rich,
+        unique_original_windows:observedSlots.size,
+        auth_denied:denied,source_http_status_counts:statuses
+      }));
+    }
+  }
+  function startSignedDrainIfReady(){
+    if(!signedDrainPromise&&finalObservedAt!==null&&
+       observedSdkIssuedSlotUrl&&!disabledAt){
+      signedDrainPromise=drainSignedOriginalAtFinal().catch(()=>{
+        console.log('IGP_POSTFINAL_SIGNED_SDK_SOURCE_RETRY_REQUIRED',GAME);
+      });
+    }
+  }
+
   let nextFinalScheduleFallback=Date.now()+30000;
   async function pollOfficialFinal(){
     if(finalObservedAt!==null)return;
@@ -429,9 +541,13 @@ async function main(){
       last_authenticated_slot_utc:lastOriginalAt?new Date(lastOriginalAt).toISOString():null,
       source_armed_before_final:lastOriginalAt!==null
     }));
-    // Trigger within this same running SDK session, not a new queued workflow.
-    try{await backfillObservedSource(true);}
-    catch{console.log('IGP_FIRST_FINAL_SEEK_TRANSIENT',GAME);}
+    // Trigger from this already-open SDK session before an external runner
+    // could queue. The bounded signed-source drain is preferred over serial seeks.
+    startSignedDrainIfReady();
+    if(!signedDrainActive){
+      try{await backfillObservedSource(true);}
+      catch{console.log('IGP_FIRST_FINAL_SEEK_TRANSIENT',GAME);}
+    }
   }
 
   // Prefer authenticated private Git commits: release REST API can be temporarily throttled.
@@ -462,8 +578,9 @@ async function main(){
     nextStatusCheck=Date.now()+FINAL_POLL_MS;
     await pollOfficialFinal();
    }
+   if(finalObservedAt)startSignedDrainIfReady();
    if(Date.now()>=nextBackfill && Date.now()>START+FIRST_RECOVERY_MINUTE*60000 &&
-      lastOriginalAt!==null && !disabledAt){
+      lastOriginalAt!==null && !disabledAt && !signedDrainActive){
     nextBackfill=Date.now()+(finalObservedAt?9000:BACKFILL_INTERVAL_MS);
     try{await backfillObservedSource(finalObservedAt!==null);}
     catch(e){console.log('IGP_SOURCE_BACKFILL_TRANSIENT',GAME,
@@ -483,6 +600,9 @@ async function main(){
       postfinal_original_player_ball_responses:postFinalPlayerBallResponses,
       pre_and_postfinal_seek_attempts:sourceBackfillAttempts,
       postfinal_seek_attempts:postFinalBackfillAttempts,
+      postfinal_sdk_signed_source_attempts:signedOriginalAttempts,
+      postfinal_sdk_signed_source_responses:signedOriginalSuccessful,
+      postfinal_sdk_signed_player_ball_windows:signedOriginalPlayerBall,
       unique_original_slots_session:observedSlots.size,
       original_player_ball_windows_session:observedPlayerBallSlots.size,
       hypothesis_status:postFinalPlayerBallResponses&&disabledAt?
@@ -515,12 +635,19 @@ async function main(){
     first_final_status_observed:finalObservedAt?new Date(finalObservedAt).toISOString():null,
     last_authentic_source_response:lastOriginalAt?new Date(lastOriginalAt).toISOString():null,
     sdk_app_disabled_observed:disabledAt?new Date(disabledAt).toISOString():null,
-    postfinal_original_player_ball_responses:postFinalPlayerBallResponses
+    postfinal_original_player_ball_responses:postFinalPlayerBallResponses,
+    signed_sdk_source_attempts:signedOriginalAttempts,
+    signed_sdk_source_responses:signedOriginalSuccessful,
+    signed_sdk_source_player_ball_windows:signedOriginalPlayerBall
   }));
   console.log('IGP_REALTIME_SESSION_RESULT',JSON.stringify({game_id:GAME,
    archived_source_responses:saved,player_timestamps:playerFrames,
    ball_timestamps:ballFrames,verified_source:saved>0&&playerFrames>0&&ballFrames>0}));
  }finally{
+  // Stop bounded direct retrieval before closing SDK and make sure its genuine
+  // event-array results enter the private SHA pipeline exactly once.
+  signedDrainStop=true;
+  if(signedDrainPromise)try{await signedDrainPromise;}catch{}
   // Even after errors, preserve any authentic source responses already received.
   try{
    acceptResponses=false;
@@ -550,6 +677,9 @@ async function main(){
       postfinal_backfill_attempts:postFinalBackfillAttempts,
       postfinal_original_responses:postFinalOriginalResponses,
       postfinal_original_player_ball_responses:postFinalPlayerBallResponses,
+      postfinal_sdk_signed_source_attempts:signedOriginalAttempts,
+      postfinal_sdk_signed_successful_source_responses:signedOriginalSuccessful,
+      postfinal_sdk_signed_player_ball_source_responses:signedOriginalPlayerBall,
       source_storage_retries:storageRetries,
       native_xyz_imputed:false,
       signed_sdk_url_or_token_persisted:false,
