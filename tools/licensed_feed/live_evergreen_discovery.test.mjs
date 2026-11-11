@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {NBA_GAME_ID,activeGames,MAX_SIMULTANEOUS,sourceBackfillCandidates,officialFinalFromBoxscore} from './live_evergreen_discovery.mjs';
+import {NBA_GAME_ID,activeGames,MAX_SIMULTANEOUS,sourceBackfillCandidates,officialFinalFromBoxscore,postfinalWindowDecision} from './live_evergreen_discovery.mjs';
 const now=Date.parse('2026-11-11T02:00:00.000Z');
 const row=(id,min,status=2)=>({gameId:id,gameDateTimeUTC:new Date(now+min*60000).toISOString(),gameStatus:status});
 const wrap=(games)=>({leagueSchedule:{gameDates:[{games}]}});
@@ -57,4 +57,18 @@ test('invalid source-window selection fails closed',()=>{
  assert.throws(()=>sourceBackfillCandidates({tipoff:start,now:Infinity,observed:new Set(),attempted:new Set()}),/invalid_backfill_plan/);
  assert.throws(()=>sourceBackfillCandidates({tipoff:start,now:start,observed:[],attempted:new Set()}),/invalid_backfill_plan/);
  assert.throws(()=>sourceBackfillCandidates({tipoff:start,now:start,observed:new Set(),attempted:new Set(),limit:1000}),/invalid_backfill_plan/);
+});
+
+test('bounded postfinal observation remains inside the same authorised SDK session',()=>{
+ const final=Date.parse('2026-11-11T03:45:00Z');
+ const grade=(ms,last=null,disabled=null)=>postfinalWindowDecision({
+  finalSeenAt:final,now:final+ms,disabledAt:disabled,lastSourceAt:last
+ });
+ assert.equal(grade(0,final),'CONTINUE_AUTHENTIC_SOURCE');
+ assert.equal(grade(180000,final+150000),'CONTINUE_AUTHENTIC_SOURCE');
+ assert.equal(grade(14*60000,final+13*60000),'CONTINUE_AUTHENTIC_SOURCE');
+ assert.equal(grade(14*60000,final+9*60000),'STOP_SOURCE_QUIET');
+ assert.equal(grade(2*60000,final+2*60000,final+119000),'STOP_SOURCE_DISABLED');
+ assert.equal(grade(20*60000,final+19*60000),'STOP_WINDOW_HARD_CAP');
+ assert.throws(()=>grade(-1,final),/invalid_postfinal_timing/);
 });
