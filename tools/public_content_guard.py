@@ -7,6 +7,9 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-nov09-source-recovery-watch-20261111.yml",  # vetted bounded scheduled original NBA SDK readiness check, source-gated CPU backfill, SHA-private 104 original XYZ only
+    "tools/licensed_feed/nov09_reconcile_original_xyz.py",  # generic SHA-only immutable original NBA SDK/live archive reconciliation, no private source in public repo
+    "tools/licensed_feed/test_nov09_reconcile_original_xyz.py",  # synthetic-only ZIP/GZIP SHA-provenance source-only tests
     ".github/workflows/gamepulse-nov09-0210-archived-xyz-20261111.yml",  # reviewed public free-CPU SHA readback of existing private 0210 SDK+live original XYZ, materialized only in private 104; public logs counts/hashes only
     ".github/workflows/gamepulse-live-all-six-sustained-20261111.yml",  # reviewed bounded one-day six-game CPU live SDK observation, original XYZ SHA-only private GitHub releases, public logs aggregate status only
     ".github/workflows/nba-matchups-2026-27-private-season-collector.yml",  # CPU official public NBA stats; all player-pair rows and raw source kept private 104 via authorized release token; public aggregate QA only
