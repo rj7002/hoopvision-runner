@@ -98,7 +98,7 @@ jobs:
           echo 'Only authentic private NBA SDK original slots; check remote SHA and both player/ball timestamp counts. No GPU, no inferred tracking.' >> "$GITHUB_STEP_SUMMARY"
 
   final-whistle-xyz:
-    # Independent of the prearmed live SDK job. Kings 0022600215 proved
+    # Extended original source window: allow 19min post-FINAL to recover all 13\n    # legitimate SDK partitions while access remains available. No GPU.\n    # Independent of the prearmed live SDK job. Kings 0022600215 proved
     # original player+ball XYZ can be recovered by a FRESH final-state SDK.
     needs: discover
     if: needs.discover.result == 'success'
@@ -108,7 +108,7 @@ jobs:
       matrix:
         game: ${{ fromJSON(needs.discover.outputs.games) }}
     concurrency:
-      group: igp-evergreen-final-whistle-v2-${{ matrix.game.id }}
+      group: igp-evergreen-final-whistle-v3-${{ matrix.game.id }}
       cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 360
@@ -149,7 +149,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
           GAMEPULSE_LIVE_ID: ${{ matrix.game.id }}
           GAMEPULSE_LIVE_TIPOFF: ${{ matrix.game.tipoff }}
-          IGP_REALTIME_CAPTURE_MS: '240000'
+          IGP_REALTIME_CAPTURE_MS: '1140000'
           IGP_REALTIME_LIVE_STOP_MS: '21000000'
           IGP_REALTIME_PRETIPOFF_WAIT_MS: '0'
           IGP_REALTIME_FLUSH_MS: '20000'
