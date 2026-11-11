@@ -33,7 +33,7 @@ jobs:
             except Exception as e:
               print("PROBE_ERROR",gid,type(e).__name__,str(e)[:140])
           for endpoint in ("defensiveboxscore","boxscorematchupsv3"):
-            for gid in ("0022600116","0022600208"):
+            for gid in ("0022600116","0022600189","0022600208"):
               for extra in ("","&LeagueID=00"):
                 url="https://stats.gleague.nba.com/stats/"+endpoint+"?GameID="+gid+extra
                 try:
@@ -44,7 +44,7 @@ jobs:
                   box=obj.get("boxScoreMatchups") or {}
                   print("ALT_SOURCE",endpoint,gid,"PARAM",bool(extra),"LEGACY_ROWS",len(rows) if isinstance(rows,list) else None,
                     "V3_TEAM_COUNT",sum(len((box.get(k) or {}).get("players",[])) for k in ("homeTeam","awayTeam")),
-                    "LEGACY_KEYS",list(rows[0])[:16] if isinstance(rows,list) and rows else None)
+                    "LEGACY_KEYS",list(rows[0]) if isinstance(rows,list) and rows else None)
                 except urllib.error.HTTPError as e:
                   print("ALT_HTTP_ERROR",endpoint,gid,e.code)
                 except Exception as e:
