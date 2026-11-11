@@ -1,3 +1,4 @@
+# 2026-11-11 source-security reviewed, explicitly allowlisted: CPU-only private-SHA 0022600211 failed-part recovery.
 name: Game Pulse 0022600211 targeted postfinal source recovery
 on:
   workflow_dispatch:
