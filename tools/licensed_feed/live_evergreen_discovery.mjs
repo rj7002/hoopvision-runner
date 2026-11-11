@@ -221,7 +221,9 @@ if(process.argv[1]?.endsWith('live_evergreen_discovery.mjs')){
    const result=await watchAndCaptureOnFinal({
     gameId,tipoff,
     claim:async()=>{
-     const existing=await readFinalMonitorCheckpoint(gameId,tipoff);
+     let existing=null;
+     try{existing=await readFinalMonitorCheckpoint(gameId,tipoff);}
+     catch{console.error('IGP_FINAL_MONITOR_CHECKPOINT_READ_RETRY_REQUIRED',gameId);}
      state=existing?.state||null;
      const age=state?.last_attempt_utc?Date.now()-Date.parse(state.last_attempt_utc):Infinity;
      if(state?.success===true||state?.attempts>=3||
@@ -231,7 +233,10 @@ if(process.argv[1]?.endsWith('live_evergreen_discovery.mjs')){
       attempts:(state?.attempts||0)+1,
       last_attempt_utc:new Date().toISOString(),
       status:'in_progress',success:false};
-     await writeFinalMonitorCheckpoint(gameId,tipoff,state);
+     // A metadata-checkpoint outage must NEVER consume the finite postfinal
+     // source window. Continue the authenticated SDK capture regardless.
+     try{await writeFinalMonitorCheckpoint(gameId,tipoff,state);}
+     catch{console.error('IGP_FINAL_MONITOR_CHECKPOINT_WRITE_RETRY_REQUIRED',gameId);}
      return true;
     },
     report:async code=>{
