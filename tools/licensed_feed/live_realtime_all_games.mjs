@@ -157,7 +157,7 @@ async function main(){
  const seen=new Set(),pending=new Set(),buffer=new Map();
  const tag='gamepulse-live-sdk-'+GAME;
  let browser,saved=0,playerFrames=0,ballFrames=0;
- let storeQueue=Promise.resolve(),storageRetries=0,lastSdkResponse=Date.now(),lastLiveXYZ=0,seekErrors=0;
+ let storeQueue=Promise.resolve(),storageRetries=0,lastSdkResponse=Date.now(),lastLiveXYZ=0,seekErrors=0,acceptResponses=true;
  // Source observation continues while private SHA uploads run in serialized background.
  function flush(){
   const entries=[...buffer.entries()].sort((a,b)=>a[1].from-b[1].from);
@@ -207,6 +207,7 @@ async function main(){
   const page=await browser.newPage();
   page.on('response',response=>{
    try{
+    if(!acceptResponses)return;
     const u=new URL(response.url());
     if(response.status()!==200||u.protocol!=='https:'
      ||u.hostname!=='nba-cdn.cloud.easelive.tv'
@@ -263,9 +264,15 @@ async function main(){
    if(Date.now()>START+14*60000&&Date.now()-lastSdkResponse>120000)
     throw Error('sdk_source_watchdog_timeout');
   }
+  // Freeze input BEFORE the private SHA queue drains. Otherwise live browser
+  // responses can keep refilling the buffer and falsely fail final readback.
+  acceptResponses=false;
   await Promise.allSettled([...pending]);
-  await flush();
-  if(buffer.size)await flush();
+  for(let retry=0;retry<5;retry++){
+   await flush();
+   if(!buffer.size)break;
+   await sleep(400*(retry+1));
+  }
   if(buffer.size)throw Error('private_source_unpersisted');
   console.log('IGP_REALTIME_SESSION_RESULT',JSON.stringify({game_id:GAME,
    archived_source_responses:saved,player_timestamps:playerFrames,
@@ -273,9 +280,13 @@ async function main(){
  }finally{
   // Even after errors, preserve any authentic source responses already received.
   try{
+   acceptResponses=false;
    await Promise.allSettled([...pending]);
-   await flush();
-   if(buffer.size)await flush();
+   for(let retry=0;retry<5;retry++){
+    await flush();
+    if(!buffer.size)break;
+    await sleep(400*(retry+1));
+   }
    if(buffer.size)throw Error('private_source_unpersisted');
   }catch(e){console.error('IGP_REALTIME_FINAL_CHECKPOINT_FAILED',e.message);process.exitCode=3;}
   if(browser)await browser.close();
