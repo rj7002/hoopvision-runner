@@ -61,6 +61,22 @@ export function officialFinalFromBoxscore(gameId,body){
  * stop on explicit app disable, sustained source silence, or a hard cap.
  * Preventing a late queue start is the point; no access-denial bypass.
  */
+
+/** Official schedule is a fallback when box-score CDN status is unavailable.
+ * Match the exact game identity, never infer final from elapsed wall time.
+ */
+export function officialFinalFromSchedule(gameId,doc){
+ if(!NBA_GAME_ID.test(gameId))throw Error('invalid_nba_game_id');
+ const days=doc?.leagueSchedule?.gameDates;
+ if(!Array.isArray(days))return null;
+ for(const day of days)for(const g of day.games||[]){
+  if(String(g.gameId)!==gameId)continue;
+  const status=Number(g.gameStatus);
+  return status===3?true:status===1||status===2?false:null;
+ }
+ return null;
+}
+
 export function postfinalWindowDecision({finalSeenAt,now,disabledAt=null,lastSourceAt=null}){
  if(!Number.isSafeInteger(now)||!Number.isSafeInteger(finalSeenAt)||
     now<finalSeenAt)throw Error('invalid_postfinal_timing');
