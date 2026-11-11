@@ -1,63 +1,35 @@
-name: Public NBA defensive matchup readback 2026-11-11
+name: Official NBA defensive matchup HTTP and identity diagnostics
 on:
   push:
     branches: [research/nba-matchup-gleague-probe-20261111]
   workflow_dispatch:
-permissions:
-  contents: read
+permissions: {contents: read}
 jobs:
-  readback:
+  diagnose:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: NBA stats matchup pair readback (public numbers only)
+      - name: Probe exact official matchup feed for four selected games
         shell: bash
         run: |
-          python - <<'PY'
-          import json, urllib.request, urllib.error, time
-          gid="0022600208"
-          base="https://stats.gleague.nba.com/stats/boxscorematchupsv3?GameID="+gid
-          headers={
-            "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            "Referer":"https://www.nba.com/",
-            "Origin":"https://www.nba.com",
-            "Accept":"application/json, text/plain, */*",
-            "x-nba-stats-origin":"stats",
-            "x-nba-stats-token":"true"
-          }
-          for url in [base, base+"&LeagueID=00"]:
+          python3 - <<'PY'
+          import json,urllib.parse,urllib.request,urllib.error
+          headers={"User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131 Safari/537.36",
+                   "Referer":"https://www.nba.com/","Origin":"https://www.nba.com",
+                   "Accept":"application/json, text/plain, */*",
+                   "x-nba-stats-origin":"stats","x-nba-stats-token":"true"}
+          for gid in ("0022600116","0022600186","0022600208","0022600210"):
+            url="https://stats.gleague.nba.com/stats/boxscorematchupsv3?GameID="+gid
             try:
-              req=urllib.request.Request(url,headers=headers)
-              with urllib.request.urlopen(req,timeout=18) as res:
-                payload=json.loads(res.read().decode("utf-8"))
-              print("SUCCESS",url,"keys",list(payload))
-              print("COMPLETE_OFFICIAL_MATCHUP_JSON="+json.dumps(payload,ensure_ascii=False,separators=(",",":")))
-              root=payload.get("boxScoreMatchups",{})
-              print("GAME_MATCHUP_TOTAL",root.get("gameId"),"HOME",root.get("homeTeamId"),"AWAY",root.get("awayTeamId"))
-              for side in ("homeTeam","awayTeam"):
-                for player in root.get(side,{}).get("players",[]):
-                  if player.get("personId") in (203999,201142):
-                    print("FOCAL_PARENT",side,player.get("personId"),player.get("nameI"),"CHILDREN",len(player.get("matchups",[])))
-                    for child in player.get("matchups",[]):
-                      print("FOCAL_CHILD",child.get("personId"),child.get("nameI"),json.dumps(child.get("statistics",{}),ensure_ascii=False))
-                  else:
-                    for child in player.get("matchups",[]):
-                      if child.get("personId") in (203999,201142) and player.get("personId") in (203999,201142):
-                        print("FOCAL_PAIR",side,player.get("personId"),child.get("personId"),json.dumps(child.get("statistics",{}),ensure_ascii=False))
-              def recurse(x,p="",parent=None):
-                if isinstance(x,dict):
-                  vals=json.dumps(x,ensure_ascii=False)
-                  if len(vals)<4500 and (('"personIdOff": 201142' in vals and '"personIdDef": 203999' in vals) or ('"personId": 203999' in vals and '"personId": 201142' in vals)):
-                    print("POTENTIAL_PAIR",p,vals)
-                  if x.get("personIdOff")==201142 and x.get("personIdDef")==203999:
-                    print("EXACT_PAIR",p,json.dumps(x,ensure_ascii=False))
-                  for k,v in x.items():
-                    if k not in ("meta",): recurse(v,p+"/"+k,x)
-                elif isinstance(x,list):
-                  for i,v in enumerate(x): recurse(v,p+"/"+str(i),parent)
-              recurse(payload)
-              print("MATCHUP_JSON_READBACK_COMPLETE")
-              break
-            except Exception as exc:
-              print("FAILED",url,type(exc).__name__,str(exc)[:250])
+              with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=15) as r:
+                raw=r.read(1000000); status=r.status
+              j=json.loads(raw)["boxScoreMatchups"]
+              print("PROBE_OK",gid,"HTTP",status,"SIZE",len(raw),"ROOT_TEAMS",
+                    j.get("homeTeamId"),j.get("awayTeamId"),
+                    "NESTED_TEAMS",j.get("homeTeam",{}).get("teamId"),j.get("awayTeam",{}).get("teamId"),
+                    "PLAYERS",len(j.get("homeTeam",{}).get("players",[])),len(j.get("awayTeam",{}).get("players",[])))
+            except urllib.error.HTTPError as e:
+              print("PROBE_HTTP_ERROR",gid,e.code,e.reason)
+            except Exception as e:
+              print("PROBE_ERROR",gid,type(e).__name__,str(e)[:140])
           PY
