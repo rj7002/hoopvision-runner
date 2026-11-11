@@ -1,3 +1,4 @@
+# OKC 0022600216 imminent/final: 19-minute CPU licensed SDK original-XYZ whole-archive priority rescue.
 # 2026-11-11 05:30 UTC operator-trigger: Kings 0022600215 completion-window licensed SDK source read; source gate unchanged.
 name: IGP live original XYZ all six Nov10 NBA games sustained
 # CPU-only source capture US Nov 10 2026 six exact NBA game IDs.
@@ -190,17 +191,15 @@ jobs:
     timeout-minutes: 42
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: 1
       matrix:
         include:
-          - {id: '0022600212', tipoff: '2026-11-11T01:00:00.000Z'}
-          - {id: '0022600215', tipoff: '2026-11-11T03:00:00.000Z'}
           - {id: '0022600216', tipoff: '2026-11-11T04:00:00.000Z'}
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       GAMEPULSE_LIVE_ID: ${{ matrix.id }}
       GAMEPULSE_LIVE_TIPOFF: ${{ matrix.tipoff }}
-      IGP_REALTIME_CAPTURE_MS: '180000'
+      IGP_REALTIME_CAPTURE_MS: '1140000'
       IGP_REALTIME_LIVE_STOP_MS: '18000000'
       IGP_REALTIME_PRETIPOFF_WAIT_MS: '0'
       IGP_REALTIME_FLUSH_MS: '20000'
