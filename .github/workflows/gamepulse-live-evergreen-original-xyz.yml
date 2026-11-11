@@ -96,3 +96,68 @@ jobs:
         if: always() && matrix.game.id != 'none'
         run: |
           echo 'Only authentic private NBA SDK original slots; check remote SHA and both player/ball timestamp counts. No GPU, no inferred tracking.' >> "$GITHUB_STEP_SUMMARY"
+
+  final-whistle-xyz:
+    # Independent of the prearmed live SDK job. Kings 0022600215 proved
+    # original player+ball XYZ can be recovered by a FRESH final-state SDK.
+    needs: discover
+    if: needs.discover.result == 'success'
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        game: ${{ fromJSON(needs.discover.outputs.games) }}
+    concurrency:
+      group: igp-evergreen-final-whistle-${{ matrix.game.id }}
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        if: matrix.game.id != 'none'
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        if: matrix.game.id != 'none'
+        with: {node-version: '22'}
+      - name: Validate final-watcher and licensed source boundaries
+        if: matrix.game.id != 'none'
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          node --check tools/licensed_feed/live_evergreen_discovery.mjs
+          node --check tools/licensed_feed/live_realtime_all_games.mjs
+          node --test tools/licensed_feed/live_evergreen_discovery.test.mjs
+      - name: Validate private original-source destination
+        if: matrix.game.id != 'none'
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Prepare licensed SDK before observing FINAL
+        if: matrix.game.id != 'none'
+        working-directory: tools/licensed_feed
+        run: |
+          set -euo pipefail
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Watch exact NBA game FINAL; launch fresh authorised SDK immediately
+        if: matrix.game.id != 'none'
+        working-directory: tools/licensed_feed
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          GAMEPULSE_LIVE_ID: ${{ matrix.game.id }}
+          GAMEPULSE_LIVE_TIPOFF: ${{ matrix.game.tipoff }}
+          IGP_REALTIME_CAPTURE_MS: '240000'
+          IGP_REALTIME_LIVE_STOP_MS: '28800000'
+          IGP_REALTIME_PRETIPOFF_WAIT_MS: '0'
+          IGP_REALTIME_FLUSH_MS: '20000'
+        run: |
+          set -euo pipefail
+          node live_evergreen_discovery.mjs --watch-final
+          echo IGP_EVERGREEN_FRESH_FINAL_XYZ_CAPTURE_ATTEMPT_COMPLETE
+      - name: Report scope of completion-triggered capture
+        if: always() && matrix.game.id != 'none'
+        run: |
+          echo 'Fresh SDK is launched only following official exact-game status 3. Licensed original XYZ is SHA-checked in private 104; no invented positions, no GPU, no claim of complete-game capture without separate QA.' >> "$GITHUB_STEP_SUMMARY"
