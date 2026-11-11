@@ -52,7 +52,19 @@ jobs:
           node --test tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs
       - id: plan
         name: Select all new and incomplete official final games, reusing original SHA parts
-        run: node tools/licensed_feed/igp_complete_season_plan.mjs
+        run: |
+          # The rapid OKC-POR window is for 11 Nov 2026 UTC only; leave routine scheduled captures intact.
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "*/5 6-8 11 11 *" ] && [ "$(date -u +%Y-%m-%d)" != "2026-11-11" ]; then
+            echo "count=0" >> "$GITHUB_OUTPUT"
+            echo "selected=[]" >> "$GITHUB_OUTPUT"
+            echo "parts=[]" >> "$GITHUB_OUTPUT"
+            echo "games=[]" >> "$GITHUB_OUTPUT"
+            echo "apps=[]" >> "$GITHUB_OUTPUT"
+            echo "release_read_deferred=0" >> "$GITHUB_OUTPUT"
+            echo IGP_2026_NOV11_CAPTURE_WINDOW_EXPIRED
+            exit 0
+          fi
+          node tools/licensed_feed/igp_complete_season_plan.mjs
   capture:
     needs: preflight
     if: needs.preflight.outputs.count != '0'
