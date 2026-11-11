@@ -321,7 +321,10 @@ async function main(){
   // seeks; the response handler above admits genuine HTTP-200 SDK slot arrays.
   let nextBackfill=Date.now()+BACKFILL_INTERVAL_MS;
   async function backfillObservedSource(isFinal){
-    if(!lastOriginalAt)return;
+    // A postfinal test may have no initial live response, but may still have
+    // an authorised SDK session capable of seeking saved historical slots.
+    // Attempt source reads only if this SDK has not explicitly disabled access.
+    if(!lastOriginalAt&&!isFinal)return;
     const state=await page.evaluate(()=>window.ephemeralFeed.diagnostics());
     if(state?.latest_app_status==='disabled'){
       if(disabledAt===null){
@@ -330,16 +333,26 @@ async function main(){
       }
       return;
     }
-    if(isFinal&&!finalAttemptedReset){
+    const firstFinal=isFinal&&!finalAttemptedReset;
+    if(firstFinal){
       for(const ms of attemptedBackfill)if(!observedPlayerBallSlots.has(ms))attemptedBackfill.delete(ms);
       finalAttemptedReset=true;
     }
     const limit=isFinal?BACKFILL_LIMIT*2:BACKFILL_LIMIT;
     const effectiveNow=isFinal?Math.min(Date.now(),finalObservedAt+15000):Date.now();
-    const targets=sourceBackfillCandidates({
+    const selected=sourceBackfillCandidates({
       tipoff:START,now:effectiveNow,observed:observedPlayerBallSlots,
       attempted:attemptedBackfill,limit,final:isFinal
     });
+    // A small stratified first-final test probes actual earlier gameplay,
+    // avoiding the fallacy that empty post-buzzer slots imply historical XYZ
+    // is no longer accessible. Only the genuine SDK can return observations.
+    const fullGameProbes=firstFinal?
+      [10,25,40,55,70,85,100,115,130,145,160,175,190,205,220,235,250]
+      .map(min=>Math.floor((START+min*60000)/5000)*5000)
+      .filter(ms=>ms<effectiveNow-15000&&
+        !observedPlayerBallSlots.has(ms)&&!attemptedBackfill.has(ms)):[];
+    const targets=[...new Set([...fullGameProbes,...selected])].slice(0,limit);
     let sent=0;
     const before=observedSlots.size;
     const richBefore=observedPlayerBallSlots.size;
