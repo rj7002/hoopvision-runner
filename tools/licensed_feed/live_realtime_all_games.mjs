@@ -96,6 +96,48 @@ async function savePrivateGit(base,zipped,meta){
  }
  throw Error('private_git_push_exhausted');
 }
+
+/** Persist access-window evidence privately for repeated cross-game tests.
+ * Contains UTC metadata and counts ONLY; no SDK URLs, tokens or native XYZ.
+ * Independent immutable SHA filename prevents concurrent source overwrite.
+ */
+async function savePrivateFinalWindowReceipt(report){
+ const state=await initPrivateGit();
+ const body=Buffer.from(JSON.stringify(report,null,2)+'\n');
+ const digest=sha(body);
+ const rel=PRIVATE_BASE+'/access-window-'+digest.slice(0,24)+'.json';
+ mkdirSync(join(state.root,PRIVATE_BASE),{recursive:true});
+ writeFileSync(join(state.root,rel),body);
+ await git(['add','-f','--',rel],{cwd:state.root});
+ const staged=await git(['diff','--cached','--name-only'],{cwd:state.root});
+ if(staged.stdout.trim())await git(['commit','-q','-m','data(igp): immutable NBA postfinal source-access evidence '+GAME],{cwd:state.root});
+ for(let attempt=0;attempt<8;attempt++){
+  try{
+   await git(['fetch','-q','origin',PRIVATE_BRANCH],{cwd:state.root});
+   let prior=null;
+   try{prior=execFileSync('git',['show','FETCH_HEAD:'+rel],
+    {cwd:state.root,maxBuffer:1024*1024,timeout:20000});}catch{}
+   if(prior){
+    if(sha(prior)!==digest)throw Error('private_final_window_evidence_conflict');
+    console.log('IGP_FINAL_WINDOW_PRIVATE_EVIDENCE_SHA_VERIFIED',GAME,digest);
+    return;
+   }
+   await git(['rebase','-q','FETCH_HEAD'],{cwd:state.root});
+   await git(['push','-q','origin','HEAD:refs/heads/'+PRIVATE_BRANCH],{cwd:state.root});
+   await git(['fetch','-q','origin',PRIVATE_BRANCH],{cwd:state.root});
+   const readback=execFileSync('git',['show','FETCH_HEAD:'+rel],
+    {cwd:state.root,maxBuffer:1024*1024,timeout:30000});
+   if(sha(readback)!==digest)throw Error('private_final_window_evidence_sha_failed');
+   console.log('IGP_FINAL_WINDOW_PRIVATE_EVIDENCE_SHA_VERIFIED',GAME,digest);
+   return;
+  }catch{
+   try{await git(['rebase','--abort'],{cwd:state.root});}catch{}
+   await sleep(750*(attempt+1));
+  }
+ }
+ throw Error('private_final_window_evidence_commit_unavailable');
+}
+
 async function gh(args){
  // Never block SDK response handlers when GitHub private storage is throttled.
  const {stdout}=await gitExec('gh',args,{encoding:'utf8',timeout:60000,maxBuffer:4*1024*1024,
@@ -450,6 +492,31 @@ async function main(){
    }
    if(buffer.size)throw Error('private_source_unpersisted');
   }catch(e){console.error('IGP_REALTIME_FINAL_CHECKPOINT_FAILED',e.message);process.exitCode=3;}
+  try{
+    await savePrivateFinalWindowReceipt({
+      schema:'igp.original-sdk.postfinal-access-window-evidence.v1',
+      game_id:GAME,
+      tipoff_utc:new Date(START).toISOString(),
+      source_first_seen_utc:firstOriginalAt?new Date(firstOriginalAt).toISOString():null,
+      source_last_seen_utc:lastOriginalAt?new Date(lastOriginalAt).toISOString():null,
+      official_final_first_seen_utc:finalObservedAt?new Date(finalObservedAt).toISOString():null,
+      sdk_app_disabled_first_seen_utc:disabledAt?new Date(disabledAt).toISOString():null,
+      original_slot_responses_saved:saved,
+      original_player_xyz_timestamp_rows_saved:playerFrames,
+      original_ball_xyz_timestamp_rows_saved:ballFrames,
+      unique_sdk_original_slot_windows_observed:observedSlots.size,
+      original_player_ball_source_windows_observed:observedPlayerBallSlots.size,
+      pre_and_postfinal_backfill_attempts:sourceBackfillAttempts,
+      postfinal_backfill_attempts:postFinalBackfillAttempts,
+      postfinal_original_responses:postFinalOriginalResponses,
+      postfinal_original_player_ball_responses:postFinalPlayerBallResponses,
+      source_storage_retries:storageRetries,
+      native_xyz_imputed:false,
+      signed_sdk_url_or_token_persisted:false,
+      postfinal_source_access_proven:postFinalPlayerBallResponses>0,
+      observed_at_utc:new Date().toISOString()
+    });
+  }catch{console.error('IGP_FINAL_WINDOW_PRIVATE_EVIDENCE_RETRY_REQUIRED',GAME);}
   if(browser)await browser.close();
   await new Promise(ok=>server.close(ok));
   if(privateGit){rmSync(privateGit.dir,{recursive:true,force:true});privateGit=null;}
