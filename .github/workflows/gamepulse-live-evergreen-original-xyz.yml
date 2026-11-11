@@ -1,4 +1,5 @@
 name: Integrated Pulse permanent NBA original XYZ live capture
+# 2026-11-11 US Nov 10 OKC@POR game 0022600216: source-only pregame CPU capture priority; restart current all-game source discovery immediately.
 # Every NBA season/date via official schedule, not fixed team/game-ID list.
 # Authenticated original SDK only; raw slots and XYZ only in private timeedmonds-maker/104.
 # CPU-only GitHub ubuntu-24.04: no GPU or inference. Zero-XYZ produces retry failure.
