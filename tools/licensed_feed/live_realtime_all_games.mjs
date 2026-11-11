@@ -13,7 +13,7 @@ import {execFileSync,execFile,spawnSync} from 'node:child_process';
 import {promisify} from 'node:util';
 import {createHash} from 'node:crypto';
 import {gzipSync} from 'node:zlib';
-import {sourceBackfillCandidates,officialFinalFromBoxscore,postfinalWindowDecision} from './live_evergreen_discovery.mjs';
+import {sourceBackfillCandidates,officialFinalFromBoxscore,officialFinalFromSchedule,postfinalWindowDecision} from './live_evergreen_discovery.mjs';
 
 const ROOT=import.meta.dirname;
 const GAME=process.env.GAMEPULSE_LIVE_ID;
@@ -370,28 +370,41 @@ async function main(){
       source_session_disabled:!!disabledAt
     }));
   }
+  let nextFinalScheduleFallback=Date.now()+30000;
   async function pollOfficialFinal(){
     if(finalObservedAt!==null)return;
+    let officialState=null,source='boxscore';
     try{
       const response=await fetch('https://cdn.nba.com/static/json/liveData/boxscore/boxscore_'+GAME+'.json',{
         headers:{Accept:'application/json',Referer:'https://www.nba.com/'},
         signal:AbortSignal.timeout(7000)
       });
-      if(!response.ok)return;
-      const grade=officialFinalFromBoxscore(GAME,await response.json());
-      if(grade===true){
-        finalObservedAt=Date.now();
-        console.log('IGP_OFFICIAL_FINAL_FIRST_OBSERVED',JSON.stringify({
-          game_id:GAME,observed_at_utc:new Date(finalObservedAt).toISOString(),
-          last_authenticated_slot_utc:lastOriginalAt?new Date(lastOriginalAt).toISOString():null,
-          source_armed_before_final:lastOriginalAt!==null
-        }));
-        // Trigger before another network lookup, queue or GitHub Actions job.
-        await backfillObservedSource(true);
-      }
-    }catch{
-      console.log('IGP_FINAL_POLL_TRANSIENT',GAME);
+      if(response.ok)officialState=officialFinalFromBoxscore(GAME,await response.json());
+    }catch{}
+    if(officialState===null&&Date.now()>=nextFinalScheduleFallback){
+      nextFinalScheduleFallback=Date.now()+30000;
+      try{
+        const fallback=await fetch('https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json',{
+          headers:{Accept:'application/json',Referer:'https://www.nba.com/'},
+          signal:AbortSignal.timeout(7000)
+        });
+        if(fallback.ok){
+          officialState=officialFinalFromSchedule(GAME,await fallback.json());
+          source='schedule';
+        }
+      }catch{}
     }
+    if(officialState!==true)return;
+    finalObservedAt=Date.now();
+    console.log('IGP_OFFICIAL_FINAL_FIRST_OBSERVED',JSON.stringify({
+      game_id:GAME,authoritative_status_source:source,
+      observed_at_utc:new Date(finalObservedAt).toISOString(),
+      last_authenticated_slot_utc:lastOriginalAt?new Date(lastOriginalAt).toISOString():null,
+      source_armed_before_final:lastOriginalAt!==null
+    }));
+    // Trigger within this same running SDK session, not a new queued workflow.
+    try{await backfillObservedSource(true);}
+    catch{console.log('IGP_FIRST_FINAL_SEEK_TRANSIENT',GAME);}
   }
 
   // Prefer authenticated private Git commits: release REST API can be temporarily throttled.
