@@ -53,3 +53,77 @@ jobs:
         if: always()
         run: |
           echo 'Original live SDK player/ball capture: check IGP_REALTIME_ORIGINAL_SOURCE_SHA_READBACK player_timestamps and ball_timestamps, and private Git SHA receipts. SDK success alone is not full-game proof.' >> "$GITHUB_STEP_SUMMARY"
+
+  index-saved-original-0212:
+    # Approved public CPU orchestration only. All private source and derived XYZ
+    # remain in private 104. Run once on explicit workflow push, not 5m schedule.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 105
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Guard and verify private checkout rights
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+      - name: Independently SHA-index every saved original Celtics-76ers live source shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_0212_live_original_xyz_materialize_v1.py
+          python3 gamepulse/fusion/igp_0212_live_original_xyz_materialize_v1.py --root .
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          root=Path('gamepulse/fusion/materialized/igp_0212_live_original_xyz_v1')
+          current=json.loads((root/'latest.json').read_bytes())
+          idx=root/current['snapshot_index']
+          doc=json.loads(idx.read_bytes())
+          assert doc['game_id']=='0022600212'
+          assert doc['original_sdk_live_source_not_modelled'] is True
+          assert doc['original_sdk_full_13part_postgame_certified'] is False
+          assert doc['raw_original_source_shards_unchanged'] is True
+          assert doc['original_counts']['original_player_and_ball_timestamps']>0
+          total=0
+          for part in doc['chunks']:
+              raw=(idx.parent/part['path']).read_bytes()
+              assert hashlib.sha256(raw).hexdigest()==part['sha256']
+              total+=part['native_timestamps']
+          assert total==doc['original_counts']['unique_original_native_timestamps']
+          print('IGP_0212_ORIGINAL_LIVE_XYZ_PRIVATE_QA',
+                'sha_shards',len(doc['original_source_sha256_by_shard']),
+                'native',total,
+                'player_ball',doc['original_counts']['original_player_and_ball_timestamps'],
+                'certified_full_game',False)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/materialized/igp_0212_live_original_xyz_v1
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo IGP_0212_ALREADY_SHA_SAVED
+            exit 0
+          fi
+          git commit -q -m "data(igp): materialize all saved BOS-PHI original SDK live XYZ"
+          for n in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo IGP_0212_SHA_ORIGINAL_LIVE_INDEX_PRIVATE_ACCEPTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 23
