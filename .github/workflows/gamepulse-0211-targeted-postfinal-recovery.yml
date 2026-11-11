@@ -174,8 +174,107 @@ jobs:
             sleep "$n"
           done
           exit 23
+  materialize-actual-gameplay:
+    # Independent of unavailable postgame-only SDK slots. Persist all original
+    # live NBA XYZ up to the real Q4 clock-zero alongside six verified SDK parts.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GAME: '0022600211'
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify source security and read exact private original parts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          mkdir -p "$RUNNER_TEMP/sdk6"
+          gh release download "gamepulse-sdk-$GAME" --repo timeedmonds-maker/104 --pattern 'sdk-part-*.tar.gz' --dir "$RUNNER_TEMP/sdk6"
+          gh release download "gamepulse-sdk-$GAME" --repo timeedmonds-maker/104 --pattern 'sdk-part-*.json' --dir "$RUNNER_TEMP/sdk6"
+          python3 - <<'PY'
+          import json,hashlib,os
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])/'sdk6'
+          for i in range(6):
+              stem=f'sdk-part-{i:02d}'
+              p=root/(stem+'.tar.gz')
+              q=root/(stem+'.json')
+              assert p.is_file() and q.is_file(),'MISSING_0211_ORIGINAL_SOURCE_PART'
+              doc=json.loads(q.read_bytes())
+              assert doc['game_id']=='0022600211' and doc['part']==i
+              assert doc['archive_sha256']==hashlib.sha256(p.read_bytes()).hexdigest()
+              assert doc['successful_windows']==300 and doc['observed'] and not doc['imputed']
+          print('IGP_0211_FIRST_SIX_SOURCE_ARCHIVES_SHA_VERIFIED')
+          PY
+      - name: Merge all authentic game-time XYZ including original live last two minutes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/igp_0211_original_gameplay_source_merge_v1.py
+          dest="gamepulse/fusion/materialized/igp_0211_original_gameplay_source_v1"
+          if test -e "$dest/index.json"; then
+            echo IGP_0211_ORIGINAL_GAMEPLAY_PREEXISTING_VERIFY_ONLY
+          else
+            python3 gamepulse/fusion/igp_0211_original_gameplay_source_merge_v1.py \
+              --archive-dir "$RUNNER_TEMP/sdk6" \
+              --live-dir "gamepulse/fusion/live_original_20261111/$GAME" \
+              --companion "gamepulse/fusion/evidence/companion_sdk_original_$GAME/sdk_observed_original.json" \
+              --out-dir "$dest"
+          fi
+          python3 - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          p=Path('gamepulse/fusion/materialized/igp_0211_original_gameplay_source_v1/index.json')
+          d=json.loads(p.read_bytes())
+          assert d['game_id']=='0022600211'
+          assert len(d['first_six_original_postgame_parts_sha256'])==6
+          assert d['input_live_sha_file_count']>0
+          assert d['source_native_timestamps_before_clock_zero']>0
+          assert d['player_and_ball_timestamps_before_clock_zero']>0
+          total=0
+          for row in d['chunks']:
+              blob=(p.parent/row['path']).read_bytes()
+              assert hashlib.sha256(blob).hexdigest()==row['sha256']
+              total+=row['native_timestamps']
+          assert total==d['source_native_timestamps_all_recovered']
+          print('IGP_0211_GAMEPLAY_SOURCE_ACCEPTANCE',json.dumps({
+              'native_timestamps':d['source_native_timestamps_before_clock_zero'],
+              'player_and_ball_timestamps':d['player_and_ball_timestamps_before_clock_zero'],
+              'source_gameplay_windows_observed':d['original_sdk_window_5s_observed'],
+              'source_gameplay_windows_expected':d['original_sdk_window_5s_expected_pre10min_through_gameclock_zero'],
+              'missing_gameplay_windows':d['original_sdk_window_5s_missing'],
+              'last_gameplay_source_ms':d['last_observed_player_ball_utc_ms_before_clock_zero'],
+              'original_companion_clock_zero_ms':d['game_clock_zero_sdk_utc_ms'],
+              'full_13part_postgame_certification':False},sort_keys=True))
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$dest"
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo IGP_0211_ORIGINAL_GAMEPLAY_ALREADY_PRESERVED; exit 0
+          fi
+          git commit -q -m "data(igp): merge SHA-original live SDK final-gameplay XYZ Bucks-Knicks 0211"
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo IGP_0211_ORIGINAL_GAMEPLAY_NATIVE_XYZ_SOURCE_PRIVATE_COMMITTED
+              exit 0
+            fi
+            sleep "$i"
+          done
+          exit 23
   audit-13-parts:
-    needs: [recover-missing-parts, certify-full-game, materialize-original]
+    needs: [recover-missing-parts, certify-full-game, materialize-original, materialize-actual-gameplay]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 15
