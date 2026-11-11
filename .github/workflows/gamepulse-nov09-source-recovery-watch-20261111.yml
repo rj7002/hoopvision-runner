@@ -1,11 +1,9 @@
 # Source-only bounded recheck, CPU Github-hosted runner; no GPU or paid API.
 name: IGP Nov09 original XYZ provider watch and backfill
 on:
-  push:
-    branches: [main]
-    paths: [.github/workflows/gamepulse-nov09-source-recovery-watch-20261111.yml]
   schedule:
-    - cron: '37 3,15 * * *'
+    # Limited to 11–16 November; the code also enforces the 2026-11-17 UTC cutoff.
+    - cron: '37 3,15 11-16 11 *'
 permissions: {contents: read}
 concurrency:
   group: igp-nov09-sdk-source-watch
