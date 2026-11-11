@@ -23,7 +23,11 @@ load_schedule() {
   if [ -n "${KEEPER_SCHEDULE_FILE:-}" ]; then
     raw=$(cat "$KEEPER_SCHEDULE_FILE") || return 1
   else
-    raw=$(curl -fsS --max-time 25 -H 'User-Agent: Mozilla/5.0' -H 'Referer: https://www.nba.com/' "$SCHEDULE_URL") || return 1
+    # node, not curl: cdn.nba.com answers curl with a 403 but lets Node's fetch through
+    raw=$(node -e "
+fetch(process.argv[1],{headers:{Accept:'application/json','User-Agent':'Mozilla/5.0',Referer:'https://www.nba.com/'},signal:AbortSignal.timeout(25000)})
+  .then(r=>{if(!r.ok){console.error('schedule fetch failed: HTTP '+r.status);process.exit(2)}return r.text()})
+  .then(t=>process.stdout.write(t)).catch(e=>{console.error('schedule fetch failed: '+e.message);process.exit(2)})" "$SCHEDULE_URL") || return 1
   fi
   # tip-off times (epoch seconds) from 7 hours ago to 36 hours ahead
   out=$(jq -r --argjson now "$t" '
