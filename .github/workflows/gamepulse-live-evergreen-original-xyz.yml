@@ -2,7 +2,9 @@ name: Integrated Pulse permanent NBA original XYZ live capture
 # Every NBA season/date via official schedule, not fixed team/game-ID list.
 # Authenticated original SDK only; raw slots and XYZ only in private timeedmonds-maker/104.
 # CPU-only GitHub ubuntu-24.04: no GPU or inference. Zero-XYZ produces retry failure.
-# Each 5m discovery starts a 5m30s observation; per-game concurrency preserves the active SDK session.
+# Each 5m discovery sustains at most one authenticated live SDK observer per game
+# from just before tipoff until official final + 3m or scheduled tipoff + 5h.
+# Per-game concurrency queues a replacement if a capture runner fails; no postgame replay required.
 on:
   schedule:
     - cron: '*/5 * * * *'
@@ -51,7 +53,7 @@ jobs:
       group: igp-evergreen-live-original-${{ matrix.game.id }}
       cancel-in-progress: false
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 345
     steps:
       - uses: actions/checkout@v4
         if: matrix.game.id != 'none'
@@ -81,9 +83,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
           GAMEPULSE_LIVE_ID: ${{ matrix.game.id }}
           GAMEPULSE_LIVE_TIPOFF: ${{ matrix.game.tipoff }}
-          IGP_REALTIME_CAPTURE_MS: '330000'
+          IGP_REALTIME_CAPTURE_MS: '18300000'
+          IGP_REALTIME_LIVE_STOP_MS: '18000000'
           IGP_REALTIME_PRETIPOFF_WAIT_MS: '720000'
-          IGP_REALTIME_FLUSH_MS: '40000'
+          IGP_REALTIME_FLUSH_MS: '30000'
         run: |
           set -euo pipefail
           node live_realtime_all_games.mjs
