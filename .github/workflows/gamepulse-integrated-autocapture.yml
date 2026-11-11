@@ -1,3 +1,4 @@
+# 2026-11-11 OKC-POR 0022600216 Q4: urgent 5-minute postfinal capture watch within source window, retain original 13-part SHA, companion, Blueprint and official PBP; no GPU.
 # 2026-11-11 Boston-Philadelphia 0022600212 official final: prioritize original 13-part source, companion, PBP and private native index; SHA first, CPU only; no paid GPU.
 # 2026-11-11 NZ operator immediate postfinal Bucks-Knicks 0022600211: invoke existing source-first CPU SHA-native 13-part/companion/Blueprint/PBP capture route now; preserve licensed originals and all source-grade failures.
 # 2026-11-10 NZ postfinal exact Rockets–Nuggets 0022600208 source-first retry: reuse original SHA, ingest 13-part XYZ, companion, Blueprint, official PBP; preserve failed-source grades; public CPU only.
@@ -11,6 +12,8 @@ name: Integrated Pulse automatic full-fidelity every-game capture and unified in
 on:
   schedule:
     - cron: '17 */3 * * *'
+    # 2026-11-11 one-day rapid postfinal source window: OKC-POR 0022600216; CPU, official-FINAL and SHA gates unchanged.
+    - cron: '*/5 6-8 11 11 *'
   push:
     branches: [main]
     paths:
