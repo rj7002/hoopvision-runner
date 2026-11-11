@@ -1,0 +1,153 @@
+# 2026-11-11 source-first recovery. Reconcile existing private original SDK and live archives;
+# NO provider replay, NO GPU, NO new paid infrastructure, NO public XYZ.
+name: IGP Nov9 archived genuine XYZ recovery 0210
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/gamepulse-nov09-0210-archived-xyz-20261111.yml]
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-nov09-0210-source-preserving-archive
+  cancel-in-progress: false
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify public privacy boundary and download immutable original private archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
+          mkdir -p "$RUNNER_TEMP/nov09/sdk" "$RUNNER_TEMP/nov09/live"
+          gh release download gamepulse-sdk-0022600210 -R "$PRIVATE_REPO" --pattern 'sdk-part-*.json' --pattern 'sdk-part-*.tar.gz' --dir "$RUNNER_TEMP/nov09/sdk"
+          gh release download gamepulse-live-sdk-0022600210 -R "$PRIVATE_REPO" --pattern 'live-*.json' --pattern 'live-*.tar.gz' --dir "$RUNNER_TEMP/nov09/live"
+          test "$(find "$RUNNER_TEMP/nov09/sdk" -name 'sdk-part-*.tar.gz' | wc -l)" -eq 6
+          test "$(find "$RUNNER_TEMP/nov09/live" -name 'live-*.tar.gz' | wc -l)" -eq 8
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 -b "$PRIVATE_BRANCH" "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/nov09/private"
+      - name: SHA-validate original player and ball XYZ; materialize merged source only in private 104
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/nov09/private"
+          python3 - <<'PY'
+          import gzip,hashlib,io,json,os,tarfile
+          from pathlib import Path
+          src=Path(os.environ['RUNNER_TEMP'])/'nov09'
+          root=Path('gamepulse/fusion/materialized/igp_original_xyz_partial_0022600210_archived_v1')
+          root.mkdir(parents=True,exist_ok=True)
+          gid='0022600210'
+          chosen={}
+          fromlive={}
+          sources={}
+          counts={'original_keyframe_variants':0,'invalid_source_frames':0,'equal_rank_disagreements':0}
+          def digest(b): return hashlib.sha256(b).hexdigest()
+          def frame_rank(rec):
+              p=rec['positions_native_units']
+              return (len([x for x in p if x!='ball']),int('ball' in p),int(rec['source_upstream_interpolated'] is False))
+          def collect(path,kind,target):
+              base=path.name.replace('.tar.gz','')
+              sidecar=path.parent/(base+'.json')
+              assert sidecar.is_file(),'ORIGINAL_SOURCE_SIDECAR_MISSING'
+              dat=path.read_bytes()
+              h=digest(dat)
+              sc=json.loads(sidecar.read_bytes())
+              assert sc.get('archive_sha256')==h,'ORIGINAL_SOURCE_SHA_MISMATCH'
+              sources[kind+'/'+path.name]=h
+              with tarfile.open(fileobj=io.BytesIO(dat),mode='r:gz') as tar:
+                  names=set(tar.getnames())
+                  assert {'manifest.json','raw-slots.jsonl.gz'}.issubset(names),'SOURCE_MEMBERS_MISSING'
+                  manifest=json.load(tar.extractfile('manifest.json'))
+                  assert manifest['game_id']==gid and manifest.get('observed') is True and manifest.get('imputed') is False
+                  for field in ('start_ms','successful_windows','frames_with_players','frames_with_ball'):
+                      assert manifest[field]==sc[field],'ORIGINAL_SOURCE_MANIFEST_CONFLICT'
+                  blob=tar.extractfile('raw-slots.jsonl.gz').read()
+                  rows=[json.loads(line) for line in gzip.decompress(blob).splitlines() if line]
+                  assert len(rows)==manifest['successful_windows'],'SOURCE_WINDOW_ROWS_MISMATCH'
+                  for row in rows:
+                      assert int(row['to'])==int(row['from'])+4999,'SOURCE_SLOT_RANGE_ERROR'
+                      for event in row.get('events',[]):
+                          for f in (event.get('metadata') or {}).get('keyframes',[]):
+                              t=f.get('timestamp')
+                              pos=f.get('positions')
+                              if not isinstance(t,int) or not isinstance(pos,dict):
+                                  counts['invalid_source_frames']+=1;continue
+                              counts['original_keyframe_variants']+=1
+                              if not pos: continue
+                              rec={'source_frame_utc_ms':t,'positions_native_units':pos,
+                                'source_upstream_interpolated':f.get('interpolated'),
+                                'source_original_archive':kind+'/'+path.name,
+                                'source_original_archive_sha256':h,
+                                'source_variant_grade':'ORIGINAL_SDK_PRESERVED_NOT_OFFICIAL_TEN_CERTIFIED'}
+                              existing=target.get(t)
+                              if existing is None or frame_rank(rec)>frame_rank(existing):
+                                  target[t]=rec
+                              elif frame_rank(rec)==frame_rank(existing) and rec['positions_native_units']!=existing['positions_native_units']:
+                                  counts['equal_rank_disagreements']+=1
+          for p in sorted((src/'live').glob('live-*.tar.gz')): collect(p,'live',fromlive)
+          assert len(sources)==8,'MISSING_LIVE_SOURCE_ARCHIVES'
+          chosen.update(fromlive)
+          for p in sorted((src/'sdk').glob('sdk-part-*.tar.gz')): collect(p,'sdk',chosen)
+          assert len(sources)==14,'MISSING_SDK_SOURCE_ARCHIVES'
+          def stats(d):
+              return {'source_timestamps_with_xyz':len(d),
+                'source_player_timestamps':sum(any(k!='ball' for k in r['positions_native_units']) for r in d.values()),
+                'source_ball_timestamps':sum('ball' in r['positions_native_units'] for r in d.values()),
+                'source_player_ball_timestamps':sum('ball' in r['positions_native_units'] and any(k!='ball' for k in r['positions_native_units']) for r in d.values())}
+          before,after=stats(fromlive),stats(chosen)
+          assert all(after[k]>=before[k] for k in before),'SOURCE_UNION_REGRESSION'
+          out=root/'source_original_native.jsonl.gz'
+          with out.open('wb') as raw:
+              with gzip.GzipFile(filename='',fileobj=raw,mode='wb',mtime=0,compresslevel=7) as zipped:
+                  for t in sorted(chosen):
+                      zipped.write((json.dumps(chosen[t],sort_keys=True,separators=(',',':'))+'\n').encode())
+          sha=digest(out.read_bytes())
+          qa={'schema':'igp.2026-11-09-0210-partial-archived-source-reconciliation.v1',
+              'game_id':gid,'source_game':gid,'source_original_live_archive_count':8,
+              'source_original_sdk_part_archive_count':6,
+              'source_original_asset_sha256':dict(sorted(sources.items())),
+              'live_archive_only_native':before,'sdk_plus_live_union_native':after,
+              'net_new_original_player_timestamps':after['source_player_timestamps']-before['source_player_timestamps'],
+              'net_new_original_ball_timestamps':after['source_ball_timestamps']-before['source_ball_timestamps'],
+              'source_original_sha256':sha,'source_original_index':'gamepulse/fusion/materialized/igp_original_xyz_partial_0022600210_archived_v1/source_original_native.jsonl.gz',
+              'source_full_13part_certified':False,'source_observed_only':True,
+              'official_ten_identity_certified':False,'physical_ball_possession_certified':False,
+              'raw_original_archives_unchanged':True,'model_generated_coordinates':0,
+              'source_audit_counts':counts}
+          (root/'index.json').write_text(json.dumps(qa,sort_keys=True,indent=2)+'\n')
+          audit=Path('gamepulse/fusion/qa/igp_progress_20261030/igp_0022600210_archived_original_xyz_reconciliation_20261111.json')
+          audit.parent.mkdir(parents=True,exist_ok=True)
+          audit.write_text(json.dumps(qa,sort_keys=True,indent=2)+'\n')
+          print('IGP_NOV09_0210_SAVED_ORIGINAL_XYZ',json.dumps({
+              'source_original_parts':6,'source_live_parts':8,
+              'before':before,'after':after,
+              'net_new_original_player_timestamps':qa['net_new_original_player_timestamps'],
+              'net_new_original_ball_timestamps':qa['net_new_original_ball_timestamps'],
+              'source_sha256':sha,'nonzero_source':after['source_player_ball_timestamps']>0},sort_keys=True))
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/materialized/igp_original_xyz_partial_0022600210_archived_v1 gamepulse/fusion/qa/igp_progress_20261030/igp_0022600210_archived_original_xyz_reconciliation_20261111.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo IGP_NOV09_0210_ORIGINAL_SOURCE_ALREADY_MATERIALIZED; exit 0; fi
+          git commit -q -m "data(igp): SHA-merge six existing 0210 original SDK parts with live XYZ"
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo IGP_NOV09_0210_SOURCE_ONLY_PRIVATE_COMMIT_ACCEPTED
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 23
