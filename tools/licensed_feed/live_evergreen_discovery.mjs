@@ -56,6 +56,22 @@ export function officialFinalFromBoxscore(gameId,body){
  return status===3?true:status===1||status===2?false:null;
 }
 
+
+/** Continue the authentic already-open SDK session briefly after final;
+ * stop on explicit app disable, sustained source silence, or a hard cap.
+ * Preventing a late queue start is the point; no access-denial bypass.
+ */
+export function postfinalWindowDecision({finalSeenAt,now,disabledAt=null,lastSourceAt=null}){
+ if(!Number.isSafeInteger(now)||!Number.isSafeInteger(finalSeenAt)||
+    now<finalSeenAt)throw Error('invalid_postfinal_timing');
+ if(disabledAt!==null)return 'STOP_SOURCE_DISABLED';
+ if(now-finalSeenAt>=20*60000)return 'STOP_WINDOW_HARD_CAP';
+ if(now-finalSeenAt>=3*60000&&
+    (!Number.isSafeInteger(lastSourceAt)||now-lastSourceAt>=4*60000))
+  return 'STOP_SOURCE_QUIET';
+ return 'CONTINUE_AUTHENTIC_SOURCE';
+}
+
 export async function discover({request=fetch,now=Date.now()}={}){
  const res=await request('https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json',{
   headers:{Accept:'application/json','User-Agent':'Mozilla/5.0','Referer':'https://www.nba.com/'},
