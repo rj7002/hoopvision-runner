@@ -108,7 +108,7 @@ jobs:
       matrix:
         game: ${{ fromJSON(needs.discover.outputs.games) }}
     concurrency:
-      group: igp-evergreen-final-whistle-${{ matrix.game.id }}
+      group: igp-evergreen-final-whistle-v2-${{ matrix.game.id }}
       cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 360
