@@ -178,6 +178,7 @@ async function main(){
  let browser,saved=0,playerFrames=0,ballFrames=0;
  let storeQueue=Promise.resolve(),storageRetries=0,lastSdkResponse=Date.now(),lastLiveXYZ=0,seekErrors=0,acceptResponses=true;
  let postFinalOriginalResponses=0, firstOriginalAt=null,lastOriginalAt=null,disabledAt=null;
+ let finalObservedAt=null;
  let sourceBackfillAttempts=0,postFinalBackfillAttempts=0,sourceBackfillObserved=0;
  let finalAttemptedReset=false;
  const FIRST_RECOVERY_MINUTE=45, BACKFILL_LIMIT=36;
@@ -346,7 +347,6 @@ async function main(){
   // Prefer authenticated private Git commits: release REST API can be temporarily throttled.
   // Keep the browser alive and the uncommitted source buffer if private storage fails.
   let nextFlush=Date.now()+FLUSH_MS, nextStatusCheck=Date.now()+FINAL_POLL_MS;
-  let finalObservedAt=null;
   // A delayed runner cannot silently extend a nominally live capture into postgame.
   const deadline=Math.min(Date.now()+CAPTURE_MS,START+LIVE_STOP_MS);
   while(Date.now()<deadline){
