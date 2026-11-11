@@ -214,7 +214,7 @@ async function main(){
   res.end(readFileSync(join(ROOT,file)));
  });
  await new Promise(ok=>server.listen(0,'127.0.0.1',ok));
- const seen=new Set(),pending=new Set(),buffer=new Map();
+ const seen=new Set(),pending=new Set(),buffer=new Map(),sourceResponseMetadata=new Map();
  const observedSlots=new Set(),observedPlayerBallSlots=new Set(),attemptedBackfill=new Set();
  const tag='gamepulse-live-sdk-'+GAME;
  let browser,saved=0,playerFrames=0,ballFrames=0;
@@ -232,12 +232,20 @@ async function main(){
   for(const [key] of entries)buffer.delete(key);
   const write=async()=>{
    const rows=entries.map(e=>e[1]),stats=countSource(rows);
+   const receivedTimes=entries.map(e=>sourceResponseMetadata.get(e[0])?.received_at_ms)
+     .filter(Number.isSafeInteger);
+   const postFinalResponses=entries.filter(e=>
+     sourceResponseMetadata.get(e[0])?.official_final_verified_before_receipt===true).length;
+   if(receivedTimes.length!==entries.length)throw Error('sdk_source_observation_time_missing');
   const zipped=gzipSync(Buffer.from(rows.map(r=>JSON.stringify(r)).join('\n')+'\n'));
   const digest=sha(zipped);
   const base='realtime-'+GAME+'-'+rows[0].from+'-'+digest.slice(0,16);
   const meta={schema:'igp.original-sdk-realtime-response.v1',game_id:GAME,
    original_source_grade:'SDK_OBSERVED_NOT_FULLGAME',
-   source_observed_at_utc:new Date().toISOString(),...stats,
+   source_observed_at_utc:new Date().toISOString(),
+   first_actual_sdk_http_response_at_utc:new Date(Math.min(...receivedTimes)).toISOString(),
+   last_actual_sdk_http_response_at_utc:new Date(Math.max(...receivedTimes)).toISOString(),
+   sdk_http_responses_after_verified_official_final:postFinalResponses,...stats,
    original_blob_sha256:digest,imputed:false,physical_possessions_certified:0};
   const dir=mkdtempSync(join(tmpdir(),'igp-live-original-'));
   try{
@@ -256,6 +264,7 @@ async function main(){
     for(const [key,value] of entries)if(!buffer.has(key))buffer.set(key,value);
     throw Error('private_source_unpersisted');
    }
+   for(const [key] of entries)sourceResponseMetadata.delete(key);
    saved+=stats.source_responses;playerFrames+=stats.player_timestamps;ballFrames+=stats.ball_timestamps;
    console.log('IGP_REALTIME_ORIGINAL_SOURCE_SHA_READBACK',JSON.stringify({
     game_id:GAME,...stats,archive_sha256:digest}));
@@ -301,7 +310,12 @@ async function main(){
      }
      const body=JSON.stringify(events),key=from+':'+sha(body);
      if(seen.has(key))return;
-     seen.add(key);buffer.set(key,{from,to:from+4999,events});
+     seen.add(key);
+     sourceResponseMetadata.set(key,{
+       received_at_ms:observedNow,
+       official_final_verified_before_receipt:finalObservedAt!==null&&observedNow>=finalObservedAt
+     });
+     buffer.set(key,{from,to:from+4999,events});
     }).catch(()=>{});
     pending.add(p);p.finally(()=>pending.delete(p));
    }catch{}
