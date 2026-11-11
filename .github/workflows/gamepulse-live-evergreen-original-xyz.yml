@@ -2,6 +2,7 @@ name: Integrated Pulse permanent NBA original XYZ live capture
 # Every NBA season/date via official schedule, not fixed team/game-ID list.
 # Authenticated original SDK only; raw slots and XYZ only in private timeedmonds-maker/104.
 # CPU-only GitHub ubuntu-24.04: no GPU or inference. Zero-XYZ produces retry failure.
+# Each 5m discovery starts a 5m30s observation; per-game concurrency preserves the active SDK session.
 on:
   schedule:
     - cron: '*/5 * * * *'
@@ -80,7 +81,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
           GAMEPULSE_LIVE_ID: ${{ matrix.game.id }}
           GAMEPULSE_LIVE_TIPOFF: ${{ matrix.game.tipoff }}
-          IGP_REALTIME_CAPTURE_MS: '210000'
+          IGP_REALTIME_CAPTURE_MS: '330000'
           IGP_REALTIME_PRETIPOFF_WAIT_MS: '720000'
           IGP_REALTIME_FLUSH_MS: '40000'
         run: |
