@@ -98,7 +98,7 @@ jobs:
 
   materialize-original:
     needs: certify-full-game
-    if: needs.certify-full-game.result == 'success'
+    if: ${{ needs['certify-full-game'].result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     env:
