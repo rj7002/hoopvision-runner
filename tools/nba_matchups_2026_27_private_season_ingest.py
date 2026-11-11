@@ -111,7 +111,7 @@ def http_json(url: str, *, attempts=3, timeout=20):
             return raw, obj
         except (OSError, TimeoutError, ValueError, urllib.error.HTTPError,
                 urllib.error.URLError, json.JSONDecodeError) as exc:
-            error = type(exc).__name__
+            error = ("HTTP_" + str(exc.code)) if isinstance(exc, urllib.error.HTTPError) else type(exc).__name__
             if attempt + 1 != attempts:
                 time.sleep(0.8 * (attempt + 1))
     raise RuntimeError("NBA_API_UNAVAILABLE_" + str(error))
@@ -432,7 +432,7 @@ def main():
           flush=True)
     failures = []
     if targets:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
             results = list(pool.map(lambda item: fetch_one(*item), targets))
         for gid, source, nrows, error in results:
             if error:
