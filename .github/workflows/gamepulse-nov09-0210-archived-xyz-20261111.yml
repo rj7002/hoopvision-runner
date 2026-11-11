@@ -13,7 +13,7 @@ concurrency:
 jobs:
   reconcile:
     runs-on: ubuntu-24.04
-    timeout-minutes: 18
+    timeout-minutes: 145
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
@@ -27,10 +27,52 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
-          test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
           mkdir -p "$RUNNER_TEMP/nov09/sdk" "$RUNNER_TEMP/nov09/live"
-          gh release download gamepulse-sdk-0022600210 -R "$PRIVATE_REPO" --pattern 'sdk-part-*.json' --pattern 'sdk-part-*.tar.gz' --dir "$RUNNER_TEMP/nov09/sdk"
-          gh release download gamepulse-live-sdk-0022600210 -R "$PRIVATE_REPO" --pattern 'live-*.json' --pattern 'live-*.tar.gz' --dir "$RUNNER_TEMP/nov09/live"
+          # GH personal-user REST quota is shared by many ongoing NBA jobs.
+          # A 403 caused an avoidable failure on 11 Nov. Wait for the API's
+          # published reset, preserve completed downloads and never print
+          # authentication details, asset URLs or original source.
+          python3 - <<'PY'
+          import json,os,subprocess,time
+          from pathlib import Path
+          env=dict(os.environ)
+          def limit():
+              p=subprocess.run(['gh','api','rate_limit'],capture_output=True,text=True,timeout=30,env=env)
+              if p.returncode!=0:return (None,None)
+              try:
+                  d=json.loads(p.stdout)['resources']['core']
+                  return (int(d['remaining']),int(d['reset']))
+              except (KeyError,ValueError,TypeError): return (None,None)
+          def run_source_call(label,args):
+              for attempt in range(12):
+                  remaining,reset=limit()
+                  if remaining is not None and remaining<65:
+                      delay=max(40,min(3800,reset-int(time.time())+40))
+                      print('IGP_PRIVATE_SOURCE_API_BUDGET_WAIT',label,'remaining',remaining,'seconds',delay,flush=True)
+                      time.sleep(delay)
+                  p=subprocess.run(args,capture_output=True,text=True,timeout=330,env=env)
+                  if p.returncode==0:
+                      print('IGP_PRIVATE_SOURCE_OPERATION_OK',label,flush=True)
+                      return
+                  message=(p.stderr or '')+(p.stdout or '')
+                  if 'rate limit' in message.lower() or '403' in message or '429' in message:
+                      _,reset=limit()
+                      delay=max(55,min(3800,(reset-int(time.time())+40) if reset is not None else 420))
+                      print('IGP_PRIVATE_SOURCE_RATE_LIMIT_RETRY',label,'attempt',attempt+1,'seconds',delay,flush=True)
+                      time.sleep(delay)
+                      continue
+                  # Log category only, never private release download URLs or token.
+                  print('IGP_PRIVATE_SOURCE_NONQUOTA_FAILURE',label,'attempt',attempt+1,flush=True)
+                  raise RuntimeError('private_source_operation_failed')
+              raise RuntimeError('private_source_rate_limit_retry_exhausted')
+          run_source_call('private_check',['gh','api','repos/'+env['PRIVATE_REPO'],'--jq','.private'])
+          for kind in ['sdk','live']:
+              tag='gamepulse-'+('sdk' if kind=='sdk' else 'live-sdk')+'-0022600210'
+              prefix='sdk-part' if kind=='sdk' else 'live'
+              out=str(Path(env['RUNNER_TEMP'])/'nov09'/kind)
+              run_source_call(kind,['gh','release','download',tag,'-R',env['PRIVATE_REPO'],
+                  '--pattern',prefix+'-*.json','--pattern',prefix+'-*.tar.gz','--dir',out,'--clobber'])
+          PY
           test "$(find "$RUNNER_TEMP/nov09/sdk" -name 'sdk-part-*.tar.gz' | wc -l)" -eq 6
           test "$(find "$RUNNER_TEMP/nov09/live" -name 'live-*.tar.gz' | wc -l)" -eq 8
           gh auth setup-git
