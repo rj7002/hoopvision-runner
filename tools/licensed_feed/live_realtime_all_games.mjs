@@ -42,7 +42,7 @@ async function initPrivateGit(){
  try{
   await git(['clone','-q','--filter=blob:none','--depth=1','--sparse','-b',PRIVATE_BRANCH,
    'https://github.com/'+REPO+'.git',privateGit.root],{timeout:110000});
-  await git(['sparse-checkout','set','gamepulse/fusion/live_original_20261111'],{cwd:privateGit.root});
+  await git(['sparse-checkout','set',PRIVATE_BASE],{cwd:privateGit.root});
   await git(['config','user.name','github-actions[bot]'],{cwd:privateGit.root});
   await git(['config','user.email','41898282+github-actions[bot]@users.noreply.github.com'],{cwd:privateGit.root});
   console.log('IGP_PRIVATE_GIT_SOURCE_STORAGE_READY',GAME);
