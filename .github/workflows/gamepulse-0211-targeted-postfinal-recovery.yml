@@ -1,0 +1,96 @@
+name: Game Pulse 0022600211 targeted postfinal source recovery
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/gamepulse-0211-targeted-postfinal-recovery.yml
+permissions: {contents: read}
+concurrency:
+  group: gamepulse-0211-targeted-part6-recovery
+  cancel-in-progress: false
+jobs:
+  recover-part-06:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GAMEPULSE_PRODUCTION_ENABLED: 'true'
+      GAMEPULSE_PRIORITY_FANOUT: 'true'
+      GAMEPULSE_FINAL_FASTLANE: 'true'
+      GAMEPULSE_PRIORITY_ID: '0022600211'
+      GAMEPULSE_PRIORITY_TIPOFF: '2026-11-11T00:30:00.000Z'
+      GAMEPULSE_PRIORITY_PART: '6'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Fail closed on missing source authorisation and inspect public route
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          node --check tools/licensed_feed/season_private_release.mjs
+          node --test tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs
+      - name: Reattempt exact 300 original 5-second slots, preserve existing parts
+        working-directory: tools/licensed_feed
+        run: |
+          set -euo pipefail
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+          for attempt in 1 2 3; do
+            echo "IGP_0211_SOURCE_AUTHENTIC_RETRY_ATTEMPT $attempt"
+            if node season_private_release.mjs; then
+              echo "IGP_0211_PART06_ORIGINAL_SHA_CERTIFIED"
+              exit 0
+            fi
+            if test "$attempt" -lt 3; then sleep 8; fi
+          done
+          echo "IGP_0211_PART06_SOURCE_GAP_UNRESOLVED"
+          exit 2
+  audit-13-parts:
+    needs: recover-part-06
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - name: Report actual original native source completeness without releasing private XYZ
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          mkdir -p "$RUNNER_TEMP/0211-check"
+          gh release view gamepulse-sdk-0022600211 --repo timeedmonds-maker/104 --json assets > "$RUNNER_TEMP/0211-assets.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          obj=json.loads((Path(os.environ['RUNNER_TEMP'])/'0211-assets.json').read_text())
+          names={x['name'] for x in obj.get('assets',[])}
+          good=[i for i in range(13) if f'sdk-part-{i:02d}.tar.gz' in names and f'sdk-part-{i:02d}.json' in names]
+          missing=[i for i in range(13) if i not in good]
+          print('IGP_0211_SHA_PAIRED_PARTS',len(good),'/13')
+          print('IGP_0211_MISSING_PART_NUMBERS',','.join(map(str,missing)) if missing else 'none')
+          print('IGP_0211_FULL_SOURCE_CERTIFICATE_PRESENT', 'sdk-COMPLETE.json' in names)
+          PY
+          gh release download gamepulse-sdk-0022600211 --repo timeedmonds-maker/104 --pattern 'sdk-part-*.json' --dir "$RUNNER_TEMP/0211-check"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          p=Path(os.environ['RUNNER_TEMP'])/'0211-check'
+          rows=[]
+          for f in sorted(p.glob('sdk-part-*.json')):
+            m=json.loads(f.read_bytes())
+            if m.get('game_id')!='0022600211' or not m.get('observed') or m.get('imputed') is not False:raise SystemExit('SOURCE_MANIFEST_QA_FAILED')
+            part=int(f.stem.split('-')[-1])
+            expected=120 if part==12 else 300
+            if m.get('successful_windows')!=expected or m.get('expected_windows')!=expected:raise SystemExit('SOURCE_WINDOWS_QA_FAILED')
+            rows.append((part,m))
+          print('IGP_0211_SOURCE_QA_PARTS',len(rows))
+          print('IGP_0211_ORIGINAL_WINDOW_TOTAL',sum(x['successful_windows'] for _,x in rows),'of 3720')
+          print('IGP_0211_PLAYER_XYZ_FRAME_COUNTS',sum(x['frames_with_players'] for _,x in rows))
+          print('IGP_0211_BALL_XYZ_FRAME_COUNTS',sum(x['frames_with_ball'] for _,x in rows))
+          print('IGP_0211_ORIGINAL_EMPTY_WINDOWS',sum(x['empty_windows'] for _,x in rows))
+          print('IGP_0211_ALL_PART_MANIFESTS_COMPLETE',len(rows)==13 and {a for a,_ in rows}==set(range(13)))
+          PY
