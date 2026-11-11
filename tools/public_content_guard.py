@@ -7,6 +7,10 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-live-evergreen-original-xyz.yml",  # reviewed all-season free-hosted CPU NBA SDK genuine original XYZ; private 104 only, SHA remote readback, no private source in public logs
+    "tools/licensed_feed/live_realtime_all_games.mjs",  # authenticated official NBA SDK slot response only, immutable private branch/Release SHA-readback, no coordinates in public
+    "tools/licensed_feed/live_evergreen_discovery.mjs",  # official public NBA game IDs and schedules only, no licensed coordinates
+    "tools/licensed_feed/live_evergreen_discovery.test.mjs",  # synthetic fixture-only discovery tests across seasons and playoffs
     ".github/workflows/gamepulse-live-bos-phi-rescue-20261111.yml",  # reviewed CPU-only exact game 0022600212 original SDK slot XYZ; private SHA-verified 104 Git source only, no coordinates or credentials in public logs
     ".github/workflows/gamepulse-nov09-source-recovery-watch-20261111.yml",  # vetted bounded scheduled original NBA SDK readiness check, source-gated CPU backfill, SHA-private 104 original XYZ only
     "tools/licensed_feed/nov09_reconcile_original_xyz.py",  # generic SHA-only immutable original NBA SDK/live archive reconciliation, no private source in public repo
