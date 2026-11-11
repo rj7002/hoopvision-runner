@@ -13,7 +13,7 @@ import {execFileSync,execFile,spawnSync} from 'node:child_process';
 import {promisify} from 'node:util';
 import {createHash} from 'node:crypto';
 import {gzipSync} from 'node:zlib';
-import {sourceBackfillCandidates,officialFinalFromBoxscore} from './live_evergreen_discovery.mjs';
+import {sourceBackfillCandidates,officialFinalFromBoxscore,postfinalWindowDecision} from './live_evergreen_discovery.mjs';
 
 const ROOT=import.meta.dirname;
 const GAME=process.env.GAMEPULSE_LIVE_ID;
@@ -177,7 +177,7 @@ async function main(){
  const tag='gamepulse-live-sdk-'+GAME;
  let browser,saved=0,playerFrames=0,ballFrames=0;
  let storeQueue=Promise.resolve(),storageRetries=0,lastSdkResponse=Date.now(),lastLiveXYZ=0,seekErrors=0,acceptResponses=true;
- let postFinalOriginalResponses=0, firstOriginalAt=null,lastOriginalAt=null,disabledAt=null;
+ let postFinalOriginalResponses=0,postFinalPlayerBallResponses=0, firstOriginalAt=null,lastOriginalAt=null,disabledAt=null;
  let finalObservedAt=null;
  let sourceBackfillAttempts=0,postFinalBackfillAttempts=0,sourceBackfillObserved=0;
  let finalAttemptedReset=false;
@@ -255,6 +255,7 @@ async function main(){
      }))){
        lastLiveXYZ=observedNow;
        observedPlayerBallSlots.add(from);
+       if(finalObservedAt!==null&&observedNow>=finalObservedAt)postFinalPlayerBallResponses++;
      }
      const body=JSON.stringify(events),key=from+':'+sha(body);
      if(seen.has(key))return;
@@ -281,8 +282,10 @@ async function main(){
     if(!lastOriginalAt)return;
     const state=await page.evaluate(()=>window.ephemeralFeed.diagnostics());
     if(state?.latest_app_status==='disabled'){
-      disabledAt??=Date.now();
-      console.log('IGP_FINAL_WINDOW_APP_DISABLED',GAME,new Date(disabledAt).toISOString());
+      if(disabledAt===null){
+        disabledAt=Date.now();
+        console.log('IGP_FINAL_WINDOW_APP_DISABLED',GAME,new Date(disabledAt).toISOString());
+      }
       return;
     }
     if(isFinal&&!finalAttemptedReset){
@@ -384,26 +387,32 @@ async function main(){
     catch(e){console.log('IGP_SOURCE_BACKFILL_TRANSIENT',GAME,
       /^[a-z_]+$/.test(e?.message||'')?e.message:'sdk_source_unavailable');}
    }
-   if(finalObservedAt&&(Date.now()-finalObservedAt>180000 || disabledAt)){
+   const finalDecision=finalObservedAt?postfinalWindowDecision({
+     finalSeenAt:finalObservedAt,now:Date.now(),disabledAt,lastSourceAt:lastOriginalAt
+   }):'CONTINUE_AUTHENTIC_SOURCE';
+   if(finalObservedAt&&finalDecision!=='CONTINUE_AUTHENTIC_SOURCE'){
     console.log('IGP_FINAL_WINDOW_TIMING_RECEIPT',JSON.stringify({
+      stopping_reason:finalDecision,
       game_id:GAME,official_final_first_seen_utc:new Date(finalObservedAt).toISOString(),
       first_authenticated_slot_seen_utc:firstOriginalAt?new Date(firstOriginalAt).toISOString():null,
       last_authenticated_slot_seen_utc:lastOriginalAt?new Date(lastOriginalAt).toISOString():null,
       sdk_disabled_first_seen_utc:disabledAt?new Date(disabledAt).toISOString():null,
       postfinal_original_slot_responses:postFinalOriginalResponses,
+      postfinal_original_player_ball_responses:postFinalPlayerBallResponses,
       pre_and_postfinal_seek_attempts:sourceBackfillAttempts,
       postfinal_seek_attempts:postFinalBackfillAttempts,
       unique_original_slots_session:observedSlots.size,
       original_player_ball_windows_session:observedPlayerBallSlots.size,
-      hypothesis_status:postFinalOriginalResponses&&disabledAt?
-        'POSTFINAL_OBSERVED_THEN_DISABLED':
-        postFinalOriginalResponses?'POSTFINAL_OBSERVED_NOT_YET_DISABLED':
-        disabledAt?'POSTFINAL_DISABLED_NO_SLOT':'UNCERTAIN_NO_POSTFINAL_SLOT'
+      hypothesis_status:postFinalPlayerBallResponses&&disabledAt?
+        'POSTFINAL_PLAYER_BALL_OBSERVED_THEN_DISABLED':
+        postFinalPlayerBallResponses?'POSTFINAL_PLAYER_BALL_SOURCE_OBSERVED':
+        postFinalOriginalResponses?'POSTFINAL_RESPONSE_ONLY_NO_PLAYER_BALL_PROOF':
+        disabledAt?'POSTFINAL_DISABLED_NO_SOURCE':'UNCERTAIN_NO_POSTFINAL_SOURCE'
     }));
     console.log('IGP_LIVE_OFFICIAL_FINAL_GRACE_COMPLETE',GAME);
     break;
    }
-   if(Date.now()>START+14*60000&&Date.now()-lastSdkResponse>120000)
+   if(!finalObservedAt&&Date.now()>START+14*60000&&Date.now()-lastSdkResponse>120000)
     throw Error('sdk_source_watchdog_timeout');
   }
   // Freeze input BEFORE the private SHA queue drains. Otherwise live browser
@@ -423,7 +432,8 @@ async function main(){
     successful_source_backfill_slot_delta:sourceBackfillObserved,
     first_final_status_observed:finalObservedAt?new Date(finalObservedAt).toISOString():null,
     last_authentic_source_response:lastOriginalAt?new Date(lastOriginalAt).toISOString():null,
-    sdk_app_disabled_observed:disabledAt?new Date(disabledAt).toISOString():null
+    sdk_app_disabled_observed:disabledAt?new Date(disabledAt).toISOString():null,
+    postfinal_original_player_ball_responses:postFinalPlayerBallResponses
   }));
   console.log('IGP_REALTIME_SESSION_RESULT',JSON.stringify({game_id:GAME,
    archived_source_responses:saved,player_timestamps:playerFrames,
