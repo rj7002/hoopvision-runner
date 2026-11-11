@@ -8,10 +8,15 @@ on:
       - .github/workflows/gamepulse-0211-targeted-postfinal-recovery.yml
 permissions: {contents: read}
 concurrency:
-  group: gamepulse-0211-targeted-part6-recovery
+  group: gamepulse-0211-all13-source-recovery
   cancel-in-progress: false
 jobs:
-  recover-part-06:
+  recover-missing-parts:
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        part: [6, 7, 8, 9, 10, 11, 12]
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -21,7 +26,7 @@ jobs:
       GAMEPULSE_FINAL_FASTLANE: 'true'
       GAMEPULSE_PRIORITY_ID: '0022600211'
       GAMEPULSE_PRIORITY_TIPOFF: '2026-11-11T00:30:00.000Z'
-      GAMEPULSE_PRIORITY_PART: '6'
+      GAMEPULSE_PRIORITY_PART: ${{ matrix.part }}
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -34,7 +39,7 @@ jobs:
           test -n "$GH_TOKEN"
           node --check tools/licensed_feed/season_private_release.mjs
           node --test tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs
-      - name: Reattempt exact 300 original 5-second slots, preserve existing parts
+      - name: Recover exact original SDK windows for part ${{ matrix.part }} with SHA preservation
         working-directory: tools/licensed_feed
         run: |
           set -euo pipefail
@@ -52,15 +57,125 @@ jobs:
             fi
             echo "IGP_0211_SOURCE_AUTHENTIC_RETRY_ATTEMPT $attempt"
             if node season_private_release.mjs; then
-              echo "IGP_0211_PART06_ORIGINAL_SHA_CERTIFIED"
+              echo "IGP_0211_SOURCE_PART_ORIGINAL_SHA_CERTIFIED"
               exit 0
             fi
             if test "$attempt" -lt 3; then sleep 8; fi
           done
-          echo "IGP_0211_PART06_SOURCE_GAP_UNRESOLVED"
+          echo "IGP_0211_SOURCE_PART_GAP_UNRESOLVED"
           exit 2
+  certify-full-game:
+    needs: recover-missing-parts
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 160
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GAMEPULSE_PRODUCTION_ENABLED: 'true'
+      GAMEPULSE_PRIORITY_FINALIZE: 'true'
+      GAMEPULSE_FINAL_FASTLANE: 'true'
+      GAMEPULSE_PRIORITY_ID: '0022600211'
+      GAMEPULSE_PRIORITY_TIPOFF: '2026-11-11T00:30:00.000Z'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Source-first security and existing collector tests
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          node --test tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs
+      - name: Exact private source 13-part SHA certification
+        working-directory: tools/licensed_feed
+        run: |
+          set -euo pipefail
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+          node season_private_release.mjs
+          echo IGP_0211_ORIGINAL_13PART_CERTIFICATION_PASSED
+
+  materialize-original:
+    needs: certify-full-game
+    if: needs.certify-full-game.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GAME: '0022600211'
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: SHA verify every genuine source archive and index privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          mkdir -p "$RUNNER_TEMP/native-sdk"
+          gh api "repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-$GAME" > "$RUNNER_TEMP/release.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])
+          obj=json.loads((root/"release.json").read_bytes())
+          names={a["name"] for a in obj["assets"]}
+          expected={f"sdk-part-{i:02d}.{ext}" for i in range(13) for ext in ("tar.gz","json")}
+          assert expected<=names and "sdk-COMPLETE.json" in names,"IGP_0211_REAL_SOURCE_INCOMPLETE"
+          print("IGP_0211_NATIVE_ALL_13_SOURCE_ASSETS_CERTIFIED",len(expected))
+          PY
+          gh release download "gamepulse-sdk-$GAME" --repo timeedmonds-maker/104 --pattern 'sdk-part-*.tar.gz' --dir "$RUNNER_TEMP/native-sdk"
+          test "$(find "$RUNNER_TEMP/native-sdk" -name 'sdk-part-*.tar.gz' | wc -l)" -eq 13
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_extract_all_original_sdk_xyz_2026.py
+          dest="gamepulse/fusion/materialized/igp_all_original_xyz/$GAME"
+          if test -f "$dest/index.json"; then
+            echo IGP_0211_ALREADY_PRESERVED_VERIFY_ONLY
+          else
+            python3 gamepulse/fusion/igp_extract_all_original_sdk_xyz_2026.py --game-id "$GAME" --archive-dir "$RUNNER_TEMP/native-sdk" --release-manifest "$RUNNER_TEMP/release.json" --out-dir "$dest"
+          fi
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          g=os.environ["GAME"]
+          p=Path("gamepulse/fusion/materialized/igp_all_original_xyz")/g/"index.json"
+          d=json.loads(p.read_bytes())
+          assert d["game_id"]==g and d["capture_archive_all_13_parts_verified"] and d["original_archive_part_count_verified"]==13
+          count=0
+          for chunk in d["chunks"]:
+              body=(p.parent/chunk["path"]).read_bytes()
+              assert hashlib.sha256(body).hexdigest()==chunk["sha256"]
+              count+=chunk["original_native_timestamps"]
+          assert count==d["original_frame_counts"]["unique_original_native_timestamps"]
+          print("IGP_0211_ORIGINAL_FULL_GAME_NATIVE_TIMESTAMPS_PRESERVED",count)
+          print("IGP_0211_NO_MODEL_DATA_SUBSTITUTED")
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$dest"
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo IGP_0211_ORIGINAL_NATIVE_UNCHANGED; exit 0
+          fi
+          git commit -q -m "data(igp): preserve exact SHA-original NBA XYZ Bucks-Knicks 0022600211"
+          for n in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo IGP_0211_FULL_GAME_ORIGINAL_XYZ_PRIVATE_INDEXED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 23
   audit-13-parts:
-    needs: recover-part-06
+    needs: [recover-missing-parts, certify-full-game, materialize-original]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 15
