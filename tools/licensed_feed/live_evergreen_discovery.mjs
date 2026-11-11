@@ -96,12 +96,97 @@ export async function discover({request=fetch,now=Date.now()}={}){
  if(!res.ok)throw Error('official_nba_schedule_unavailable');
  return activeGames(await res.json(),now);
 }
+
+/** A fresh FINAL-triggered SDK attempt is deliberately separate from the
+ * already-running live SDK stream. The Kings 0022600215 source experiment
+ * recovered player+ball XYZ in a newly initialized postfinal session, then a
+ * later session observed official SDK status 'disabled'. Poll the real NBA
+ * final flag first; no estimated clock, unauthorized replay or forged URL.
+ */
+export function finalWatchPollMs(tipoff,now){
+ if(!Number.isSafeInteger(tipoff)||!Number.isSafeInteger(now))
+  throw Error('invalid_final_watch_clock');
+ return now>=tipoff+100*60000?5000:20000;
+}
+export async function watchAndCaptureOnFinal({
+ gameId,tipoff,request=fetch,now=()=>Date.now(),pause=ms=>new Promise(r=>setTimeout(r,ms)),
+ launch=async()=>{throw Error('no_capture_launcher');}
+}){
+ if(!NBA_GAME_ID.test(gameId)||!Number.isSafeInteger(tipoff))
+  throw Error('invalid_final_watch_identity');
+ let polls=0,errors=0;
+ // Every game discovered before tipoff gets its own CPU watcher. The overall
+ // scheduled workflow retries interrupted watchers; this process never guesses
+ // that a game has ended based only on elapsed wall-clock time.
+ const deadline=tipoff+6*3600000;
+ while(now()<=deadline){
+  let state=null,origin=null;
+  try{
+   const r=await request('https://cdn.nba.com/static/json/liveData/boxscore/boxscore_'+gameId+'.json',{
+    headers:{Accept:'application/json',Referer:'https://www.nba.com/'},
+    signal:AbortSignal.timeout(10000)
+   });
+   if(r.ok){state=officialFinalFromBoxscore(gameId,await r.json());origin='boxscore';}
+   else errors++;
+  }catch{errors++;}
+  // Consult schedule only if the exact game's official boxscore is missing.
+  // A known boxscore status 1/2 cannot be overruled by a stale schedule.
+  if(state===null&&polls%6===0){
+   try{
+    const r=await request('https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json',{
+     headers:{Accept:'application/json',Referer:'https://www.nba.com/'},
+     signal:AbortSignal.timeout(15000)
+    });
+    if(r.ok){state=officialFinalFromSchedule(gameId,await r.json());origin='schedule';}
+   }catch{errors++;}
+  }
+  polls++;
+  if(state===true){
+   console.log('IGP_EVERGREEN_FRESH_FINAL_CAPTURE_TRIGGER',JSON.stringify({
+    game_id:gameId,final_observed_at_utc:new Date(now()).toISOString(),
+    official_evidence:origin,polls,errors}));
+   return await launch();
+  }
+  if(polls%30===0)console.log('IGP_EVERGREEN_FINAL_WATCH_ALIVE',
+   JSON.stringify({game_id:gameId,polls,errors,official_status:state}));
+  await pause(finalWatchPollMs(tipoff,now()));
+ }
+ console.error('IGP_EVERGREEN_FINAL_WATCH_EXPIRED',gameId,polls,errors);
+ throw Error('official_final_not_observed_before_watch_deadline');
+}
 if(process.argv[1]?.endsWith('live_evergreen_discovery.mjs')){
  const fs=await import('node:fs');
- try{
-  const games=await discover();
-  if(!process.env.GITHUB_OUTPUT)throw Error('github_output_not_set');
-  fs.appendFileSync(process.env.GITHUB_OUTPUT,'games='+JSON.stringify(games.length?games:[{id:'none',tipoff:'1970-01-01T00:00:00.000Z'}])+'\n');
-  console.log('IGP_EVERGREEN_ACTIVE_GAMES',games.length,games.map(g=>g.id).join(','));
- }catch(e){console.error(e?.message||'evergreen_schedule_failed');process.exitCode=2;}
+ if(process.argv[2]==='--watch-final'){
+  try{
+   const gameId=process.env.GAMEPULSE_LIVE_ID;
+   const tipoff=Date.parse(process.env.GAMEPULSE_LIVE_TIPOFF||'');
+   const {spawn}=await import('node:child_process');
+   const result=await watchAndCaptureOnFinal({
+    gameId,tipoff,
+    launch:()=>new Promise((resolve,reject)=>{
+     const child=spawn(process.execPath,['live_realtime_all_games.mjs'],{
+      cwd:import.meta.dirname,
+      env:process.env,
+      stdio:'inherit'
+     });
+     child.on('error',reject);
+     child.on('close',(code,signal)=>{
+      if(signal)reject(Error('sdk_collector_signalled_'+signal));
+      else resolve(code??1);
+     });
+    })
+   });
+   if(result!==0)process.exitCode=result||4;
+  }catch(e){
+   console.error('IGP_EVERGREEN_FINAL_CAPTURE_FAILED',e?.message||'source_unavailable');
+   process.exitCode=4;
+  }
+ }else{
+  try{
+   const games=await discover();
+   if(!process.env.GITHUB_OUTPUT)throw Error('github_output_not_set');
+   fs.appendFileSync(process.env.GITHUB_OUTPUT,'games='+JSON.stringify(games.length?games:[{id:'none',tipoff:'1970-01-01T00:00:00.000Z'}])+'\n');
+   console.log('IGP_EVERGREEN_ACTIVE_GAMES',games.length,games.map(g=>g.id).join(','));
+  }catch(e){console.error(e?.message||'evergreen_schedule_failed');process.exitCode=2;}
+ }
 }
