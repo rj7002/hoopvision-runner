@@ -223,7 +223,7 @@ async function main(){
  let storeQueue=Promise.resolve(),storageRetries=0,lastSdkResponse=Date.now(),lastLiveXYZ=0,seekErrors=0,acceptResponses=true;
  let postFinalOriginalResponses=0,postFinalPlayerBallResponses=0, firstOriginalAt=null,lastOriginalAt=null,disabledAt=null;
  let finalObservedAt=null,observedSdkIssuedSlotUrl=null;
- let signedDrainPromise=null,signedDrainActive=false,signedDrainStop=false;
+ let signedDrainPromise=null,signedDrainActive=false,signedDrainStop=false,sourceDeniedAt=null;
  let signedOriginalSuccessful=0,signedOriginalPlayerBall=0,signedOriginalAttempts=0;
  let sourceBackfillAttempts=0,postFinalBackfillAttempts=0,sourceBackfillObserved=0;
  let finalAttemptedReset=false;
@@ -424,7 +424,7 @@ async function main(){
    * No token replay after SDK disable, no guessed coordinates, no public XYZ.
    */
   async function drainSignedOriginalAtFinal(){
-    if(!finalObservedAt||!observedSdkIssuedSlotUrl||disabledAt)return;
+    if(!finalObservedAt||!observedSdkIssuedSlotUrl||disabledAt||sourceDeniedAt)return;
     signedDrainActive=true;
     const plan=planGame({id:GAME,start:START});
     if(plan.windows!==3720||plan.parts.length!==13)
@@ -457,7 +457,7 @@ async function main(){
                 const code=response.status;
                 statuses[code]=(statuses[code]||0)+1;
                 if(code===401||code===403){
-                  denied=true;
+                  denied=true;sourceDeniedAt??=Date.now();
                   console.log('IGP_POSTFINAL_SIGNED_SDK_SOURCE_ACCESS_DENIED',GAME,code);
                   return;
                 }
@@ -502,7 +502,7 @@ async function main(){
   }
   function startSignedDrainIfReady(){
     if(!signedDrainPromise&&finalObservedAt!==null&&
-       observedSdkIssuedSlotUrl&&!disabledAt){
+       observedSdkIssuedSlotUrl&&!disabledAt&&!sourceDeniedAt){
       signedDrainPromise=drainSignedOriginalAtFinal().catch(()=>{
         console.log('IGP_POSTFINAL_SIGNED_SDK_SOURCE_RETRY_REQUIRED',GAME);
       });
@@ -580,15 +580,16 @@ async function main(){
    }
    if(finalObservedAt)startSignedDrainIfReady();
    if(Date.now()>=nextBackfill && Date.now()>START+FIRST_RECOVERY_MINUTE*60000 &&
-      lastOriginalAt!==null && !disabledAt && !signedDrainActive){
+      lastOriginalAt!==null && !disabledAt && !sourceDeniedAt && !signedDrainActive){
     nextBackfill=Date.now()+(finalObservedAt?9000:BACKFILL_INTERVAL_MS);
     try{await backfillObservedSource(finalObservedAt!==null);}
     catch(e){console.log('IGP_SOURCE_BACKFILL_TRANSIENT',GAME,
       /^[a-z_]+$/.test(e?.message||'')?e.message:'sdk_source_unavailable');}
    }
-   const finalDecision=finalObservedAt?postfinalWindowDecision({
-     finalSeenAt:finalObservedAt,now:Date.now(),disabledAt,lastSourceAt:lastOriginalAt
-   }):'CONTINUE_AUTHENTIC_SOURCE';
+   const finalDecision=sourceDeniedAt?'STOP_SIGNED_ORIGINAL_SOURCE_ACCESS_DENIED':
+     finalObservedAt?postfinalWindowDecision({
+       finalSeenAt:finalObservedAt,now:Date.now(),disabledAt,lastSourceAt:lastOriginalAt
+     }):'CONTINUE_AUTHENTIC_SOURCE';
    if(finalObservedAt&&finalDecision!=='CONTINUE_AUTHENTIC_SOURCE'){
     console.log('IGP_FINAL_WINDOW_TIMING_RECEIPT',JSON.stringify({
       stopping_reason:finalDecision,
@@ -596,6 +597,7 @@ async function main(){
       first_authenticated_slot_seen_utc:firstOriginalAt?new Date(firstOriginalAt).toISOString():null,
       last_authenticated_slot_seen_utc:lastOriginalAt?new Date(lastOriginalAt).toISOString():null,
       sdk_disabled_first_seen_utc:disabledAt?new Date(disabledAt).toISOString():null,
+      signed_source_denied_first_seen_utc:sourceDeniedAt?new Date(sourceDeniedAt).toISOString():null,
       postfinal_original_slot_responses:postFinalOriginalResponses,
       postfinal_original_player_ball_responses:postFinalPlayerBallResponses,
       pre_and_postfinal_seek_attempts:sourceBackfillAttempts,
@@ -668,6 +670,7 @@ async function main(){
       source_last_seen_utc:lastOriginalAt?new Date(lastOriginalAt).toISOString():null,
       official_final_first_seen_utc:finalObservedAt?new Date(finalObservedAt).toISOString():null,
       sdk_app_disabled_first_seen_utc:disabledAt?new Date(disabledAt).toISOString():null,
+      signed_source_denied_first_seen_utc:sourceDeniedAt?new Date(sourceDeniedAt).toISOString():null,
       original_slot_responses_saved:saved,
       original_player_xyz_timestamp_rows_saved:playerFrames,
       original_ball_xyz_timestamp_rows_saved:ballFrames,
