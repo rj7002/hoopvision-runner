@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {NBA_GAME_ID,activeGames,MAX_SIMULTANEOUS,sourceBackfillCandidates,officialFinalFromBoxscore,officialFinalFromSchedule,postfinalWindowDecision} from './live_evergreen_discovery.mjs';
+import {NBA_GAME_ID,activeGames,MAX_SIMULTANEOUS,sourceBackfillCandidates,officialFinalFromBoxscore,officialFinalFromSchedule,postfinalWindowDecision,finalWatchPollMs,watchAndCaptureOnFinal} from './live_evergreen_discovery.mjs';
 const now=Date.parse('2026-11-11T02:00:00.000Z');
 const row=(id,min,status=2)=>({gameId:id,gameDateTimeUTC:new Date(now+min*60000).toISOString(),gameStatus:status});
 const wrap=(games)=>({leagueSchedule:{gameDates:[{games}]}});
@@ -81,4 +81,65 @@ test('official schedule fallback only accepts exact game and final status',()=>{
  assert.equal(officialFinalFromSchedule('0022600213',schedule),null);
  assert.equal(officialFinalFromSchedule('0022600212',{}),null);
  assert.throws(()=>officialFinalFromSchedule('wrong',schedule),/invalid_nba_game_id/);
+});
+
+
+test('fresh FINAL watcher triggers collector immediately on exact official final',async()=>{
+ const id='0022700010';
+ let clock=Date.parse('2027-01-10T02:20:00Z'),calls=0,launches=0;
+ const start=clock-120*60000;
+ const seen=[];
+ const request=async url=>{
+  seen.push(url);
+  calls++;
+  return {ok:true,json:async()=>({game:{
+   gameId:id,gameStatus:calls>=3?3:2
+  }})};
+ };
+ const code=await watchAndCaptureOnFinal({
+  gameId:id,tipoff:start,request,now:()=>clock,
+  pause:async ms=>{clock+=ms;},
+  launch:async()=>{launches++;return 0;}
+ });
+ assert.equal(code,0);
+ assert.equal(launches,1);
+ assert.equal(calls,3);
+ assert.equal(clock,Date.parse('2027-01-10T02:20:10Z'));
+ assert(seen.every(x=>x.includes('boxscore_'+id)));
+});
+
+test('exact game ID is mandatory for FINAL; mismatched status cannot trigger a capture',async()=>{
+ const id='0022700011';
+ const tipoff=Date.parse('2027-01-10T01:00:00Z');
+ let clock=tipoff+6*3600000,launches=0;
+ const request=async url=>({ok:url.includes('boxscore_'),
+  json:async()=>({game:{gameId:'0022700012',gameStatus:3}})});
+ await assert.rejects(
+  watchAndCaptureOnFinal({gameId:id,tipoff,request,now:()=>clock,
+   pause:async ms=>{clock+=ms;},
+   launch:async()=>{launches++;return 0;}
+  }),/official_final_not_observed/);
+ assert.equal(launches,0);
+});
+
+test('official schedule is an acceptable exact-game FINAL fallback when boxscore is unavailable',async()=>{
+ const id='0042700010',tipoff=Date.parse('2027-05-20T01:00:00Z');
+ let clock=tipoff+150*60000,launches=0;
+ const request=async url=>url.includes('boxscore_')?
+  {ok:false}:{ok:true,json:async()=>({leagueSchedule:{gameDates:[{games:[{
+   gameId:id,gameStatus:3
+  }]}]}})};
+ const code=await watchAndCaptureOnFinal({
+  gameId:id,tipoff,request,now:()=>clock,pause:async()=>{},
+  launch:async()=>{launches++;return 0;}
+ });
+ assert.equal(code,0);
+ assert.equal(launches,1);
+});
+
+test('completion monitor polls rapidly around game end without an inferred FINAL',()=>{
+ const start=Date.parse('2027-01-10T01:00:00Z');
+ assert.equal(finalWatchPollMs(start,start+99*60000),20000);
+ assert.equal(finalWatchPollMs(start,start+100*60000),5000);
+ assert.throws(()=>finalWatchPollMs(NaN,Date.now()),/invalid_final_watch_clock/);
 });
