@@ -1,0 +1,172 @@
+name: IGP live original XYZ all six Nov10 NBA games sustained
+# CPU-only source capture US Nov 10 2026 six exact NBA game IDs.
+# Original SDK responses go only to private 104 gamepulse-live-sdk-<game> release.
+# No post-final replay dependency, no imputed source observations, and no GPU.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-live-all-six-sustained-20261111.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-nov11-six-original-live-sustained
+  cancel-in-progress: false
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify source boundary and realtime collector syntax
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          node --check tools/licensed_feed/live_realtime_20261111.mjs
+          node --test tools/licensed_feed/live_discovery.test.mjs tools/licensed_feed/live_capture_cycle.test.mjs
+          echo IGP_SIX_LIVE_SOURCE_PREFLIGHT_PASSED
+  early-games:
+    needs: preflight
+    if: needs.preflight.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 345
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - {id: '0022600211', tipoff: '2026-11-11T00:30:00.000Z'}
+          - {id: '0022600212', tipoff: '2026-11-11T01:00:00.000Z'}
+    concurrency:
+      group: igp-nov11-sustained-${{ matrix.id }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install licensed SDK without install scripts
+        working-directory: tools/licensed_feed
+        run: |
+          set -euo pipefail
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Preserve live original player and ball positions with private SHA readback
+        working-directory: tools/licensed_feed
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          GAMEPULSE_LIVE_ID: ${{ matrix.id }}
+          GAMEPULSE_LIVE_TIPOFF: ${{ matrix.tipoff }}
+          IGP_REALTIME_CAPTURE_MS: '15300000'
+          IGP_REALTIME_PRETIPOFF_WAIT_MS: '3600000'
+          IGP_REALTIME_FLUSH_MS: '90000'
+        run: |
+          set -euo pipefail
+          node live_realtime_20261111.mjs
+  delay-middle:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - name: Hold until just before 02:00 UTC games without depending on GitHub cron
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import datetime,time
+          start=datetime.datetime.fromisoformat('2026-11-11T01:52:00+00:00').timestamp()
+          remaining=max(0,start-time.time())
+          print('IGP_MIDDLE_SOURCE_CAPTURE_WINDOW',int(remaining))
+          time.sleep(remaining)
+          PY
+  middle-games:
+    needs: [preflight,delay-middle]
+    if: needs.preflight.result == 'success' && needs.delay-middle.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 345
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - {id: '0022600213', tipoff: '2026-11-11T02:00:00.000Z'}
+          - {id: '0022600214', tipoff: '2026-11-11T02:00:00.000Z'}
+          - {id: '0022600215', tipoff: '2026-11-11T03:00:00.000Z'}
+    concurrency:
+      group: igp-nov11-sustained-${{ matrix.id }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install licensed SDK without install scripts
+        working-directory: tools/licensed_feed
+        run: |
+          set -euo pipefail
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Preserve live original player and ball positions with private SHA readback
+        working-directory: tools/licensed_feed
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          GAMEPULSE_LIVE_ID: ${{ matrix.id }}
+          GAMEPULSE_LIVE_TIPOFF: ${{ matrix.tipoff }}
+          IGP_REALTIME_CAPTURE_MS: '15300000'
+          IGP_REALTIME_PRETIPOFF_WAIT_MS: '5400000'
+          IGP_REALTIME_FLUSH_MS: '90000'
+        run: |
+          set -euo pipefail
+          node live_realtime_20261111.mjs
+  delay-late:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 205
+    steps:
+      - name: Hold until just before 04:00 UTC tipoff independently of cron
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import datetime,time
+          start=datetime.datetime.fromisoformat('2026-11-11T03:52:00+00:00').timestamp()
+          remaining=max(0,start-time.time())
+          print('IGP_LATE_SOURCE_CAPTURE_WINDOW',int(remaining))
+          time.sleep(remaining)
+          PY
+  late-game:
+    needs: [preflight,delay-late]
+    if: needs.preflight.result == 'success' && needs.delay-late.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 345
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {id: '0022600216', tipoff: '2026-11-11T04:00:00.000Z'}
+    concurrency:
+      group: igp-nov11-sustained-${{ matrix.id }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install licensed SDK without install scripts
+        working-directory: tools/licensed_feed
+        run: |
+          set -euo pipefail
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Preserve live original player and ball positions with private SHA readback
+        working-directory: tools/licensed_feed
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          GAMEPULSE_LIVE_ID: ${{ matrix.id }}
+          GAMEPULSE_LIVE_TIPOFF: ${{ matrix.tipoff }}
+          IGP_REALTIME_CAPTURE_MS: '15300000'
+          IGP_REALTIME_PRETIPOFF_WAIT_MS: '3600000'
+          IGP_REALTIME_FLUSH_MS: '90000'
+        run: |
+          set -euo pipefail
+          node live_realtime_20261111.mjs
