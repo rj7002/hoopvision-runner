@@ -1,0 +1,84 @@
+name: IGP Boston Philadelphia exact postfinal original SDK recovery
+# CPU-only. Authenticated original player+ball SDK observations exclusively.
+# Preserve private SHA source, never publish licensed XYZ or infer missing positions.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-boston-postfinal-sdk-20261111.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-boston-0022600212-postfinal-direct
+  cancel-in-progress: false
+jobs:
+  source-recovery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GAMEPULSE_LIVE_ID: '0022600212'
+      GAMEPULSE_LIVE_TIPOFF: '2026-11-11T01:00:00.000Z'
+      IGP_REALTIME_CAPTURE_MS: '660000'
+      IGP_REALTIME_LIVE_STOP_MS: '18000000'
+      IGP_REALTIME_PRETIPOFF_WAIT_MS: '0'
+      IGP_REALTIME_FLUSH_MS: '20000'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Require authorized private target and source-only safe reader
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          node --check tools/licensed_feed/live_realtime_all_games.mjs
+          node --test tools/licensed_feed/live_evergreen_discovery.test.mjs
+      - name: Verify exact NBA game final from NBA boxscore
+        id: official
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import {appendFileSync} from 'node:fs';
+          const id=process.env.GAMEPULSE_LIVE_ID;
+          let grade='UNKNOWN',status=null;
+          const params={headers:{Accept:'application/json',Referer:'https://www.nba.com/'},signal:AbortSignal.timeout(12000)};
+          for(const url of [
+           'https://cdn.nba.com/static/json/liveData/boxscore/boxscore_'+id+'.json',
+           'https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json'
+          ]){
+           try{
+            const r=await fetch(url,params);
+            if(!r.ok)continue;
+            const doc=await r.json();
+            const g=url.includes('boxscore_')?doc?.game:
+             (doc?.leagueSchedule?.gameDates||[]).flatMap(d=>d.games||[]).find(g=>String(g.gameId)===id);
+            if(String(g?.gameId)===id){
+             status=Number(g.gameStatus);
+             grade=url.includes('boxscore_')?'OFFICIAL_BOXSCORE':'OFFICIAL_SCHEDULE';
+             if(status===3)break;
+            }
+           }catch{}
+          }
+          const isFinal=status===3;
+          console.log('IGP_BOS_POSTFINAL_OFFICIAL',JSON.stringify({game_id:id,status,grade,isFinal}));
+          appendFileSync(process.env.GITHUB_OUTPUT,'final='+isFinal+'\n');
+          JS
+      - name: Install authorized existing NBA SDK package
+        if: steps.official.outputs.final == 'true'
+        working-directory: tools/licensed_feed
+        run: |
+          set -euo pipefail
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Collect SDK positions across game using native historical seek where supported
+        if: steps.official.outputs.final == 'true'
+        working-directory: tools/licensed_feed
+        run: |
+          set -euo pipefail
+          node live_realtime_all_games.mjs
+      - name: Report exact source grade
+        if: always()
+        run: |
+          echo 'Original authenticated NBA SDK only. Full-game is not certified without unique native player/ball timestamps and end-to-end period coverage; SDK-disabled results are evidence of no new source.' >> "$GITHUB_STEP_SUMMARY"
