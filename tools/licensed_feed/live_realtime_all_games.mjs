@@ -173,7 +173,7 @@ async function main(){
  });
  await new Promise(ok=>server.listen(0,'127.0.0.1',ok));
  const seen=new Set(),pending=new Set(),buffer=new Map();
- const observedSlots=new Set(),attemptedBackfill=new Set();
+ const observedSlots=new Set(),observedPlayerBallSlots=new Set(),attemptedBackfill=new Set();
  const tag='gamepulse-live-sdk-'+GAME;
  let browser,saved=0,playerFrames=0,ballFrames=0;
  let storeQueue=Promise.resolve(),storageRetries=0,lastSdkResponse=Date.now(),lastLiveXYZ=0,seekErrors=0,acceptResponses=true;
@@ -252,7 +252,10 @@ async function main(){
      if(events.some(ev=>(ev?.metadata?.keyframes||[]).some(f=>{
       const keys=Object.keys(f?.positions||{});
       return keys.includes('ball')&&keys.some(k=>k!=='ball');
-     })))lastLiveXYZ=Date.now();
+     }))){
+       lastLiveXYZ=observedNow;
+       observedPlayerBallSlots.add(from);
+     }
      const body=JSON.stringify(events),key=from+':'+sha(body);
      if(seen.has(key))return;
      seen.add(key);buffer.set(key,{from,to:from+4999,events});
@@ -283,17 +286,18 @@ async function main(){
       return;
     }
     if(isFinal&&!finalAttemptedReset){
-      for(const ms of attemptedBackfill)if(!observedSlots.has(ms))attemptedBackfill.delete(ms);
+      for(const ms of attemptedBackfill)if(!observedPlayerBallSlots.has(ms))attemptedBackfill.delete(ms);
       finalAttemptedReset=true;
     }
     const limit=isFinal?BACKFILL_LIMIT*2:BACKFILL_LIMIT;
     const effectiveNow=isFinal?Math.min(Date.now(),finalObservedAt+15000):Date.now();
     const targets=sourceBackfillCandidates({
-      tipoff:START,now:effectiveNow,observed:observedSlots,
+      tipoff:START,now:effectiveNow,observed:observedPlayerBallSlots,
       attempted:attemptedBackfill,limit,final:isFinal
     });
     let sent=0;
     const before=observedSlots.size;
+    const richBefore=observedPlayerBallSlots.size;
     for(const ms of targets){
       if(disabledAt)break;
       attemptedBackfill.add(ms);
@@ -311,10 +315,11 @@ async function main(){
     }
     sourceBackfillAttempts+=sent;
     if(isFinal)postFinalBackfillAttempts+=sent;
-    sourceBackfillObserved+=Math.max(0,observedSlots.size-before);
+    sourceBackfillObserved+=Math.max(0,observedPlayerBallSlots.size-richBefore);
     if(sent)console.log('IGP_FINAL_WINDOW_AUTHENTIC_SEEK_QA',JSON.stringify({
       game_id:GAME,mode:isFinal?'OFFICIAL_FINAL':'LATE_LIVE',
       attempted_source_slots:sent,new_original_slot_responses:Math.max(0,observedSlots.size-before),
+      new_source_player_ball_windows:Math.max(0,observedPlayerBallSlots.size-richBefore),
       previously_observed_unique_slots:before,final_observed_at_utc:
        finalObservedAt?new Date(finalObservedAt).toISOString():null,
       source_session_disabled:!!disabledAt
@@ -389,6 +394,7 @@ async function main(){
       pre_and_postfinal_seek_attempts:sourceBackfillAttempts,
       postfinal_seek_attempts:postFinalBackfillAttempts,
       unique_original_slots_session:observedSlots.size,
+      original_player_ball_windows_session:observedPlayerBallSlots.size,
       hypothesis_status:postFinalOriginalResponses&&disabledAt?
         'POSTFINAL_OBSERVED_THEN_DISABLED':
         postFinalOriginalResponses?'POSTFINAL_OBSERVED_NOT_YET_DISABLED':
@@ -412,6 +418,7 @@ async function main(){
   if(buffer.size)throw Error('private_source_unpersisted');
   console.log('IGP_FINAL_WINDOW_SOURCE_SUMMARY',JSON.stringify({
     game_id:GAME,unique_original_slot_windows:observedSlots.size,
+    original_player_ball_windows:observedPlayerBallSlots.size,
     source_backfill_attempts:sourceBackfillAttempts,
     successful_source_backfill_slot_delta:sourceBackfillObserved,
     first_final_status_observed:finalObservedAt?new Date(finalObservedAt).toISOString():null,
