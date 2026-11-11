@@ -4,7 +4,7 @@ name: IGP Nov9 archived genuine XYZ recovery 0210
 on:
   push:
     branches: [main]
-    paths: [.github/workflows/gamepulse-nov09-0210-archived-xyz-20261111.yml]
+    paths: [.github/workflows/gamepulse-nov09-0210-archived-xyz-20261111.yml, tools/public_content_guard.py]
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
