@@ -1,0 +1,54 @@
+name: IGP Boston-Philadelphia live original XYZ rescue (Nov 11)
+# Dedicated CPU-only source observation for exact Boston-Philadelphia game.
+# Writes only original SDK-observed position slot payloads into the canonical private source branch.
+# Does not generate or interpolate XYZ, change tracking defaults, or use paid GPUs.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/gamepulse-live-bos-phi-rescue-20261111.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 2-6 11 11 *'
+permissions:
+  contents: read
+concurrency:
+  group: igp-nov11-realtime-game-0022600212
+  cancel-in-progress: false
+jobs:
+  capture-bos-phi:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Source guard and capture syntax
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          node --check tools/licensed_feed/live_realtime_20261111.mjs
+      - name: Install existing licensed SDK on CPU
+        working-directory: tools/licensed_feed
+        run: |
+          set -euo pipefail
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Capture BOS-PHI original player and ball XYZ, SHA verify, save privately
+        working-directory: tools/licensed_feed
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          GAMEPULSE_LIVE_ID: '0022600212'
+          GAMEPULSE_LIVE_TIPOFF: '2026-11-11T01:00:00.000Z'
+          IGP_REALTIME_CAPTURE_MS: '240000'
+        run: |
+          set -euo pipefail
+          node live_realtime_20261111.mjs
+      - name: Do not infer full-game coverage
+        if: always()
+        run: |
+          echo 'Original live SDK player/ball capture: check IGP_REALTIME_ORIGINAL_SOURCE_SHA_READBACK player_timestamps and ball_timestamps, and private Git SHA receipts. SDK success alone is not full-game proof.' >> "$GITHUB_STEP_SUMMARY"
