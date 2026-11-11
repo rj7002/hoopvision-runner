@@ -41,6 +41,15 @@ jobs:
           npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
           npm install --ignore-scripts --no-audit --no-fund --silent
           for attempt in 1 2 3; do
+            if test "$attempt" -eq 3; then
+              # Switch to SDK-native browser seek, independently testing the original
+              # five-second slots; preserve the same private SHA and no-imputation gates.
+              export GAMEPULSE_FINAL_FASTLANE='false'
+              echo "IGP_0211_SOURCE_AUTHENTIC_SDK_SEEK_FALLBACK"
+            else
+              export GAMEPULSE_FINAL_FASTLANE='true'
+              echo "IGP_0211_SOURCE_AUTHENTIC_SIGNED_SLOT_RETRY"
+            fi
             echo "IGP_0211_SOURCE_AUTHENTIC_RETRY_ATTEMPT $attempt"
             if node season_private_release.mjs; then
               echo "IGP_0211_PART06_ORIGINAL_SHA_CERTIFIED"
