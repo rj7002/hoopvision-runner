@@ -58,6 +58,18 @@ export function eligibleSlot(start,now,slotsAlready=new Set()) {
  }
  return latest;
 }
+// During the game, repair the EARLIEST elapsed missing minute as well as the newest.
+// Post-final recovery must never be the only opportunity to acquire those originals.
+export function eligibleOldestSlot(start,now,slotsAlready=new Set(),settleMs=180000){
+ const full=planGame({id:'0022600001',start});
+ for(let i=10;i<310;i++){
+  const from=full.begin+i*60000;
+  if(from>=full.end)break;
+  if(now<from+60000+30000+settleMs)break;
+  if(!slotsAlready.has(from))return i;
+ }
+ return null;
+}
 export function validateLiveManifest(job,m) {
  if(!m||m.schema!=='nba-gamepulse-sdk-chunk.v1'
   ||m.game_id!==job.game_id||m.start_ms!==job.start_ms||m.part!==job.part
@@ -196,7 +208,12 @@ async function main() {
   const assets=getAssets(tag);
   if(assets===null)throw Error('private_release_missing');
   const archived=acceptedCompleteMinutes(assets);
-  const slot=eligibleSlot(start,Date.now(),new Set([...archived,...attempted]));
+  const already=new Set([...archived,...attempted]);
+  const latest=eligibleSlot(start,Date.now(),already);
+  const oldest=eligibleOldestSlot(start,Date.now(),already);
+  // Two fresh minutes, then one early missing minute. Do not defer
+  // the opening-quarter backlog until after the source closes.
+  const slot=attempted.size%3===2?(oldest??latest):latest;
   if(slot===null){
    // Discovery arms the game before tipoff but avoids wasting 3+ min of CPU.
    if(Date.now()<start+90000){console.log('LIVE_PREGAME_DISCOVERED',id);break;}
