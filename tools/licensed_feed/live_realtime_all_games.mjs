@@ -79,18 +79,18 @@ async function savePrivateGit(base,zipped,meta){
  }
  throw Error('private_git_push_exhausted');
 }
-function gh(args){
- const p=spawnSync('gh',args,{encoding:'utf8',timeout:60000,maxBuffer:4*1024*1024,
-  stdio:['ignore','pipe','pipe'],env:{...process.env,GH_TOKEN:TOKEN}});
- if(p.status!==0)throw Error('private_github_operation_failed');
- return p.stdout;
+async function gh(args){
+ // Never block SDK response handlers when GitHub private storage is throttled.
+ const {stdout}=await gitExec('gh',args,{encoding:'utf8',timeout:60000,maxBuffer:4*1024*1024,
+  env:{...process.env,GH_TOKEN:TOKEN}});
+ return stdout;
 }
-function ensureRelease(tag){
- try{gh(['release','view',tag,'--repo',REPO,'--json','tagName']);return;}
+async function ensureRelease(tag){
+ try{await gh(['release','view',tag,'--repo',REPO,'--json','tagName']);return;}
  catch{}
- try{gh(['release','create',tag,'--repo',REPO,'--target','main','--title',tag,
+ try{await gh(['release','create',tag,'--repo',REPO,'--target','main','--title',tag,
   '--notes','Private authorised live NBA original player-ball source','--latest=false']);}
- catch{gh(['release','view',tag,'--repo',REPO,'--json','tagName']);}
+ catch{await gh(['release','view',tag,'--repo',REPO,'--json','tagName']);}
 }
 function chrome(){
  for(const name of ['google-chrome','google-chrome-stable','chromium']){
@@ -116,12 +116,12 @@ function countSource(rows){
   ball_timestamps:frames.filter(f=>f.ball).length,
   player_and_ball_timestamps:frames.filter(f=>f.player&&f.ball).length};
 }
-function uploadedAndReadback(tag,name,data,dir){
+async function uploadedAndReadback(tag,name,data,dir){
  const path=join(dir,name),verify=join(dir,'readback');
  writeFileSync(path,data);
- try{gh(['release','upload',tag,path,'--repo',REPO]);}
+ try{await gh(['release','upload',tag,path,'--repo',REPO]);}
  catch{console.log('IGP_SOURCE_ARCHIVE_ALREADY_PRESENT_RECHECK',name.slice(0,30));}
- gh(['release','download',tag,'--repo',REPO,'--pattern',name,'--dir',verify]);
+ await gh(['release','download',tag,'--repo',REPO,'--pattern',name,'--dir',verify]);
  if(sha(readFileSync(join(verify,name)))!==sha(data))throw Error('private_source_sha_readback_failed');
 }
 async function main(){
@@ -179,9 +179,9 @@ async function main(){
    catch(e){console.log('IGP_PRIVATE_GIT_SOURCE_RETRY_REQUIRED',GAME,e?.code||'TRANSIENT');}
    if(!persisted){
     try{
-     ensureRelease(tag);
-     uploadedAndReadback(tag,base+'.jsonl.gz',zipped,dir);
-     uploadedAndReadback(tag,base+'.json',Buffer.from(JSON.stringify(meta)+'\n'),dir);
+     await ensureRelease(tag);
+     await uploadedAndReadback(tag,base+'.jsonl.gz',zipped,dir);
+     await uploadedAndReadback(tag,base+'.json',Buffer.from(JSON.stringify(meta)+'\n'),dir);
      persisted=true;
     }catch(e){console.log('IGP_PRIVATE_RELEASE_SOURCE_RETRY_REQUIRED',GAME);}
    }
