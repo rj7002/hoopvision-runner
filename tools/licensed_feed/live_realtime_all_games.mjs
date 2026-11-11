@@ -157,11 +157,14 @@ async function main(){
  const seen=new Set(),pending=new Set(),buffer=new Map();
  const tag='gamepulse-live-sdk-'+GAME;
  let browser,saved=0,playerFrames=0,ballFrames=0;
- async function flush(){
-  await Promise.allSettled([...pending]);
+ let storeQueue=Promise.resolve(),storageRetries=0,lastSdkResponse=Date.now(),lastLiveXYZ=0,seekErrors=0;
+ // Source observation continues while private SHA uploads run in serialized background.
+ function flush(){
   const entries=[...buffer.entries()].sort((a,b)=>a[1].from-b[1].from);
-  if(!entries.length)return;
-  const rows=entries.map(e=>e[1]),stats=countSource(rows);
+  if(!entries.length)return storeQueue;
+  for(const [key] of entries)buffer.delete(key);
+  const write=async()=>{
+   const rows=entries.map(e=>e[1]),stats=countSource(rows);
   const zipped=gzipSync(Buffer.from(rows.map(r=>JSON.stringify(r)).join('\n')+'\n'));
   const digest=sha(zipped);
   const base='realtime-'+GAME+'-'+rows[0].from+'-'+digest.slice(0,16);
@@ -182,12 +185,21 @@ async function main(){
      persisted=true;
     }catch(e){console.log('IGP_PRIVATE_RELEASE_SOURCE_RETRY_REQUIRED',GAME);}
    }
-   if(!persisted)return;
-   for(const [key] of entries)buffer.delete(key);
+   if(!persisted){
+    for(const [key,value] of entries)if(!buffer.has(key))buffer.set(key,value);
+    throw Error('private_source_unpersisted');
+   }
    saved+=stats.source_responses;playerFrames+=stats.player_timestamps;ballFrames+=stats.ball_timestamps;
    console.log('IGP_REALTIME_ORIGINAL_SOURCE_SHA_READBACK',JSON.stringify({
     game_id:GAME,...stats,archive_sha256:digest}));
   }finally{rmSync(dir,{recursive:true,force:true});}
+  };
+  // Single writer per game; rebase conflicts cannot pause the live SDK seeker.
+  storeQueue=storeQueue.then(write).catch(e=>{
+   storageRetries++;
+   console.error('IGP_LIVE_PRIVATE_STORAGE_RETRY_REQUIRED',GAME,e?.message||'private_storage_error');
+  });
+  return storeQueue;
  }
  try{
   browser=await puppeteer.launch({headless:true,executablePath:chrome(),
@@ -203,8 +215,13 @@ async function main(){
     const from=Number(u.searchParams.get('from'));
     if(!Number.isSafeInteger(from)||from%5000!==0
      ||from<START-20*60000||from>START+6*3600000)return;
+    lastSdkResponse=Date.now();
     const p=response.json().then(events=>{
      if(!Array.isArray(events))return;
+     if(events.some(ev=>(ev?.metadata?.keyframes||[]).some(f=>{
+      const keys=Object.keys(f?.positions||{});
+      return keys.includes('ball')&&keys.some(k=>k!=='ball');
+     })))lastLiveXYZ=Date.now();
      const body=JSON.stringify(events),key=from+':'+sha(body);
      if(seen.has(key))return;
      seen.add(key);buffer.set(key,{from,to:from+4999,events});
@@ -227,19 +244,40 @@ async function main(){
   while(Date.now()<deadline){
    // Emit actual advancing live player time, not arbitrary post-final seeks.
    const liveMs=Date.now()-1500;
-   await page.evaluate(t=>window.ephemeralFeed.seek(t),liveMs);
+   try{
+    await page.evaluate(t=>window.ephemeralFeed.seek(t),liveMs);
+    seekErrors=0;
+   }catch(e){
+    seekErrors++;
+    console.log('IGP_LIVE_SEEK_TRANSIENT',GAME,seekErrors);
+    if(seekErrors>=15)throw Error('sdk_seek_continuous_failures');
+   }
    await sleep(1000);
    if(Date.now()>=nextFlush){
-    await flush();nextFlush=Date.now()+FLUSH_MS;
+    void flush();nextFlush=Date.now()+FLUSH_MS;
+    console.log('IGP_LIVE_SDK_HEARTBEAT',JSON.stringify({
+     game_id:GAME,seconds_since_source:Math.round((Date.now()-lastSdkResponse)/1000),
+     seconds_since_xyz:lastLiveXYZ?Math.round((Date.now()-lastLiveXYZ)/1000):null,
+     buffered_source_responses:buffer.size,storage_retries:storageRetries}));
    }
+   if(Date.now()>START+14*60000&&Date.now()-lastSdkResponse>120000)
+    throw Error('sdk_source_watchdog_timeout');
   }
+  await Promise.allSettled([...pending]);
   await flush();
+  if(buffer.size)await flush();
+  if(buffer.size)throw Error('private_source_unpersisted');
   console.log('IGP_REALTIME_SESSION_RESULT',JSON.stringify({game_id:GAME,
    archived_source_responses:saved,player_timestamps:playerFrames,
    ball_timestamps:ballFrames,verified_source:saved>0&&playerFrames>0&&ballFrames>0}));
  }finally{
   // Even after errors, preserve any authentic source responses already received.
-  try{await flush();}catch(e){console.error('IGP_REALTIME_FINAL_CHECKPOINT_FAILED',e.message);}
+  try{
+   await Promise.allSettled([...pending]);
+   await flush();
+   if(buffer.size)await flush();
+   if(buffer.size)throw Error('private_source_unpersisted');
+  }catch(e){console.error('IGP_REALTIME_FINAL_CHECKPOINT_FAILED',e.message);process.exitCode=3;}
   if(browser)await browser.close();
   await new Promise(ok=>server.close(ok));
   if(privateGit){rmSync(privateGit.dir,{recursive:true,force:true});privateGit=null;}
