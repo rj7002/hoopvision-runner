@@ -1,6 +1,8 @@
 /** Official NBA every-season live SDK selection: no fixed dates or team/game allowlists. */
 export const NBA_GAME_ID=/^00[1-5]\d{7}$/;
 export const MAX_SIMULTANEOUS=16;
+const PRIVATE_REPO=process.env.GAMEPULSE_PRIVATE_DATA_REPO;
+const PRIVATE_BRANCH=process.env.GAMEPULSE_PRIVATE_DATA_BRANCH||'main';
 export function activeGames(schedule,now=Date.now()){
  if(!Number.isSafeInteger(now))throw Error('invalid_clock');
  const dates=schedule?.leagueSchedule?.gameDates;
@@ -174,8 +176,8 @@ function finalMonitorCheckpointPath(gameId,tipoff){
 async function readFinalMonitorCheckpoint(gameId,tipoff){
  const {execFileSync}=await import('node:child_process');
  const path=finalMonitorCheckpointPath(gameId,tipoff);
- const endpoint='repos/timeedmonds-maker/104/contents/'+path+
-  '?ref=research/gamepulse-clock-boundary-integrity-20261025';
+ const endpoint='repos/'+PRIVATE_REPO+'/contents/'+path+
+  '?ref='+encodeURIComponent(PRIVATE_BRANCH);
  try{
   const raw=execFileSync('gh',['api',endpoint],{
    encoding:'utf8',timeout:15000,maxBuffer:2*1024*1024,stdio:['ignore','pipe','pipe']
@@ -196,9 +198,9 @@ async function writeFinalMonitorCheckpoint(gameId,tipoff,state){
  const path=finalMonitorCheckpointPath(gameId,tipoff);
  for(let attempt=0;attempt<3;attempt++){
   const old=await readFinalMonitorCheckpoint(gameId,tipoff);
-  const args=['api','--method','PUT','repos/timeedmonds-maker/104/contents/'+path,
+  const args=['api','--method','PUT','repos/'+PRIVATE_REPO+'/contents/'+path,
    '-f','message=data(igp): private NBA final source capture checkpoint '+gameId,
-   '-f','branch=research/gamepulse-clock-boundary-integrity-20261025',
+   '-f','branch='+PRIVATE_BRANCH,
    '-f','content='+Buffer.from(JSON.stringify(state)+'\n').toString('base64')];
   if(old?.sha)args.push('-f','sha='+old.sha);
   try{

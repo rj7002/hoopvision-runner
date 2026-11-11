@@ -20,7 +20,8 @@ import {planGame} from './season_core.mjs';
 const ROOT=import.meta.dirname;
 const GAME=process.env.GAMEPULSE_LIVE_ID;
 const START=Date.parse(process.env.GAMEPULSE_LIVE_TIPOFF||'');
-const REPO='timeedmonds-maker/104';
+const PUBLIC_REPO='rj7002/hoopvision-runner';
+const REPO=process.env.GAMEPULSE_PRIVATE_DATA_REPO;
 const TOKEN=process.env.GH_TOKEN;
 const sleep=ms=>new Promise(done=>setTimeout(done,ms));
 const CAPTURE_MS=Number(process.env.IGP_REALTIME_CAPTURE_MS||185000);
@@ -29,7 +30,7 @@ const PRETIPOFF_WAIT_MS=Number(process.env.IGP_REALTIME_PRETIPOFF_WAIT_MS||0);
 const FLUSH_MS=Number(process.env.IGP_REALTIME_FLUSH_MS||40000);
 const sha=b=>createHash('sha256').update(b).digest('hex');
 const gitExec=promisify(execFile);
-const PRIVATE_BRANCH='research/gamepulse-clock-boundary-integrity-20261025';
+const PRIVATE_BRANCH=process.env.GAMEPULSE_PRIVATE_DATA_BRANCH||'main';
 const PRIVATE_BASE='gamepulse/fusion/live_original_'+new Date(START).toISOString().slice(0,10).replaceAll('-','')+'/'+GAME;
 let privateGit=null;
 async function git(args,{cwd,timeout=90000}={}){
@@ -186,9 +187,10 @@ async function uploadedAndReadback(tag,name,data,dir){
  if(sha(readFileSync(join(verify,name)))!==sha(data))throw Error('private_source_sha_readback_failed');
 }
 async function main(){
- if(process.env.GITHUB_REPOSITORY!=='timeedmonds-maker/hoopvision-runner'
+if(process.env.GITHUB_REPOSITORY!==PUBLIC_REPO
   ||process.env.GITHUB_REF!=='refs/heads/main'
   ||!['schedule','workflow_dispatch','push'].includes(process.env.GITHUB_EVENT_NAME)
+  ||!/^\w[\w.-]*\/[\w.-]+$/.test(REPO||'')
   ||!/^00[1-5]\d{7}$/.test(GAME||'')||!Number.isSafeInteger(START)
   ||!TOKEN||TOKEN.length<30)throw Error('unauthorized_live_collection');
  if(!Number.isSafeInteger(CAPTURE_MS)||CAPTURE_MS<30000||CAPTURE_MS>19200000

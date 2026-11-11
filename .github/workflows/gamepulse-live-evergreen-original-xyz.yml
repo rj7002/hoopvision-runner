@@ -1,8 +1,9 @@
 # 2026-11-11 05:34 UTC operator live-to-final Kings 0022600215 pre-armed SDK recovery test, original XYZ SHA-private only.
 name: Integrated Pulse permanent NBA original XYZ live capture
-# 2026-11-11 US Nov 10 OKC@POR game 0022600216: source-only pregame CPU capture priority; restart current all-game source discovery immediately.
+# This workflow and its source are from the upstream HoopVision Runner fork.
+# Configure the private destination repository and token as repository variables/secrets before enabling Actions.
 # Every NBA season/date via official schedule, not fixed team/game-ID list.
-# Authenticated original SDK only; raw slots and XYZ only in private timeedmonds-maker/104.
+# Authenticated original SDK only; raw slots and XYZ only in the configured private destination.
 # CPU-only GitHub ubuntu-24.04: no GPU or inference. Zero-XYZ produces retry failure.
 # Each 5m discovery sustains at most one authenticated live SDK observer per game
 # from just before tipoff until official final + 3m or scheduled tipoff + 5h.
@@ -67,10 +68,12 @@ jobs:
         if: matrix.game.id != 'none'
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          PRIVATE_DATA_REPO: ${{ secrets.GAMEPULSE_PRIVATE_DATA_REPO }}
         run: |
           set -euo pipefail
           test -n "${GH_TOKEN:-}"
-          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          test -n "${PRIVATE_DATA_REPO:-}"
+          test "$(gh api "repos/$PRIVATE_DATA_REPO" --jq .private)" = true
       - name: Install existing licensed NBA SDK on CPU without scripts
         if: matrix.game.id != 'none'
         working-directory: tools/licensed_feed
@@ -83,6 +86,8 @@ jobs:
         working-directory: tools/licensed_feed
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          GAMEPULSE_PRIVATE_DATA_REPO: ${{ secrets.GAMEPULSE_PRIVATE_DATA_REPO }}
+          GAMEPULSE_PRIVATE_DATA_BRANCH: ${{ vars.GAMEPULSE_PRIVATE_DATA_BRANCH }}
           GAMEPULSE_LIVE_ID: ${{ matrix.game.id }}
           GAMEPULSE_LIVE_TIPOFF: ${{ matrix.game.tipoff }}
           IGP_REALTIME_CAPTURE_MS: '18300000'
@@ -133,10 +138,12 @@ jobs:
         if: matrix.game.id != 'none'
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          PRIVATE_DATA_REPO: ${{ secrets.GAMEPULSE_PRIVATE_DATA_REPO }}
         run: |
           set -euo pipefail
           test -n "$GH_TOKEN"
-          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          test -n "$PRIVATE_DATA_REPO"
+          test "$(gh api "repos/$PRIVATE_DATA_REPO" --jq .private)" = true
       - name: Prepare licensed SDK before observing FINAL
         if: matrix.game.id != 'none'
         working-directory: tools/licensed_feed
@@ -149,6 +156,8 @@ jobs:
         working-directory: tools/licensed_feed
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          GAMEPULSE_PRIVATE_DATA_REPO: ${{ secrets.GAMEPULSE_PRIVATE_DATA_REPO }}
+          GAMEPULSE_PRIVATE_DATA_BRANCH: ${{ vars.GAMEPULSE_PRIVATE_DATA_BRANCH }}
           GAMEPULSE_LIVE_ID: ${{ matrix.game.id }}
           GAMEPULSE_LIVE_TIPOFF: ${{ matrix.game.tipoff }}
           IGP_REALTIME_CAPTURE_MS: '1140000'
@@ -162,4 +171,4 @@ jobs:
       - name: Report scope of completion-triggered capture
         if: always() && matrix.game.id != 'none'
         run: |
-          echo 'Fresh SDK is launched only following official exact-game status 3. Licensed original XYZ is SHA-checked in private 104; no invented positions, no GPU, no claim of complete-game capture without separate QA.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Fresh SDK is launched only following official exact-game status 3. Licensed originals are written only to the configured private destination; no invented positions, no GPU, no claim of complete-game capture without separate QA.' >> "$GITHUB_STEP_SUMMARY"

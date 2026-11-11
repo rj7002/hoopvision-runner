@@ -1,5 +1,19 @@
 # HoopVision Runner
 
+## rj7002 fork configuration
+
+This is an attributed fork of [timeedmonds-maker/hoopvision-runner](https://github.com/timeedmonds-maker/hoopvision-runner). The upstream live Game Pulse workflow and collector are retained; this fork changes their private-destination settings so they can be configured for rj7002's own private data repository. Keep the upstream link and attribution when redistributing.
+
+The live workflow is intentionally **not enabled in this fork yet**. Before enabling Actions, configure these repository settings:
+
+- Repository secret `GAMEPULSE_PRIVATE_DATA_REPO`: your private repository slug (`owner/name`)
+- Repository variable `GAMEPULSE_PRIVATE_DATA_BRANCH`: `gamepulse-original-captures`
+- Repository secret `GAMEPULSE_PRIVATE_RELEASE_TOKEN`: a fine-grained token (or GitHub App token) scoped only to that private data repository, with Contents read/write and Releases access.
+
+The token is never stored in this repository. Do not put it in workflow YAML, commit it, or print it in logs. The public runner repo contains workflow/source code only; captured source files must remain in the private destination. GitHub Actions is currently disabled for this fork while its workflows are being configured. This fork contains many unrelated upstream workflows, so enable only the reviewed live workflow; leave unrelated workflows disabled.
+
+GitHub-hosted runners are temporary and scheduled runs can be delayed. The live workflow checks the official schedule every five minutes and uses per-game CPU jobs; it cannot guarantee an exact tip-off start. Review its final-whistle behavior and private storage before enabling it.
+
 > **Integrated Pulse CPU execution boundary (28 Oct 2026):** source-native access is separate from strict acceptance. The private NBA tracking product now treats its conservative official NBA lineup/time acceptance subset as a research/quality cohort rather than a filter on the original captured source. Public CPU runners may verify private-source coverage and confidence strata **only** with the existing authorized ephemeral private checkout and source-integrity controls; original player/ball XYZ, proprietary actor traces, source data and detailed private candidate outputs must never be published here. Model promotions require private accepted QA. The private canonical PR documents the methodological decision; this public repository remains an orchestration layer only.
 
 
