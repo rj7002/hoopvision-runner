@@ -1,0 +1,40 @@
+# Independent original-source read-only audit; private coordinates never printed or exported.
+name: IGP 0211 independent native ten player ball running clock completeness audit
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/gamepulse-0211-10ball-clock-audit-20261111.yml
+permissions:
+  contents: read
+concurrency:
+  group: igp-0211-10ball-independent-readonly-audit
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Enforce source safety and strict private access
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Independently SHA-verify original XYZ and compare NBA running-clock frames
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --filter=blob:none --sparse -b research/gamepulse-clock-boundary-integrity-20261025 https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/qa/igp_0211_source_completeness_audit.py
+          python3 gamepulse/fusion/qa/igp_0211_source_completeness_audit.py \
+            --index gamepulse/fusion/materialized/igp_0211_original_gameplay_source_v1/index.json \
+            --companion gamepulse/fusion/evidence/companion_sdk_original_0022600211/sdk_observed_original.json
+          echo IGP_0211_ORIGINAL_10PLAYER_BALL_AUDIT_COMPLETED_NO_COORDINATE_EXPORT
