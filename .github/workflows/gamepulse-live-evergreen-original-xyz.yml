@@ -1,0 +1,92 @@
+name: Integrated Pulse permanent NBA original XYZ live capture
+# Every NBA season/date via official schedule, not fixed team/game-ID list.
+# Authenticated original SDK only; raw slots and XYZ only in private timeedmonds-maker/104.
+# CPU-only GitHub ubuntu-24.04: no GPU or inference. Zero-XYZ produces retry failure.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/gamepulse-live-evergreen-original-xyz.yml'
+      - 'tools/licensed_feed/live_realtime_all_games.mjs'
+      - 'tools/licensed_feed/live_evergreen_discovery.mjs'
+      - 'tools/licensed_feed/live_evergreen_discovery.test.mjs'
+permissions:
+  contents: read
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    outputs:
+      games: ${{ steps.games.outputs.games }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Test original SDK code, multi-season official schedule and public-private boundary
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          node --check tools/licensed_feed/live_realtime_all_games.mjs
+          node --check tools/licensed_feed/live_evergreen_discovery.mjs
+          node --test tools/licensed_feed/live_evergreen_discovery.test.mjs
+      - name: Discover every active or imminent NBA game from official schedule
+        id: games
+        run: |
+          set -euo pipefail
+          node tools/licensed_feed/live_evergreen_discovery.mjs
+  original-xyz:
+    needs: discover
+    if: needs.discover.result == 'success'
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        game: ${{ fromJSON(needs.discover.outputs.games) }}
+    concurrency:
+      group: igp-evergreen-live-original-${{ matrix.game.id }}
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        if: matrix.game.id != 'none'
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        if: matrix.game.id != 'none'
+        with: {node-version: '22'}
+      - name: Require authorized private repository
+        if: matrix.game.id != 'none'
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Install existing licensed NBA SDK on CPU without scripts
+        if: matrix.game.id != 'none'
+        working-directory: tools/licensed_feed
+        run: |
+          set -euo pipefail
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Save original player-ball XYZ to private Git with remote SHA readback
+        if: matrix.game.id != 'none'
+        working-directory: tools/licensed_feed
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          GAMEPULSE_LIVE_ID: ${{ matrix.game.id }}
+          GAMEPULSE_LIVE_TIPOFF: ${{ matrix.game.tipoff }}
+          IGP_REALTIME_CAPTURE_MS: '210000'
+          IGP_REALTIME_PRETIPOFF_WAIT_MS: '720000'
+          IGP_REALTIME_FLUSH_MS: '40000'
+        run: |
+          set -euo pipefail
+          node live_realtime_all_games.mjs
+      - name: Do not certify full game from partial source
+        if: always() && matrix.game.id != 'none'
+        run: |
+          echo 'Only authentic private NBA SDK original slots; check remote SHA and both player/ball timestamp counts. No GPU, no inferred tracking.' >> "$GITHUB_STEP_SUMMARY"
