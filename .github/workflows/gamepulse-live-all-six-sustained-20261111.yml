@@ -1,5 +1,6 @@
 name: IGP live original XYZ all six Nov10 NBA games sustained
 # CPU-only source capture US Nov 10 2026 six exact NBA game IDs.
+# Retigger verified Git-based private archive fallback to correct earlier release API storage failures.
 # Original SDK responses go only to private 104 gamepulse-live-sdk-<game> release.
 # No post-final replay dependency, no imputed source observations, and no GPU.
 on:
