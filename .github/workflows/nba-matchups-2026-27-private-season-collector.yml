@@ -1,0 +1,41 @@
+name: NBA 2026-27 complete defensive matchup season to private 104
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/nba-matchups-2026-27-private-season-collector.yml'
+      - 'tools/nba_matchups_2026_27_private_season_ingest.py'
+  workflow_dispatch:
+  schedule:
+    - cron: '35 16 * * *'
+permissions: {contents: read}
+concurrency:
+  group: nba-2026-27-defensive-matchups-private-source-only
+  cancel-in-progress: false
+jobs:
+  season:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce audited public bridge and private 104 access
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = "true"
+          echo "NBA_MATCHUP_PRIVATE_104_ONLY_VERIFIED"
+          echo "FREE_PUBLIC_CPU_AND_OFFICIAL_NBA_PUBLIC_SOURCE"
+          echo "PUBLIC_LOGS_ONLY_AGGREGATE_SOURCE_QA"
+      - name: Recover season inventory, full official defender/offender source and private atomic materialization
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/nba_matchups_2026_27_private_season_ingest.py
+      - name: Confirm private-only completion
+        run: echo "NBA_2026_27_MATCHUP_SOURCE_INGEST_AND_ATOMIC_PRIVATE_WRITE_COMPLETED"
