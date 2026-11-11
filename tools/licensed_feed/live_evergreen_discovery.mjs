@@ -110,7 +110,8 @@ export function finalWatchPollMs(tipoff,now){
 }
 export async function watchAndCaptureOnFinal({
  gameId,tipoff,request=fetch,now=()=>Date.now(),pause=ms=>new Promise(r=>setTimeout(r,ms)),
- launch=async()=>{throw Error('no_capture_launcher');}
+ launch=async()=>{throw Error('no_capture_launcher');},
+ claim=async()=>true,report=async()=>{}
 }){
  if(!NBA_GAME_ID.test(gameId)||!Number.isSafeInteger(tipoff))
   throw Error('invalid_final_watch_identity');
@@ -145,7 +146,13 @@ export async function watchAndCaptureOnFinal({
    console.log('IGP_EVERGREEN_FRESH_FINAL_CAPTURE_TRIGGER',JSON.stringify({
     game_id:gameId,final_observed_at_utc:new Date(now()).toISOString(),
     official_evidence:origin,polls,errors}));
-   return await launch();
+   if(!(await claim())){
+    console.log('IGP_EVERGREEN_FINAL_CAPTURE_ALREADY_ATTEMPTED',gameId);
+    return 0;
+   }
+   let result=4;
+   try{result=await launch();return result;}
+   finally{await report(result);}
   }
   if(polls%30===0)console.log('IGP_EVERGREEN_FINAL_WATCH_ALIVE',
    JSON.stringify({game_id:gameId,polls,errors,official_status:state}));
@@ -154,6 +161,55 @@ export async function watchAndCaptureOnFinal({
  console.error('IGP_EVERGREEN_FINAL_WATCH_EXPIRED',gameId,polls,errors);
  throw Error('official_final_not_observed_before_watch_deadline');
 }
+
+/** Small private-only control checkpoint, to avoid relaunching the same FINAL
+ * capture each time the 5-minute GitHub schedule re-discovers a finished game.
+ * A failure gets up to three attempts; a successful source read ends retries.
+ * No source coordinates, URLs, signing tokens or SDK payloads are stored here.
+ */
+function finalMonitorCheckpointPath(gameId,tipoff){
+ return 'gamepulse/fusion/live_original_'+new Date(tipoff).toISOString().slice(0,10).replaceAll('-','')+
+  '/'+gameId+'/completion-trigger-control.json';
+}
+async function readFinalMonitorCheckpoint(gameId,tipoff){
+ const {execFileSync}=await import('node:child_process');
+ const path=finalMonitorCheckpointPath(gameId,tipoff);
+ const endpoint='repos/timeedmonds-maker/104/contents/'+path+
+  '?ref=research/gamepulse-clock-boundary-integrity-20261025';
+ try{
+  const raw=execFileSync('gh',['api',endpoint],{
+   encoding:'utf8',timeout:15000,maxBuffer:2*1024*1024,stdio:['ignore','pipe','pipe']
+  });
+  const file=JSON.parse(raw);
+  if(!file?.sha||!file?.content)throw Error('private_final_checkpoint_invalid');
+  const state=JSON.parse(Buffer.from(file.content.replace(/\s/g,''),'base64').toString('utf8'));
+  if(state.game_id!==gameId)throw Error('private_final_checkpoint_identity_mismatch');
+  return {sha:file.sha,state};
+ }catch(e){
+  const stderr=String(e?.stderr||'');
+  if(stderr.includes('404')||stderr.includes('Not Found'))return null;
+  throw Error('private_final_checkpoint_unavailable');
+ }
+}
+async function writeFinalMonitorCheckpoint(gameId,tipoff,state){
+ const {execFileSync}=await import('node:child_process');
+ const path=finalMonitorCheckpointPath(gameId,tipoff);
+ for(let attempt=0;attempt<3;attempt++){
+  const old=await readFinalMonitorCheckpoint(gameId,tipoff);
+  const args=['api','--method','PUT','repos/timeedmonds-maker/104/contents/'+path,
+   '-f','message=data(igp): private NBA final source capture checkpoint '+gameId,
+   '-f','branch=research/gamepulse-clock-boundary-integrity-20261025',
+   '-f','content='+Buffer.from(JSON.stringify(state)+'\n').toString('base64')];
+  if(old?.sha)args.push('-f','sha='+old.sha);
+  try{
+   execFileSync('gh',args,{timeout:20000,maxBuffer:256*1024,stdio:['ignore','pipe','pipe']});
+   return;
+  }catch(e){
+   if(attempt===2)throw Error('private_final_checkpoint_write_unavailable');
+  }
+ }
+}
+
 if(process.argv[1]?.endsWith('live_evergreen_discovery.mjs')){
  const fs=await import('node:fs');
  if(process.argv[2]==='--watch-final'){
@@ -161,8 +217,30 @@ if(process.argv[1]?.endsWith('live_evergreen_discovery.mjs')){
    const gameId=process.env.GAMEPULSE_LIVE_ID;
    const tipoff=Date.parse(process.env.GAMEPULSE_LIVE_TIPOFF||'');
    const {spawn}=await import('node:child_process');
+   let state=null;
    const result=await watchAndCaptureOnFinal({
     gameId,tipoff,
+    claim:async()=>{
+     const existing=await readFinalMonitorCheckpoint(gameId,tipoff);
+     state=existing?.state||null;
+     const age=state?.last_attempt_utc?Date.now()-Date.parse(state.last_attempt_utc):Infinity;
+     if(state?.success===true||state?.attempts>=3||
+       (age>=0&&age<120000))return false;
+     state={schema:'igp.final-completion-monitor.v1',game_id:gameId,
+      first_final_observed_utc:state?.first_final_observed_utc||new Date().toISOString(),
+      attempts:(state?.attempts||0)+1,
+      last_attempt_utc:new Date().toISOString(),
+      status:'in_progress',success:false};
+     await writeFinalMonitorCheckpoint(gameId,tipoff,state);
+     return true;
+    },
+    report:async code=>{
+     if(!state)return;
+     state={...state,status:code===0?'original_xyz_capture_success':'source_retry_required',
+      success:code===0,last_completed_utc:new Date().toISOString()};
+     try{await writeFinalMonitorCheckpoint(gameId,tipoff,state);}
+     catch{console.error('IGP_FINAL_MONITOR_CHECKPOINT_RETRY_REQUIRED',gameId);}
+    },
     launch:()=>new Promise((resolve,reject)=>{
      const child=spawn(process.execPath,['live_realtime_all_games.mjs'],{
       cwd:import.meta.dirname,
