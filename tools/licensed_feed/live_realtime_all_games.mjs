@@ -1,7 +1,7 @@
 /**
  * Original NBA player/ball positions captured as the game unfolds.
  * Store ONLY SDK-observed authenticated slot responses in protected private Git and, if needed, private Release assets.
- * Live clock only; no replay-seek window recovery, credentials rewriting, or fabricated XYZ.
+ * Live-first original collection plus bounded SDK-native historical seeks while the\n * authorised in-game session is active; no token replay, disabled-app bypass,\n * extrapolation, or fabricated XYZ. Sources and audit receipts remain private.
  */
 import puppeteer from 'puppeteer-core';
 import {build} from 'esbuild';
