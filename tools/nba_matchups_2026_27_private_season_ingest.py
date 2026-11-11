@@ -412,6 +412,33 @@ def materialize(cache, finals, pending, dates, errors, end_date):
         "dates": dates, "games": per_game, "failures": errors,
         "live_or_scheduled_game_ids": sorted(pending),
     }
+    # Every completed NBA game is represented, including true source gaps.
+    # A missing published matchup is UNKNOWN, never a zero-matchup game.
+    by_game = {r["game_id"]: r for r in per_game}
+    coverage_path = WORK / "matchup_game_coverage.csv"
+    with coverage_path.open("w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=[
+            "nba_game_id", "game_date_us", "home", "away",
+            "official_game_final", "matchup_source_status", "source_format",
+            "source_pair_rows", "source_sha256",
+        ], lineterminator="\n")
+        w.writeheader()
+        for gid, record in sorted(finals.items()):
+            p = by_game.get(gid)
+            w.writerow({
+                "nba_game_id": gid,
+                "game_date_us": record["date_us"],
+                "home": record["home"],
+                "away": record["away"],
+                "official_game_final": 1,
+                "matchup_source_status": "SOURCE_VERIFIED" if p else "SOURCE_NOT_PUBLISHED",
+                "source_format": source_formats.get(gid, "") if p else "",
+                "source_pair_rows": p["pair_rows"] if p else "",
+                "source_sha256": p["source_sha256"] if p else "",
+            })
+    qa["game_coverage_csv_sha256"] = sha(coverage_path.read_bytes())
+    qa["game_coverage_rows"] = len(finals)
+    qa["source_missing_not_a_zero_matchup"] = True
     qa_file = WORK / "matchups_qa.json"
     qa_file.write_text(json.dumps(qa, sort_keys=True, indent=2,
                                  ensure_ascii=False) + "\n", encoding="utf-8")
@@ -419,7 +446,7 @@ def materialize(cache, finals, pending, dates, errors, end_date):
 
 
 def publish_release(archive, csv_file, qa_file, manifest):
-    hashid = sha(archive.read_bytes())[:12]
+    hashid = sha(archive.read_bytes() + qa_file.read_bytes())[:12]
     # Immutable evidence snapshot and a rolling latest cache for incremental
     # future games; all assets remain exclusively in PRIVATE 104 Releases.
     snapshot = f"nba-2026-27-matchups-{manifest['through_us_date']}-{hashid}"
@@ -434,6 +461,7 @@ def publish_release(archive, csv_file, qa_file, manifest):
                           " allocations, not physically certified per-shot defender IDs.")
         if not (exists and snapshot_mode):
             gh("release", "upload", tag, str(archive), str(csv_file), str(qa_file),
+               str(WORK / "matchup_game_coverage.csv"),
                "--repo", REPO, "--clobber")
     return snapshot
 
@@ -445,6 +473,7 @@ def put_private_database(csv_file, qa_file, release_tag, qa):
     targets = {
         SEASON_PATH + "/defender_offender_matchups.csv": csv_file,
         SEASON_PATH + "/matchups_qa.json": qa_file,
+        SEASON_PATH + "/matchup_game_coverage.csv": WORK / "matchup_game_coverage.csv",
     }
     pointer = WORK / "matchup_release_pointer.json"
     pointer.write_text(json.dumps({
@@ -547,8 +576,20 @@ def main():
             err["error"].split(":")[0] for err in failures)),
     }, sort_keys=True), flush=True)
     if qa["source_missing_final_games"]:
-        # Retries remain scheduled; expose incomplete status rather than
-        # falsely claiming the dataset has all completed NBA games.
+        # The documented 0022600189 Mexico City game has valid NBA final
+        # box-score/PBP but no published player matchup pairs in either official
+        # NBA V3 or legacy defensiveboxscore source. Keep it missing and retry
+        # every scheduled job. Do not pretend zero matchup pairs or an observed
+        # 154/154. Only this individually reverified source-empty case is
+        # informational; new missing cases still cause a CI failure.
+        source_empty = {
+            x["game_id"] for x in failures
+            if "boxscorematchupsv3_ValueError:INVALID_MATCHUP_TEAM_IDS_" in x["error"]
+            and "defensiveboxscore_ValueError:INVALID_MATCHUP_GAME_OR_SCHEMA_" in x["error"]
+        }
+        if set(qa["missing_final_game_ids"]) == {"0022600189"} and source_empty == {"0022600189"}:
+            print("NBA_OFFICIAL_SOURCE_UNPUBLISHED_0022600189_RETRY_SCHEDULED", flush=True)
+            return
         print("PARTIAL_SOURCE_COVERAGE_RETRY_REQUIRED", len(failures), flush=True)
         sys.exit(2)
 
