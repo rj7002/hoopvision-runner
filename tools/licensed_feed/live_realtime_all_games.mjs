@@ -21,6 +21,7 @@ const REPO='timeedmonds-maker/104';
 const TOKEN=process.env.GH_TOKEN;
 const sleep=ms=>new Promise(done=>setTimeout(done,ms));
 const CAPTURE_MS=Number(process.env.IGP_REALTIME_CAPTURE_MS||185000);
+const LIVE_STOP_MS=Number(process.env.IGP_REALTIME_LIVE_STOP_MS||300*60000);
 const PRETIPOFF_WAIT_MS=Number(process.env.IGP_REALTIME_PRETIPOFF_WAIT_MS||0);
 const FLUSH_MS=Number(process.env.IGP_REALTIME_FLUSH_MS||40000);
 const sha=b=>createHash('sha256').update(b).digest('hex');
@@ -145,7 +146,8 @@ async function main(){
   ||!['schedule','workflow_dispatch','push'].includes(process.env.GITHUB_EVENT_NAME)
   ||!/^00[1-5]\d{7}$/.test(GAME||'')||!Number.isSafeInteger(START)
   ||!TOKEN||TOKEN.length<30)throw Error('unauthorized_live_collection');
- if(!Number.isSafeInteger(CAPTURE_MS)||CAPTURE_MS<30000||CAPTURE_MS>16000000
+ if(!Number.isSafeInteger(CAPTURE_MS)||CAPTURE_MS<30000||CAPTURE_MS>19200000
+   ||!Number.isSafeInteger(LIVE_STOP_MS)||LIVE_STOP_MS<600000||LIVE_STOP_MS>21000000
   ||!Number.isSafeInteger(PRETIPOFF_WAIT_MS)||PRETIPOFF_WAIT_MS<0||PRETIPOFF_WAIT_MS>14400000
   ||!Number.isSafeInteger(FLUSH_MS)||FLUSH_MS<20000||FLUSH_MS>180000)throw Error('invalid_live_duration');
  let now=Date.now();
@@ -155,7 +157,7 @@ async function main(){
    while(Date.now()<START-2*60000)await sleep(Math.min(30000,Math.max(1000,START-2*60000-Date.now())));
    now=Date.now();
  }
- if(now<START-2*60000||now>START+6*3600000){
+ if(now<START-2*60000||now>START+LIVE_STOP_MS){
   console.log('REALTIME_OUTSIDE_SOURCE_WINDOW',GAME);return;
  }
  // Keep GitHub storage secrets away from the browser and SDK bundle.
@@ -230,7 +232,7 @@ async function main(){
      ||!u.pathname.endsWith('/events/slot'))return;
     const from=Number(u.searchParams.get('from'));
     if(!Number.isSafeInteger(from)||from%5000!==0
-     ||from<START-20*60000||from>START+6*3600000)return;
+     ||from<START-20*60000||from>START+LIVE_STOP_MS)return;
     lastSdkResponse=Date.now();
     const p=response.json().then(events=>{
      if(!Array.isArray(events))return;
@@ -255,8 +257,10 @@ async function main(){
   if(init==='error')throw Error('sdk_initialization_failed');
   // Prefer authenticated private Git commits: release REST API can be temporarily throttled.
   // Keep the browser alive and the uncommitted source buffer if private storage fails.
-  let nextFlush=Date.now()+FLUSH_MS;
-  const deadline=Date.now()+CAPTURE_MS;
+  let nextFlush=Date.now()+FLUSH_MS, nextStatusCheck=Date.now()+120000;
+  let finalObservedAt=null;
+  // A delayed runner cannot silently extend a nominally live capture into postgame.
+  const deadline=Math.min(Date.now()+CAPTURE_MS,START+LIVE_STOP_MS);
   while(Date.now()<deadline){
    // Emit actual advancing live player time, not arbitrary post-final seeks.
    const liveMs=Date.now()-1500;
@@ -275,6 +279,23 @@ async function main(){
      game_id:GAME,seconds_since_source:Math.round((Date.now()-lastSdkResponse)/1000),
      seconds_since_xyz:lastLiveXYZ?Math.round((Date.now()-lastLiveXYZ)/1000):null,
      buffered_source_responses:buffer.size,storage_retries:storageRetries}));
+   }
+   if(Date.now()>nextStatusCheck){
+    nextStatusCheck=Date.now()+120000;
+    // Advisory official scoreboard: failures never invalidate authentic SDK source.
+    void fetch('https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json',{
+     headers:{Accept:'application/json','User-Agent':'Mozilla/5.0'},
+     signal:AbortSignal.timeout(10000)
+    }).then(r=>r.ok?r.json():null).then(doc=>{
+     if(!doc?.leagueSchedule?.gameDates)return;
+     const row=doc.leagueSchedule.gameDates.flatMap(d=>d.games||[])
+      .find(g=>String(g.gameId)===GAME);
+     if(Number(row?.gameStatus)===3)finalObservedAt??=Date.now();
+    }).catch(()=>{});
+   }
+   if(finalObservedAt&&Date.now()-finalObservedAt>180000){
+    console.log('IGP_LIVE_OFFICIAL_FINAL_GRACE_COMPLETE',GAME);
+    break;
    }
    if(Date.now()>START+14*60000&&Date.now()-lastSdkResponse>120000)
     throw Error('sdk_source_watchdog_timeout');
