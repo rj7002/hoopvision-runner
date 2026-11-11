@@ -1,0 +1,36 @@
+# GitHub's cron is unreliable (this fork's */5 schedule fired once in the 8 hours after it was enabled), so this job
+# starts the capture workflow itself every 5 minutes. Before its 6-hour job limit it starts a fresh keeper, which waits
+# in the concurrency queue until this one ends, so dispatching never pauses. The 15-minute cron below only restarts
+# the chain if it ever dies; the concurrency group means an extra keeper just waits its turn.
+name: Keeper (starts the live capture workflow every 5 minutes)
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+permissions:
+  actions: write
+  contents: read
+concurrency:
+  group: keeper
+  cancel-in-progress: false
+jobs:
+  keep:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355
+    steps:
+      - name: Start the capture workflow every 5 minutes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          CAPTURE=gamepulse-live-evergreen-original-xyz.yml
+          handover=$((SECONDS + 20100))  # 5 h 35 min: queue the next keeper
+          end=$((SECONDS + 20700))       # 5 h 45 min: stop
+          queued=0
+          while [ "$SECONDS" -lt "$end" ]; do
+            gh workflow run "$CAPTURE" --ref main || echo "dispatch failed; trying again in 5 minutes"
+            if [ "$queued" = 0 ] && [ "$SECONDS" -ge "$handover" ]; then
+              gh workflow run keeper.yml --ref main && queued=1
+            fi
+            sleep 300
+          done
