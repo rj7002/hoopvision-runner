@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-0211-targeted-postfinal-recovery.yml",  # bounded original SDK part 6 0022600211 CPU retry, private 104 SHA archive and aggregate-only public source QA
     ".github/workflows/gamepulse-live-evergreen-original-xyz.yml",  # reviewed all-season free-hosted CPU NBA SDK genuine original XYZ; private 104 only, SHA remote readback, no private source in public logs
     "tools/licensed_feed/live_realtime_all_games.mjs",  # authenticated official NBA SDK slot response only, immutable private branch/Release SHA-readback, no coordinates in public
     "tools/licensed_feed/live_evergreen_discovery.mjs",  # official public NBA game IDs and schedules only, no licensed coordinates
