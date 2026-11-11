@@ -2,6 +2,7 @@ name: Integrated Pulse Nov11 live original XYZ source capture
 # Manual live Bucks-Knicks kickoff trigger: 2026-11-11 00:40 UTC.
 # Continue verified original player-ball live capture after first 39 original SDK slot readbacks.
 # Reviewed source-guard allowlist and CPU-only live observation readiness.
+# Immediate live-start retrigger for US Nov 10 games; preserve original SDK-only private archive.
 # One-day source-only experiment: observe the live SDK positions program, not postgame replay.
 # Keep existing full-game and live-first workflows untouched; store raw licensed data privately.
 on:
