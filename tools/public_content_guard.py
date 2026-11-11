@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/nba-matchups-2026-27-private-season-collector.yml",  # CPU official public NBA stats; all player-pair rows and raw source kept private 104 via authorized release token; public aggregate QA only
+    "tools/nba_matchups_2026_27_private_season_ingest.py",  # direct official NBA scoreboard + matchup V3 source, SHA original bytes private, no coordinates or private source in public logs
     ".github/workflows/gamepulse-live-original-realtime-20261111.yml",  # reviewed one-day CPU SDK live-only source acquisition; raw NBA XYZ remains in private 104, public logs aggregate counts and SHA only
     "tools/licensed_feed/live_realtime_20261111.mjs",  # authorised live SDK slot responses only; SHA-verified private Release, no tokens, licensed bytes or player coordinates in public logs
     ".github/workflows/gamepulse-igp-full154-sdk-position-diagnostic-20261110.yml",  # reviewed CPU-only SDK positions probe; no source XYZ, credentials or raw responses exposed publicly
