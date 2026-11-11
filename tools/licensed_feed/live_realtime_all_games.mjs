@@ -15,6 +15,7 @@ import {createHash} from 'node:crypto';
 import {gzipSync} from 'node:zlib';
 import {sourceBackfillCandidates,officialFinalFromBoxscore,officialFinalFromSchedule,postfinalWindowDecision} from './live_evergreen_discovery.mjs';
 import {slotRequestUrl} from './sdk_slot.mjs';
+import {planGame} from './season_core.mjs';
 
 const ROOT=import.meta.dirname;
 const GAME=process.env.GAMEPULSE_LIVE_ID;
@@ -425,19 +426,18 @@ async function main(){
   async function drainSignedOriginalAtFinal(){
     if(!finalObservedAt||!observedSdkIssuedSlotUrl||disabledAt)return;
     signedDrainActive=true;
-    const begin=Math.floor((START-600000)/5000)*5000;
-    const end=Math.floor((START+5*3600000)/5000)*5000;
+    const plan=planGame({id:GAME,start:START});
+    if(plan.windows!==3720||plan.parts.length!==13)
+      throw Error('postfinal_original_sdk_plan_invalid');
     const order=[6,5,4,3,2,1,7,0,8,9,10,11,12];
     const statuses={},deadline=finalObservedAt+16*60000;
     let denied=false,requested=0,accepted=0,rich=0,invalid=0;
     try{
       for(const part of order){
         if(signedDrainStop||denied||disabledAt||Date.now()>=deadline)break;
-        const from=begin+part*300*5000;
-        const count=Math.min(300,Math.max(0,(end-from)/5000));
-        if(count<=0)continue;
-        const job={game_id:GAME,part,start_ms:from,count,
-          program_id:'companion-'+GAME+'-positions'};
+        const job=plan.parts[part];
+        if(!job||job.count<=0)throw Error('postfinal_part_outside_sdk_plan');
+        const from=job.start_ms,count=job.count;
         const todo=Array.from({length:count},(_,i)=>from+i*5000)
           .filter(t=>!observedPlayerBallSlots.has(t));
         let cursor=0;
